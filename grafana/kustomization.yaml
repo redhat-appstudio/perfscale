@@ -14,3 +14,6 @@ configMapGenerator:
   - name: pipelineruns-performance
     files:
       - dashboards/pipelineruns-performance.json
+  - name: rhtap-performance
+    files:
+      - dashboards/rhtap-performance.json

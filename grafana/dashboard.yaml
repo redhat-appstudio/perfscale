@@ -31,3 +31,14 @@ spec:
   configMapRef:
     name: pipelineruns-performance
     key: pipelineruns-performance.json
+---
+apiVersion: integreatly.org/v1alpha1
+kind: GrafanaDashboard
+metadata:
+  name: rhtap-performance
+  labels:
+    app: appstudio-grafana
+spec:
+  configMapRef:
+    name: rhtap-performance
+    key: rhtap-performance.json
