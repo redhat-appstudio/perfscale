@@ -1,24 +1,4 @@
 {
-  "title": "PipelineRuns and TaskRuns",
-  "uid": "34f3f2250ecdf7637f8f92b920f5dcfd5da27b3a",
-  "version": 1,
-  "editable": true,
-  "id": 2,
-  "links": [],
-  "tags": [],
-  "time": {
-    "from": "now-24h",
-    "to": "now"
-  },
-  "schemaVersion": 27,
-  "style": "dark",
-  "templating": {
-    "list": []
-  },
-  "timepicker": {},
-  "timezone": "",
-  "gnetId": null,
-  "graphTooltip": 0,
   "annotations": {
     "list": [
       {
@@ -37,6 +17,11 @@
       }
     ]
   },
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": 11,
+  "links": [],
   "panels": [
     {
       "aliasColors": {},
@@ -100,7 +85,9 @@
         }
       ],
       "thresholds": [],
+      "timeFrom": null,
       "timeRegions": [],
+      "timeShift": null,
       "title": "PipelineRun and TaskRun count by status",
       "tooltip": {
         "shared": true,
@@ -200,7 +187,9 @@
         }
       ],
       "thresholds": [],
+      "timeFrom": null,
       "timeRegions": [],
+      "timeShift": null,
       "title": "Running PipelineRuns and TaskRuns count",
       "tooltip": {
         "shared": true,
@@ -285,7 +274,7 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 9,
+        "h": 8,
         "w": 12,
         "x": 0,
         "y": 8
@@ -372,7 +361,9 @@
         }
       ],
       "thresholds": [],
+      "timeFrom": null,
       "timeRegions": [],
+      "timeShift": null,
       "title": "TaskRun duration rate by Namespace",
       "tooltip": {
         "shared": true,
@@ -409,6 +400,128 @@
         "align": false,
         "alignLevel": null
       }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": null,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "hiddenSeries": false,
+      "id": 10,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
+      "percentage": false,
+      "pluginVersion": "7.5.17",
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": true,
+      "steppedLine": false,
+      "targets": [
+        {
+          "exemplar": true,
+          "expr": "sum(tekton_pipelines_controller_running_taskruns_throttled_by_quota_count)",
+          "interval": "",
+          "legendFormat": "by quota",
+          "refId": "A"
+        },
+        {
+          "exemplar": true,
+          "expr": "sum(tekton_pipelines_controller_running_taskruns_throttled_by_node_count)",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "by node",
+          "refId": "B"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Count of throttled TaskRuns",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "$$hashKey": "object:144",
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": "0",
+          "show": true
+        },
+        {
+          "$$hashKey": "object:145",
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
     }
-  ]
+  ],
+  "refresh": false,
+  "schemaVersion": 27,
+  "style": "dark",
+  "tags": [],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "PipelineRuns and TaskRuns",
+  "uid": "bda4e90371658b3f0cc6baa76ffff91662085e73",
+  "version": 1
 }
