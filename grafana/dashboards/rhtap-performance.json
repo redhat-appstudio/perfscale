@@ -846,7 +846,7 @@
       "type": "row"
     },
     {
-      "collapsed": false,
+      "collapsed": true,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -854,541 +854,6 @@
         "y": 2
       },
       "id": 37,
-      "panels": [],
-      "title": "Namespaces",
-      "type": "row"
-    },
-    {
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "bytes"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 3
-      },
-      "id": 45,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "9.1.6",
-      "targets": [
-        {
-          "editorMode": "code",
-          "exemplar": true,
-          "expr": "topk(10, sum(container_memory_rss{container!=\"POD\",name!=\"\"}) by (namespace))",
-          "interval": "",
-          "legendFormat": "{{ namespace }}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Top 10 namespaces by RSS memory",
-      "type": "timeseries"
-    },
-    {
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 3
-      },
-      "id": 46,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "9.1.6",
-      "targets": [
-        {
-          "editorMode": "code",
-          "exemplar": true,
-          "expr": "topk(10, sum(node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate{cluster=\"\"}) by (namespace))",
-          "interval": "",
-          "legendFormat": "{{ namespace }}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Top 10 namespaces by CPU usage",
-      "type": "timeseries"
-    },
-    {
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "bytes"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 11
-      },
-      "id": 47,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "topk(10, sum(\n  rate(container_fs_reads_bytes_total{id!=\"\", device=~\"(/dev.+)|mmcblk.p.+|nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|dasd.+\", cluster=\"\"}[5m])\n  +\n  rate(container_fs_writes_bytes_total{id!=\"\", device=~\"(/dev.+)|mmcblk.p.+|nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|dasd.+\", cluster=\"\"}[5m])\n) by (namespace))",
-          "legendFormat": "{{namespace}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Top 10 namepaces by disk usage",
-      "type": "timeseries"
-    },
-    {
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "bytes"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 11
-      },
-      "id": 48,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "topk(10, sum(\n  irate(container_network_receive_bytes_total{}[5m])\n  +\n  irate(container_network_transmit_bytes_total{}[5m])\n) by (namespace))",
-          "legendFormat": "{{namespace}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Top 10 namespaces by network usage",
-      "type": "timeseries"
-    },
-    {
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 19
-      },
-      "id": 16,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "9.1.6",
-      "targets": [
-        {
-          "editorMode": "code",
-          "exemplar": true,
-          "expr": "topk(10, count(kube_deployment_labels{}) by (namespace))",
-          "interval": "",
-          "legendFormat": "{{namespace}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Top 10 namespaces by deployments count",
-      "type": "timeseries"
-    },
-    {
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 19
-      },
-      "id": 20,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "9.1.6",
-      "targets": [
-        {
-          "editorMode": "code",
-          "exemplar": true,
-          "expr": "topk(10, count(openshift_route_info{}) by (namespace))",
-          "interval": "",
-          "legendFormat": "{{namespace}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Top 10 namespaces by routes count",
-      "type": "timeseries"
-    },
-    {
-      "collapsed": true,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 27
-      },
-      "id": 34,
       "panels": [
         {
           "fieldConfig": {
@@ -1448,9 +913,9 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 28
+            "y": 3
           },
-          "id": 18,
+          "id": 45,
           "options": {
             "legend": {
               "calcs": [],
@@ -1467,23 +932,15 @@
           "targets": [
             {
               "editorMode": "code",
-              "expr": "sum(container_memory_rss{namespace=~\".*-tenant\",container!=\"POD\",name!=\"\"})",
-              "hide": false,
-              "legendFormat": "SUM",
-              "range": true,
-              "refId": "B"
-            },
-            {
-              "editorMode": "code",
               "exemplar": true,
-              "expr": "topk(10, sum(container_memory_rss{namespace=~\".*-tenant\",container!=\"POD\",name!=\"\"}) by (namespace))",
+              "expr": "topk(10, sum(container_memory_rss{container!=\"POD\",name!=\"\"}) by (namespace))",
               "interval": "",
               "legendFormat": "{{ namespace }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Top 10 tenants by RSS memory",
+          "title": "Top 10 namespaces by RSS memory",
           "type": "timeseries"
         },
         {
@@ -1544,9 +1001,9 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 28
+            "y": 3
           },
-          "id": 41,
+          "id": 46,
           "options": {
             "legend": {
               "calcs": [],
@@ -1563,23 +1020,15 @@
           "targets": [
             {
               "editorMode": "code",
-              "expr": "sum(node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate{cluster=\"\", namespace=~\".*-tenant\"})",
-              "hide": false,
-              "legendFormat": "SUM",
-              "range": true,
-              "refId": "B"
-            },
-            {
-              "editorMode": "code",
               "exemplar": true,
-              "expr": "topk(10, sum(node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate{cluster=\"\", namespace=~\".*-tenant\"}) by (namespace))",
+              "expr": "topk(10, sum(node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate{cluster=\"\"}) by (namespace))",
               "interval": "",
               "legendFormat": "{{ namespace }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Top 10 tenants by CPU usage",
+          "title": "Top 10 namespaces by CPU usage",
           "type": "timeseries"
         },
         {
@@ -1623,7 +1072,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -1639,9 +1089,9 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 36
+            "y": 11
           },
-          "id": 43,
+          "id": 47,
           "options": {
             "legend": {
               "calcs": [],
@@ -1657,21 +1107,13 @@
           "targets": [
             {
               "editorMode": "code",
-              "expr": "sum(\n  rate(container_fs_reads_bytes_total{id!=\"\", device=~\"(/dev.+)|mmcblk.p.+|nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|dasd.+\", cluster=\"\", namespace=~\".*-tenant\"}[5m])\n  +\n  rate(container_fs_writes_bytes_total{id!=\"\", device=~\"(/dev.+)|mmcblk.p.+|nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|dasd.+\", cluster=\"\", namespace=~\".*-tenant\"}[5m])\n)",
-              "hide": false,
-              "legendFormat": "SUM",
-              "range": true,
-              "refId": "B"
-            },
-            {
-              "editorMode": "code",
-              "expr": "topk(10, sum(\n  rate(container_fs_reads_bytes_total{id!=\"\", device=~\"(/dev.+)|mmcblk.p.+|nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|dasd.+\", cluster=\"\", namespace=~\".*-tenant\"}[5m])\n  +\n  rate(container_fs_writes_bytes_total{id!=\"\", device=~\"(/dev.+)|mmcblk.p.+|nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|dasd.+\", cluster=\"\", namespace=~\".*-tenant\"}[5m])\n) by (namespace))",
+              "expr": "topk(10, sum(\n  rate(container_fs_reads_bytes_total{id!=\"\", device=~\"(/dev.+)|mmcblk.p.+|nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|dasd.+\", cluster=\"\"}[5m])\n  +\n  rate(container_fs_writes_bytes_total{id!=\"\", device=~\"(/dev.+)|mmcblk.p.+|nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|dasd.+\", cluster=\"\"}[5m])\n) by (namespace))",
               "legendFormat": "{{namespace}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Top 10 tenants by disk activity",
+          "title": "Top 10 namepaces by disk usage",
           "type": "timeseries"
         },
         {
@@ -1715,7 +1157,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -1731,9 +1174,9 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 36
+            "y": 11
           },
-          "id": 44,
+          "id": 48,
           "options": {
             "legend": {
               "calcs": [],
@@ -1749,26 +1192,553 @@
           "targets": [
             {
               "editorMode": "code",
-              "expr": "sum(\n  irate(container_network_receive_bytes_total{namespace=~\".*-tenant\"}[5m])\n  +\n  irate(container_network_transmit_bytes_total{namespace=~\".*-tenant\"}[5m])\n)",
-              "hide": false,
-              "legendFormat": "SUM",
-              "range": true,
-              "refId": "B"
-            },
-            {
-              "editorMode": "code",
-              "expr": "topk(10, sum(\n  irate(container_network_receive_bytes_total{namespace=~\".*-tenant\"}[5m])\n  +\n  irate(container_network_transmit_bytes_total{namespace=~\".*-tenant\"}[5m])\n) by (namespace))",
+              "expr": "topk(10, sum(\n  irate(container_network_receive_bytes_total{}[5m])\n  +\n  irate(container_network_transmit_bytes_total{}[5m])\n) by (namespace))",
               "legendFormat": "{{namespace}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Top 10 tenants by network activity",
+          "title": "Top 10 namespaces by network usage",
+          "type": "timeseries"
+        },
+        {
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 19
+          },
+          "id": 16,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "9.1.6",
+          "targets": [
+            {
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "topk(10, count(kube_deployment_labels{}) by (namespace))",
+              "interval": "",
+              "legendFormat": "{{namespace}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Top 10 namespaces by deployments count",
+          "type": "timeseries"
+        },
+        {
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 19
+          },
+          "id": 20,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "9.1.6",
+          "targets": [
+            {
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "topk(10, count(openshift_route_info{}) by (namespace))",
+              "interval": "",
+              "legendFormat": "{{namespace}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Top 10 namespaces by routes count",
           "type": "timeseries"
         }
       ],
+      "title": "Namespaces",
+      "type": "row"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 3
+      },
+      "id": 34,
+      "panels": [],
       "title": "Tenants",
       "type": "row"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "id": 18,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "9.1.6",
+      "targets": [
+        {
+          "editorMode": "code",
+          "exemplar": true,
+          "expr": "topk(10, sum(container_memory_rss{namespace=~\".*-tenant\",container!=\"POD\",name!=\"\"}) by (namespace))",
+          "interval": "",
+          "legendFormat": "{{ namespace }}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Top 10 tenants by RSS memory",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "id": 41,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "9.1.6",
+      "targets": [
+        {
+          "editorMode": "code",
+          "exemplar": true,
+          "expr": "topk(10, sum(node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate{cluster=\"\", namespace=~\".*-tenant\"}) by (namespace))",
+          "interval": "",
+          "legendFormat": "{{ namespace }}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Top 10 tenants by CPU usage",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "id": 43,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "topk(10, sum(\n  rate(container_fs_reads_bytes_total{id!=\"\", device=~\"(/dev.+)|mmcblk.p.+|nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|dasd.+\", cluster=\"\", namespace=~\".*-tenant\"}[5m])\n  +\n  rate(container_fs_writes_bytes_total{id!=\"\", device=~\"(/dev.+)|mmcblk.p.+|nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|dasd.+\", cluster=\"\", namespace=~\".*-tenant\"}[5m])\n) by (namespace))",
+          "legendFormat": "{{namespace}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Top 10 tenants by disk activity",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "id": 44,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "topk(10, sum(\n  irate(container_network_receive_bytes_total{namespace=~\".*-tenant\"}[5m])\n  +\n  irate(container_network_transmit_bytes_total{namespace=~\".*-tenant\"}[5m])\n) by (namespace))",
+          "legendFormat": "{{namespace}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Top 10 tenants by network activity",
+      "type": "timeseries"
     },
     {
       "collapsed": true,
@@ -1776,7 +1746,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 28
+        "y": 20
       },
       "id": 32,
       "panels": [
