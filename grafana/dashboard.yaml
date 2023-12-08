@@ -54,3 +54,17 @@ spec:
   configMapRef:
     name: rhtap-performance
     key: rhtap-performance.json
+---
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: pods-performace
+  labels:
+    app: appstudio-grafana
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: "appstudio-grafana"
+  configMapRef:
+    name: pods-performace
+    key: pods-performace.json
