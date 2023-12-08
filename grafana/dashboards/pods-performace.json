@@ -1067,13 +1067,53 @@
           },
           {
             "selected": false,
+            "text": ".*-build-source-image-pod",
+            "value": ".*-build-source-image-pod"
+          },
+          {
+            "selected": false,
+            "text": ".*-clair-scan-pod",
+            "value": ".*-clair-scan-pod"
+          },
+          {
+            "selected": false,
+            "text": ".*-clamav-scan-pod",
+            "value": ".*-clamav-scan-pod"
+          },
+          {
+            "selected": false,
             "text": ".*-clone-repository-pod",
             "value": ".*-clone-repository-pod"
           },
           {
             "selected": false,
+            "text": ".*-deprecated-base-image-check-pod",
+            "value": ".*-deprecated-base-image-check-pod"
+          },
+          {
+            "selected": false,
             "text": ".*-init-pod",
             "value": ".*-init-pod"
+          },
+          {
+            "selected": false,
+            "text": ".*-inspect-image-pod",
+            "value": ".*-inspect-image-pod"
+          },
+          {
+            "selected": false,
+            "text": ".*-on-pull-request-.*-pod",
+            "value": ".*-on-pull-request-.*-pod"
+          },
+          {
+            "selected": false,
+            "text": ".*-prefetch-dependencies-pod",
+            "value": ".*-prefetch-dependencies-pod"
+          },
+          {
+            "selected": false,
+            "text": ".*-sast-snyk-check-pod",
+            "value": ".*-sast-snyk-check-pod"
           },
           {
             "selected": false,
@@ -1084,9 +1124,14 @@
             "selected": false,
             "text": ".*-show-summary-pod",
             "value": ".*-show-summary-pod"
+          },
+          {
+            "selected": false,
+            "text": ".*-verify-pod",
+            "value": ".*-verify-pod"
           }
         ],
-        "query": ".*-build-container-pod,.*-clone-repository-pod,.*-init-pod,.*-show-sbom-pod,.*-show-summary-pod",
+        "query": ".*-build-container-pod,.*-build-source-image-pod,.*-clair-scan-pod,.*-clamav-scan-pod,.*-clone-repository-pod,.*-deprecated-base-image-check-pod,.*-init-pod,.*-inspect-image-pod,.*-on-pull-request-.*-pod,.*-prefetch-dependencies-pod,.*-sast-snyk-check-pod,.*-show-sbom-pod,.*-show-summary-pod,.*-verify-pod",
         "queryValue": "",
         "skipUrlSync": false,
         "type": "custom"
