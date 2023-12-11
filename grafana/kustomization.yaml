@@ -17,3 +17,6 @@ configMapGenerator:
   - name: rhtap-performance
     files:
       - dashboards/rhtap-performance.json
+  - name: pods-performance
+    files:
+      - dashboards/pods-performance.json

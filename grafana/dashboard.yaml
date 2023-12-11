@@ -58,7 +58,7 @@ spec:
 apiVersion: grafana.integreatly.org/v1beta1
 kind: GrafanaDashboard
 metadata:
-  name: pods-performace
+  name: pods-performance
   labels:
     app: appstudio-grafana
 spec:
@@ -66,5 +66,5 @@ spec:
     matchLabels:
       dashboards: "appstudio-grafana"
   configMapRef:
-    name: pods-performace
-    key: pods-performace.json
+    name: pods-performance
+    key: pods-performance.json
