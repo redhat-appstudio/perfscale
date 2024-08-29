@@ -398,7 +398,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Performance per worker node",
+  "title": "Performance: Worker nodes utilization",
   "uid": "DVlSKyOVz",
   "version": 1,
   "weekStart": ""
