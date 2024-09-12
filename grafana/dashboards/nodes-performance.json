@@ -20,10 +20,188 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 2,
+  "id": 15,
   "links": [],
   "liveNow": false,
   "panels": [
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "avg_over_time(sum(kube_node_labels{label_konflux_ci_dev_workload=\"$workload\"})[$smoothening:])",
+          "instant": false,
+          "legendFormat": "Count",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Number of \"$workload\" nodes",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "avg_over_time(avg(tekton_pipelines_controller_running_pipelineruns_count)[$smoothening:])",
+          "instant": false,
+          "legendFormat": "Count",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Number of running PipelineRuns",
+      "type": "timeseries"
+    },
     {
       "fieldConfig": {
         "defaults": {
@@ -85,7 +263,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 0
+        "y": 8
       },
       "id": 3,
       "options": {
@@ -105,7 +283,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "100 * avg(1 - rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) by (instance)\nand on (instance)\n  label_replace(\n    kube_node_role{role=\"worker\"} unless on (node) kube_node_role{role=\"infra\"},\n    \"instance\", \"$1\", \"node\", \"(.+)\"\n  )",
+          "expr": "avg_over_time(avg(1 - rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) by (instance)[$smoothening:])\n*\n100\nand on (instance)\n  label_replace(\n    kube_node_labels{label_konflux_ci_dev_workload=\"$workload\"},\n    \"instance\", \"$1\", \"node\", \"(.+)\"\n  )",
           "instant": false,
           "legendFormat": "{{instance}}",
           "range": true,
@@ -176,7 +354,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 0
+        "y": 8
       },
       "id": 2,
       "options": {
@@ -196,7 +374,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "(\n  avg_over_time(node_memory_MemAvailable_bytes[10m]) * 100\n  /\n  avg_over_time(node_memory_MemTotal_bytes[10m])\n)\nand on (instance)\n  label_replace(kube_node_role{role=\"worker\"} unless on (node) kube_node_role\n{role=\"infra\"}, \"instance\", \"$1\", \"node\", \"(.+)\")",
+          "expr": "avg_over_time(\n  (node_memory_MemAvailable_bytes\n  /\n  node_memory_MemTotal_bytes)[$smoothening:]\n)\n*\n100\nand on (instance)\n  label_replace(\n    kube_node_labels{label_konflux_ci_dev_workload=\"$workload\"},\n    \"instance\",\n    \"$1\",\n    \"node\",\n    \"(.+)\"\n  )",
           "instant": false,
           "legendFormat": "{{instance}}",
           "range": true,
@@ -266,7 +444,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 9
+        "y": 17
       },
       "id": 4,
       "options": {
@@ -286,7 +464,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(\n  rate(node_disk_read_bytes_total[1h])\n  +\n  rate(node_disk_written_bytes_total[1h])\n) by (instance)\nand on (instance)\n  label_replace(\n    kube_node_role{role=\"worker\"} unless on (node) kube_node_role{role=\"infra\"},\n    \"instance\", \"$1\", \"node\", \"(.+)\"\n  )",
+          "expr": "avg_over_time(\nsum(\n  rate(node_disk_read_bytes_total[1h])\n  +\n  rate(node_disk_written_bytes_total[1h])\n) by (instance)[$smoothening:]\n)\nand on (instance)\n  label_replace(\n    kube_node_labels{label_konflux_ci_dev_workload=\"$workload\"},\n    \"instance\", \"$1\", \"node\", \"(.+)\"\n  )",
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
@@ -356,7 +534,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 9
+        "y": 17
       },
       "id": 5,
       "options": {
@@ -376,7 +554,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(\n  rate(node_network_receive_bytes_total[1h])\n  +\n  rate(node_network_transmit_bytes_total[1h])\n) by (instance)\nand on (instance)\n  label_replace(\n    kube_node_role{role=\"worker\"} unless on (node) kube_node_role{role=\"infra\"},\n    \"instance\", \"$1\", \"node\", \"(.+)\"\n  )",
+          "expr": "avg_over_time(\nsum(\n  rate(node_network_receive_bytes_total[1h])\n  +\n  rate(node_network_transmit_bytes_total[1h])\n) by (instance)[$smoothening:]\n)\nand on (instance)\n  label_replace(\n    kube_node_labels{label_konflux_ci_dev_workload=\"$workload\"},\n    \"instance\", \"$1\", \"node\", \"(.+)\"\n  )",
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
@@ -447,7 +625,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 18
+        "y": 26
       },
       "id": 6,
       "options": {
@@ -467,7 +645,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "100 * sum(kube_pod_resource_request{resource='cpu'}) BY (node)\n/ on (node)\nlabel_replace(sum(node_cpu_info) by (instance), \"node\", \"$1\", \"instance\", \"(.+)\")\nand on (node)\nkube_node_role{role=\"worker\"} unless on (node) kube_node_role{role=\"infra\"}",
+          "expr": "avg_over_time(sum(kube_pod_resource_request{resource='cpu'}) BY (node)[$smoothening:])\n/ on (node)\nlabel_replace(sum(node_cpu_info) by (instance), \"node\", \"$1\", \"instance\", \"(.+)\")\n*\n100\nand on (node)\nkube_node_labels{label_konflux_ci_dev_workload=\"$workload\"}",
           "instant": false,
           "legendFormat": "{{instance}}",
           "range": true,
@@ -538,7 +716,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 18
+        "y": 26
       },
       "id": 7,
       "options": {
@@ -558,7 +736,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "100 * sum(kube_pod_resource_request{resource=\"memory\"}) by (node)\n/ on (node)\nlabel_replace(node_memory_MemTotal_bytes, \"node\", \"$1\", \"instance\", \"(.+)\")\nand on (node)\nkube_node_role{role=\"worker\"} unless on (node) kube_node_role{role=\"infra\"}",
+          "expr": "avg_over_time(sum(kube_pod_resource_request{resource=\"memory\"}) by (node)[$smoothening:])\n/ on (node)\nlabel_replace(node_memory_MemTotal_bytes, \"node\", \"$1\", \"instance\", \"(.+)\")\n*\n100\nand on (node)\nkube_node_labels{label_konflux_ci_dev_workload=\"$workload\"}",
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
@@ -569,10 +747,116 @@
       "type": "timeseries"
     }
   ],
+  "refresh": "",
   "schemaVersion": 39,
   "tags": [],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "auto": true,
+        "auto_count": 100,
+        "auto_min": "1m",
+        "current": {
+          "selected": false,
+          "text": "1h",
+          "value": "1h"
+        },
+        "description": "",
+        "hide": 0,
+        "label": "Smoothening",
+        "name": "smoothening",
+        "options": [
+          {
+            "selected": false,
+            "text": "auto",
+            "value": "$__auto_interval_smoothening"
+          },
+          {
+            "selected": false,
+            "text": "1m",
+            "value": "1m"
+          },
+          {
+            "selected": false,
+            "text": "10m",
+            "value": "10m"
+          },
+          {
+            "selected": false,
+            "text": "30m",
+            "value": "30m"
+          },
+          {
+            "selected": true,
+            "text": "1h",
+            "value": "1h"
+          },
+          {
+            "selected": false,
+            "text": "6h",
+            "value": "6h"
+          },
+          {
+            "selected": false,
+            "text": "12h",
+            "value": "12h"
+          },
+          {
+            "selected": false,
+            "text": "1d",
+            "value": "1d"
+          },
+          {
+            "selected": false,
+            "text": "7d",
+            "value": "7d"
+          },
+          {
+            "selected": false,
+            "text": "14d",
+            "value": "14d"
+          },
+          {
+            "selected": false,
+            "text": "30d",
+            "value": "30d"
+          }
+        ],
+        "query": "1m,10m,30m,1h,6h,12h,1d,7d,14d,30d",
+        "queryValue": "",
+        "refresh": 2,
+        "skipUrlSync": false,
+        "type": "interval"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "konflux-tenants",
+          "value": "konflux-tenants"
+        },
+        "description": "",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Workers workload label",
+        "multi": false,
+        "name": "workload",
+        "options": [
+          {
+            "selected": true,
+            "text": "konflux-tenants",
+            "value": "konflux-tenants"
+          },
+          {
+            "selected": false,
+            "text": "konflux-services",
+            "value": "konflux-services"
+          }
+        ],
+        "query": "konflux-tenants,konflux-services",
+        "skipUrlSync": false,
+        "type": "custom"
+      }
+    ]
   },
   "time": {
     "from": "now-24h",
