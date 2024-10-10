@@ -23,3 +23,6 @@ configMapGenerator:
   - name: nodes-performance
     files:
       - dashboards/nodes-performance.json
+  - name: tenant-performance
+    files:
+      - dashboards/tenant-performance.json
