@@ -11,9 +11,9 @@ configMapGenerator:
   - name: kubernetes-persistent-volumes
     files:
       - dashboards/kubernetes-persistent-volumes.json
-  - name: pipelineruns-performance
+  - name: debugging-performance
     files:
-      - dashboards/pipelineruns-performance.json
+      - dashboards/debugging-performance.json
   - name: rhtap-performance
     files:
       - dashboards/rhtap-performance.json
