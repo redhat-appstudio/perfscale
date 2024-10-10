@@ -215,14 +215,14 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "sum(tekton_pipelines_controller_running_pipelineruns_count)",
+          "expr": "avg(tekton_pipelines_controller_running_pipelineruns_count)",
           "interval": "",
           "legendFormat": "Running PipelineRuns count",
           "refId": "A"
         },
         {
           "exemplar": true,
-          "expr": "sum(tekton_pipelines_controller_running_taskruns_count)",
+          "expr": "avg(tekton_pipelines_controller_running_taskruns_count)",
           "hide": false,
           "interval": "",
           "legendFormat": "Running TaskRuns count",
@@ -324,7 +324,7 @@
         {
           "editorMode": "code",
           "exemplar": true,
-          "expr": "sum(tekton_pipelines_controller_running_taskruns_throttled_by_quota_count)",
+          "expr": "avg(tekton_pipelines_controller_running_taskruns_throttled_by_quota_count)",
           "hide": false,
           "interval": "",
           "legendFormat": "by quota",
@@ -333,7 +333,7 @@
         },
         {
           "exemplar": true,
-          "expr": "sum(tekton_pipelines_controller_running_taskruns_throttled_by_node_count)",
+          "expr": "avg(tekton_pipelines_controller_running_taskruns_throttled_by_node_count)",
           "hide": false,
           "interval": "",
           "legendFormat": "by node",
