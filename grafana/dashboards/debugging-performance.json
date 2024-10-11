@@ -20,7 +20,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 16,
+  "id": 29,
   "links": [],
   "panels": [
     {
@@ -275,7 +275,7 @@
             "spanNulls": false,
             "stacking": {
               "group": "A",
-              "mode": "normal"
+              "mode": "none"
             },
             "thresholdsStyle": {
               "mode": "off"
@@ -522,7 +522,7 @@
       "type": "timeseries"
     },
     {
-      "description": "This should be 0 all the time, anything above 0 means Pipelines controller is lagging a lot and you might want to ensure if all replicas are doing their part.",
+      "description": "Number of cluster autoscaler scale-up and -down events in last hour.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -615,7 +615,7 @@
           "refId": "B"
         }
       ],
-      "title": "Number of TaskRuns that do not have it's Pod yet",
+      "title": "Autoscaler scale-ups and -downs",
       "type": "timeseries"
     },
     {
@@ -1318,6 +1318,6 @@
   "timezone": "",
   "title": "Performance: Debugging customer issues",
   "uid": "bda4e90371658b3f0cc6baa76ffff91662085e73",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }
