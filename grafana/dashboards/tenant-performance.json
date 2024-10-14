@@ -20,7 +20,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 16,
+  "id": 30,
   "links": [],
   "panels": [
     {
@@ -35,6 +35,67 @@
       "panels": [],
       "title": "Most active tenants",
       "type": "row"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "id": 16,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 10,
+          "valueSize": 12
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.4.3",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "kube_resourcequota{namespace=\"$namespace\", type=\"hard\"}",
+          "instant": false,
+          "legendFormat": "{{resource}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Current quotas",
+      "type": "stat"
     },
     {
       "fieldConfig": {
@@ -93,9 +154,9 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
+        "h": 10,
+        "w": 18,
+        "x": 6,
         "y": 1
       },
       "id": 13,
@@ -184,7 +245,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 9
+        "y": 11
       },
       "id": 14,
       "options": {
@@ -274,7 +335,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 9
+        "y": 11
       },
       "id": 15,
       "options": {
@@ -366,7 +427,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 17
+        "y": 19
       },
       "id": 2,
       "options": {
@@ -460,7 +521,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 17
+        "y": 19
       },
       "id": 4,
       "options": {
@@ -501,7 +562,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 25
+        "y": 27
       },
       "id": 12,
       "panels": [],
@@ -568,7 +629,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 26
+        "y": 28
       },
       "id": 8,
       "options": {
@@ -668,7 +729,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 26
+        "y": 28
       },
       "id": 6,
       "options": {
@@ -712,9 +773,9 @@
     "list": [
       {
         "current": {
-          "selected": true,
-          "text": "tekton-ecosystem-tenant",
-          "value": "tekton-ecosystem-tenant"
+          "selected": false,
+          "text": "osci-rhel-containers-tenant",
+          "value": "osci-rhel-containers-tenant"
         },
         "definition": "label_values(kube_namespace_labels,namespace)",
         "hide": 0,
@@ -737,7 +798,7 @@
     ]
   },
   "time": {
-    "from": "now-24h",
+    "from": "now-1h",
     "to": "now"
   },
   "timepicker": {},
