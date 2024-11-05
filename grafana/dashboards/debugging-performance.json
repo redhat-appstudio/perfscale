@@ -20,7 +20,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 29,
+  "id": 12,
   "links": [],
   "panels": [
     {
@@ -233,6 +233,7 @@
       "type": "timeseries"
     },
     {
+      "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -240,7 +241,8 @@
         "y": 9
       },
       "id": 13,
-      "title": "Issues on the cluster",
+      "panels": [],
+      "title": "Status on the cluster",
       "type": "row"
     },
     {
@@ -791,6 +793,19 @@
       "type": "timeseries"
     },
     {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
+      "id": 25,
+      "panels": [],
+      "title": "Tekton components",
+      "type": "row"
+    },
+    {
       "description": "If some of the replicas is working far more than the other, maybe leases are not distributed correctly. See leases distribution graph.",
       "fieldConfig": {
         "defaults": {
@@ -854,7 +869,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 34
+        "y": 35
       },
       "id": 20,
       "options": {
@@ -884,6 +899,195 @@
         }
       ],
       "title": "Pipelines controller replicas CPU Usage",
+      "type": "timeseries"
+    },
+    {
+      "description": "If some of the replicas is working far more than the other, maybe leases are not distributed correctly. See leases distribution graph.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "cpu",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "yellow",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 35
+      },
+      "id": 23,
+      "options": {
+        "graph": {},
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "7.5.17",
+      "targets": [
+        {
+          "editorMode": "code",
+          "exemplar": true,
+          "expr": "rate(container_cpu_usage_seconds_total{pod=~\"tekton-pipelines-remote-resolvers-.*\", namespace=\"openshift-pipelines\", container=\"\"}[5m])",
+          "format": "time_series",
+          "interval": "",
+          "legendFormat": "{{pod}}",
+          "range": true,
+          "refId": "Pipelines Controller"
+        }
+      ],
+      "title": "Tekton Resolver replicas CPU Usage",
+      "type": "timeseries"
+    },
+    {
+      "description": "If some of the replicas is consuming far more than the other, maybe leases are not distributed correctly. See leases distribution graph.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "memory",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "graph": false,
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "yellow",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 43
+      },
+      "id": 21,
+      "options": {
+        "graph": {},
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "7.5.17",
+      "targets": [
+        {
+          "editorMode": "code",
+          "exemplar": true,
+          "expr": "sum(container_memory_working_set_bytes{pod=~\"tekton-pipelines-controller-.*\", namespace=\"openshift-pipelines\", container=\"\"}) by (pod)",
+          "interval": "",
+          "legendFormat": "{{pod}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Pipelines controller replicas memory utilization",
       "type": "timeseries"
     },
     {
@@ -948,9 +1152,9 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 34
+        "y": 43
       },
-      "id": 21,
+      "id": 24,
       "options": {
         "graph": {},
         "legend": {
@@ -969,14 +1173,14 @@
         {
           "editorMode": "code",
           "exemplar": true,
-          "expr": "sum(container_memory_working_set_bytes{pod=~\"tekton-pipelines-controller-.*\", namespace=\"openshift-pipelines\", container=\"\"}) by (pod)",
+          "expr": "sum(container_memory_working_set_bytes{pod=~\"tekton-pipelines-remote-resolvers-.*\", namespace=\"openshift-pipelines\", container=\"\"}) by (pod)",
           "interval": "",
           "legendFormat": "{{pod}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Pipelines controller replicas memory utilization",
+      "title": "Tekton Resolver replicas memory utilization",
       "type": "timeseries"
     },
     {
@@ -1048,7 +1252,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 42
+        "y": 51
       },
       "id": 19,
       "options": {
@@ -1100,12 +1304,154 @@
       "type": "timeseries"
     },
     {
+      "description": "In each bucket, we have 4 leases. These leases should be distributed over more than 1 Resolver replicas pods. If they are not, we might need Infra team intervention.\n\nDashed lines shows \"health\" intervals: if it is 0 or 1, call Infra team (we might have an alert for that: https://issues.redhat.com/browse/KONFLUX-5297); if it is 2, it is not giving good performance; 3 or 4 should be OK even during peaks.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Number of pods the bucket is on",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "dashed+area"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1.1
+              },
+              {
+                "color": "green",
+                "value": 2.1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 51
+      },
+      "id": 22,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "9.1.6",
+      "targets": [
+        {
+          "editorMode": "code",
+          "exemplar": true,
+          "expr": "count(count by (lease_holder) (kube_lease_owner{lease=~\"controller.tektonresolverframework.bundleresolver..*\", lease_holder!=\"\"}))",
+          "interval": "",
+          "legendFormat": "Bundle resolver",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "exemplar": true,
+          "expr": "count(count by (lease_holder) (kube_lease_owner{lease=~\"controller.tektonresolverframework.cluster..*\", lease_holder!=\"\"}))",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "Cluster resolver",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "editorMode": "code",
+          "exemplar": true,
+          "expr": "count(count by (lease_holder) (kube_lease_owner{lease=~\"controller.tektonresolverframework.git..*\", lease_holder!=\"\"}))",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "Git resolver",
+          "range": true,
+          "refId": "C"
+        },
+        {
+          "editorMode": "code",
+          "exemplar": true,
+          "expr": "count(count by (lease_holder) (kube_lease_owner{lease=~\"controller.tektonresolverframework.http..*\", lease_holder!=\"\"}))",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "Http resolver",
+          "range": true,
+          "refId": "D"
+        },
+        {
+          "editorMode": "code",
+          "exemplar": true,
+          "expr": "count(count by (lease_holder) (kube_lease_owner{lease=~\"controller.tektonresolverframework.hub..*\", lease_holder!=\"\"}))",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "Hub resolver",
+          "range": true,
+          "refId": "E"
+        }
+      ],
+      "title": "Tekton Resolver leases distribution",
+      "type": "timeseries"
+    },
+    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 50
+        "y": 59
       },
       "id": 11,
       "panels": [],
@@ -1174,7 +1520,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 51
+        "y": 60
       },
       "id": 2,
       "options": {
@@ -1268,7 +1614,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 51
+        "y": 60
       },
       "id": 4,
       "options": {
@@ -1318,6 +1664,6 @@
   "timezone": "",
   "title": "Performance: Debugging customer issues",
   "uid": "bda4e90371658b3f0cc6baa76ffff91662085e73",
-  "version": 2,
+  "version": 1,
   "weekStart": ""
 }
