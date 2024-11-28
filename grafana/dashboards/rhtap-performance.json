@@ -20,7 +20,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 18,
+  "id": 11,
   "links": [],
   "liveNow": false,
   "panels": [
@@ -91,7 +91,7 @@
             "h": 8,
             "w": 12,
             "x": 6,
-            "y": 1
+            "y": 17
           },
           "id": 12,
           "options": {
@@ -181,7 +181,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 9
+            "y": 25
           },
           "id": 14,
           "options": {
@@ -267,7 +267,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 9
+            "y": 25
           },
           "id": 52,
           "options": {
@@ -350,7 +350,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 17
+            "y": 33
           },
           "id": 50,
           "options": {
@@ -441,7 +441,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 17
+            "y": 33
           },
           "id": 53,
           "options": {
@@ -539,7 +539,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 2
+            "y": 18
           },
           "id": 62,
           "options": {
@@ -627,7 +627,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 2
+            "y": 18
           },
           "id": 63,
           "options": {
@@ -715,7 +715,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 10
+            "y": 26
           },
           "id": 64,
           "options": {
@@ -803,7 +803,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 10
+            "y": 26
           },
           "id": 65,
           "options": {
@@ -904,7 +904,7 @@
             "h": 8,
             "w": 12,
             "x": 6,
-            "y": 3
+            "y": 19
           },
           "id": 10,
           "options": {
@@ -993,7 +993,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 11
+            "y": 27
           },
           "id": 22,
           "options": {
@@ -1080,7 +1080,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 11
+            "y": 27
           },
           "id": 51,
           "options": {
@@ -1181,7 +1181,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 4
+            "y": 20
           },
           "id": 58,
           "options": {
@@ -1269,7 +1269,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 4
+            "y": 20
           },
           "id": 59,
           "options": {
@@ -1357,7 +1357,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 12
+            "y": 28
           },
           "id": 60,
           "options": {
@@ -1444,7 +1444,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 12
+            "y": 28
           },
           "id": 26,
           "options": {
@@ -1532,7 +1532,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 20
+            "y": 36
           },
           "id": 61,
           "options": {
@@ -1633,7 +1633,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 5
+            "y": 21
           },
           "id": 45,
           "options": {
@@ -1720,7 +1720,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 5
+            "y": 21
           },
           "id": 46,
           "options": {
@@ -1807,7 +1807,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 13
+            "y": 29
           },
           "id": 47,
           "options": {
@@ -1891,7 +1891,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 13
+            "y": 29
           },
           "id": 48,
           "options": {
@@ -1975,7 +1975,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 21
+            "y": 37
           },
           "id": 16,
           "options": {
@@ -2062,7 +2062,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 21
+            "y": 37
           },
           "id": 20,
           "options": {
@@ -2113,6 +2113,7 @@
                 "mode": "palette-classic"
               },
               "custom": {
+                "axisBorderShow": false,
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
                 "axisLabel": "",
@@ -2126,6 +2127,7 @@
                   "tooltip": false,
                   "viz": false
                 },
+                "insertNulls": false,
                 "lineInterpolation": "linear",
                 "lineWidth": 1,
                 "pointSize": 5,
@@ -2147,7 +2149,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -2163,7 +2166,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 6
+            "y": 22
           },
           "id": 18,
           "options": {
@@ -2200,6 +2203,7 @@
                 "mode": "palette-classic"
               },
               "custom": {
+                "axisBorderShow": false,
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
                 "axisLabel": "",
@@ -2213,6 +2217,7 @@
                   "tooltip": false,
                   "viz": false
                 },
+                "insertNulls": false,
                 "lineInterpolation": "linear",
                 "lineWidth": 1,
                 "pointSize": 5,
@@ -2234,7 +2239,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -2250,7 +2256,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 6
+            "y": 22
           },
           "id": 41,
           "options": {
@@ -2287,6 +2293,7 @@
                 "mode": "palette-classic"
               },
               "custom": {
+                "axisBorderShow": false,
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
                 "axisLabel": "",
@@ -2300,6 +2307,7 @@
                   "tooltip": false,
                   "viz": false
                 },
+                "insertNulls": false,
                 "lineInterpolation": "linear",
                 "lineWidth": 1,
                 "pointSize": 5,
@@ -2321,7 +2329,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -2337,7 +2346,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 14
+            "y": 30
           },
           "id": 43,
           "options": {
@@ -2371,6 +2380,7 @@
                 "mode": "palette-classic"
               },
               "custom": {
+                "axisBorderShow": false,
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
                 "axisLabel": "",
@@ -2384,6 +2394,7 @@
                   "tooltip": false,
                   "viz": false
                 },
+                "insertNulls": false,
                 "lineInterpolation": "linear",
                 "lineWidth": 1,
                 "pointSize": 5,
@@ -2405,7 +2416,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -2421,7 +2433,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 14
+            "y": 30
           },
           "id": 44,
           "options": {
@@ -2542,7 +2554,7 @@
             {
               "editorMode": "code",
               "exemplar": true,
-              "expr": "sum(tekton_pipelines_controller_running_taskruns_throttled_by_quota_count)",
+              "expr": "avg(tekton_pipelines_controller_running_taskruns_throttled_by_quota_count)",
               "interval": "",
               "legendFormat": "By quota count",
               "range": true,
@@ -2551,7 +2563,7 @@
             {
               "editorMode": "code",
               "exemplar": true,
-              "expr": "sum(tekton_pipelines_controller_running_taskruns_throttled_by_node_count)",
+              "expr": "avg(tekton_pipelines_controller_running_taskruns_throttled_by_node_count)",
               "hide": false,
               "interval": "",
               "legendFormat": "By node count",
@@ -2642,7 +2654,7 @@
             {
               "editorMode": "code",
               "exemplar": true,
-              "expr": "sum(tekton_pipelines_controller_running_pipelineruns_count)",
+              "expr": "avg(tekton_pipelines_controller_running_pipelineruns_count)",
               "interval": "",
               "legendFormat": "PipelineRuns",
               "range": true,
@@ -2651,7 +2663,7 @@
             {
               "editorMode": "code",
               "exemplar": true,
-              "expr": "sum(tekton_pipelines_controller_running_taskruns_count)",
+              "expr": "avg(tekton_pipelines_controller_running_taskruns_count)",
               "hide": false,
               "interval": "",
               "legendFormat": "TaskRuns",
@@ -2663,7 +2675,7 @@
           "type": "timeseries"
         },
         {
-          "description": "In each bucket, we have 4 leases. These leases should be distributed over more than 1 pods. If they are not, we might need Infra team intervention.",
+          "description": "In each bucket, we have 8 leases. These leases should be distributed over more than 1 Pipelines controller replicas pods. If they are not, we might need Infra team intervention.\n\nDashed lines shows \"health\" intervals: if it is 0 or 1, call Infra team (we have alert for that); if it is 2, it is not giving good performance; 3 or 4 should be OK even during peaks.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -2714,8 +2726,12 @@
                     "value": null
                   },
                   {
+                    "color": "orange",
+                    "value": 1.1
+                  },
+                  {
                     "color": "green",
-                    "value": 1.5
+                    "value": 2.1
                   }
                 ]
               },
@@ -2729,7 +2745,7 @@
             "x": 0,
             "y": 15
           },
-          "id": 70,
+          "id": 72,
           "options": {
             "legend": {
               "calcs": [
@@ -2779,6 +2795,7 @@
           "type": "timeseries"
         },
         {
+          "description": "In each bucket, we have 4 leases. These leases should be distributed over more than 1 Resolver replicas pods. If they are not, we might need Infra team intervention.\n\nDashed lines shows \"health\" intervals: if it is 0 or 1, call Infra team (we might have an alert for that: https://issues.redhat.com/browse/KONFLUX-5297); if it is 2, it is not giving good performance; 3 or 4 should be OK even during peaks.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -2788,7 +2805,7 @@
                 "axisBorderShow": false,
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
-                "axisLabel": "",
+                "axisLabel": "Number of pods the bucket is on",
                 "axisPlacement": "auto",
                 "barAlignment": 0,
                 "drawStyle": "line",
@@ -2801,6 +2818,9 @@
                 },
                 "insertNulls": false,
                 "lineInterpolation": "linear",
+                "lineStyle": {
+                  "fill": "solid"
+                },
                 "lineWidth": 1,
                 "pointSize": 5,
                 "scaleDistribution": {
@@ -2813,20 +2833,25 @@
                   "mode": "none"
                 },
                 "thresholdsStyle": {
-                  "mode": "off"
+                  "mode": "dashed+area"
                 }
               },
               "mappings": [],
+              "min": 0,
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
+                    "color": "red",
                     "value": null
                   },
                   {
-                    "color": "red",
-                    "value": 80
+                    "color": "orange",
+                    "value": 1.1
+                  },
+                  {
+                    "color": "green",
+                    "value": 2.1
                   }
                 ]
               },
@@ -2840,12 +2865,15 @@
             "x": 12,
             "y": 15
           },
-          "id": 8,
+          "id": 73,
           "options": {
             "legend": {
-              "calcs": [],
-              "displayMode": "list",
-              "placement": "bottom",
+              "calcs": [
+                "mean",
+                "last"
+              ],
+              "displayMode": "table",
+              "placement": "right",
               "showLegend": true
             },
             "tooltip": {
@@ -2858,204 +2886,54 @@
             {
               "editorMode": "code",
               "exemplar": true,
-              "expr": "sum(rate(tekton_pipelines_controller_pipelinerun_duration_seconds_count[1h])) by (status)",
+              "expr": "count(count by (lease_holder) (kube_lease_owner{lease=~\"controller.tektonresolverframework.bundleresolver..*\", lease_holder!=\"\"}))",
               "interval": "",
-              "legendFormat": "{{status}} PipelineRun count",
+              "legendFormat": "Bundle resolver",
               "range": true,
               "refId": "A"
             },
             {
               "editorMode": "code",
               "exemplar": true,
-              "expr": "sum(rate(tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_count[1h])) by (status)",
+              "expr": "count(count by (lease_holder) (kube_lease_owner{lease=~\"controller.tektonresolverframework.cluster..*\", lease_holder!=\"\"}))",
               "hide": false,
               "interval": "",
-              "legendFormat": "{{status}} TaskRun count",
+              "legendFormat": "Cluster resolver",
               "range": true,
               "refId": "B"
-            }
-          ],
-          "title": "Finished PipelineRun and TaskRun count by status",
-          "type": "timeseries"
-        },
-        {
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisBorderShow": false,
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 0,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "graph": false,
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
             },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 0,
-            "y": 23
-          },
-          "id": 2,
-          "options": {
-            "legend": {
-              "calcs": [],
-              "displayMode": "list",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "none"
-            }
-          },
-          "targets": [
             {
               "editorMode": "code",
               "exemplar": true,
-              "expr": "topk(10, sum(avg_over_time(tekton_pipelines_controller_pipelinerun_duration_seconds_sum[1h]) / avg_over_time(tekton_pipelines_controller_pipelinerun_duration_seconds_count[1h])) by (namespace))",
+              "expr": "count(count by (lease_holder) (kube_lease_owner{lease=~\"controller.tektonresolverframework.git..*\", lease_holder!=\"\"}))",
               "hide": false,
               "interval": "",
-              "legendFormat": "{{namespace}}",
+              "legendFormat": "Git resolver",
               "range": true,
-              "refId": "A"
-            }
-          ],
-          "title": "Top 10 namespaces by average PipelineRun duration",
-          "type": "timeseries"
-        },
-        {
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisBorderShow": false,
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 20,
-                "gradientMode": "opacity",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "never",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "short"
+              "refId": "C"
             },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 12,
-            "y": 23
-          },
-          "id": 4,
-          "options": {
-            "legend": {
-              "calcs": [],
-              "displayMode": "list",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "none"
-            }
-          },
-          "pluginVersion": "9.1.6",
-          "targets": [
             {
               "editorMode": "code",
-              "exemplar": false,
-              "expr": "topk(10, sum(avg_over_time(tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_sum[1h]) / avg_over_time(tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_count[1h])) by (namespace))",
+              "exemplar": true,
+              "expr": "count(count by (lease_holder) (kube_lease_owner{lease=~\"controller.tektonresolverframework.http..*\", lease_holder!=\"\"}))",
+              "hide": false,
               "interval": "",
-              "legendFormat": "{{namespace}}",
+              "legendFormat": "Http resolver",
               "range": true,
-              "refId": "A"
+              "refId": "D"
+            },
+            {
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "count(count by (lease_holder) (kube_lease_owner{lease=~\"controller.tektonresolverframework.hub..*\", lease_holder!=\"\"}))",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "Hub resolver",
+              "range": true,
+              "refId": "E"
             }
           ],
-          "title": "Top 10 namespaces by average TaskRun duration",
+          "title": "Tekton Resolver leases distribution",
           "type": "timeseries"
         },
         {
@@ -3118,7 +2996,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 31
+            "y": 23
           },
           "id": 54,
           "options": {
@@ -3200,7 +3078,7 @@
                   }
                 ]
               },
-              "unit": "s"
+              "unit": "short"
             },
             "overrides": []
           },
@@ -3208,9 +3086,9 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 31
+            "y": 23
           },
-          "id": 55,
+          "id": 8,
           "options": {
             "legend": {
               "calcs": [],
@@ -3228,14 +3106,24 @@
             {
               "editorMode": "code",
               "exemplar": true,
-              "expr": "sum(rate(tekton_pipelines_controller_client_latency_sum[5m]) / rate(tekton_pipelines_controller_client_latency_count[5m]))",
+              "expr": "sum(rate(tekton_pipelines_controller_pipelinerun_duration_seconds_count[1h])) by (status)",
               "interval": "",
-              "legendFormat": "{{name}}",
+              "legendFormat": "{{status}} PipelineRuns",
               "range": true,
               "refId": "A"
+            },
+            {
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "sum(rate(tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_count[1h])) by (status)",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "{{status}} TaskRuns",
+              "range": true,
+              "refId": "B"
             }
           ],
-          "title": "Pipelines controller client latency",
+          "title": "Finished PipelineRun and TaskRun count by status",
           "type": "timeseries"
         },
         {
@@ -3290,17 +3178,17 @@
                   }
                 ]
               },
-              "unit": "ms"
+              "unit": "short"
             },
             "overrides": []
           },
           "gridPos": {
             "h": 8,
-            "w": 12,
+            "w": 6,
             "x": 0,
-            "y": 39
+            "y": 31
           },
-          "id": 56,
+          "id": 75,
           "options": {
             "legend": {
               "calcs": [],
@@ -3318,14 +3206,376 @@
             {
               "editorMode": "code",
               "exemplar": true,
-              "expr": "sum(tekton_pipelines_controller_taskruns_pod_latency_milliseconds)",
+              "expr": "topk(10, sum(rate(tekton_pipelines_controller_pipelinerun_duration_seconds_count{status=\"failed\"}[1h])) by (pipeline))",
+              "interval": "",
+              "legendFormat": "{{pipeline}} PipelineRuns",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Failed PipelineRuns by pipeline name",
+          "type": "timeseries"
+        },
+        {
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 6,
+            "y": 31
+          },
+          "id": 76,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "9.1.6",
+          "targets": [
+            {
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "topk(10, sum(rate(tekton_pipelines_controller_pipelinerun_duration_seconds_count{status=\"success\"}[1h])) by (pipeline))",
+              "interval": "",
+              "legendFormat": "{{pipeline}} PipelineRuns",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Succeeded PipelineRuns by pipeline name",
+          "type": "timeseries"
+        },
+        {
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 12,
+            "y": 31
+          },
+          "id": 74,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "9.1.6",
+          "targets": [
+            {
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "topk(10, sum(rate(tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_count{status=\"success\"}[1h])) by (task))",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "__auto",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Succeeded TaskRuns by task name",
+          "type": "timeseries"
+        },
+        {
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 18,
+            "y": 31
+          },
+          "id": 77,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "9.1.6",
+          "targets": [
+            {
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "topk(10, sum(rate(tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_count{status=\"failed\"}[1h])) by (task))",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "__auto",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Failed TaskRuns by task name",
+          "type": "timeseries"
+        },
+        {
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 39
+          },
+          "id": 55,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "9.1.6",
+          "targets": [
+            {
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "sum(rate(tekton_pipelines_controller_client_latency_sum[5m]) / rate(tekton_pipelines_controller_client_latency_count[5m]))",
               "interval": "",
               "legendFormat": "{{name}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Pipelines controller TaskRuns pod latency",
+          "title": "Pipelines controller client latency",
           "type": "timeseries"
         },
         {
@@ -3420,6 +3670,200 @@
         }
       ],
       "title": "Tekton",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
+      "id": 71,
+      "panels": [
+        {
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "graph": false,
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 8
+          },
+          "id": 2,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "topk(10,\n    sum(rate(tekton_pipelines_controller_pipelinerun_duration_seconds_sum{namespace=~\".*-tenant\"}[1h])) by (namespace)\n    /\n    sum(rate(tekton_pipelines_controller_pipelinerun_duration_seconds_count{namespace=~\".*-tenant\"}[1h])) by (namespace)\n)",
+              "hide": false,
+              "interval": "",
+              "legendFormat": "{{namespace}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Top 10 namespaces by average PipelineRun duration",
+          "type": "timeseries"
+        },
+        {
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 8
+          },
+          "id": 4,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "9.1.6",
+          "targets": [
+            {
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "topk(10,\n    sum(rate(tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_sum{namespace=~\".*-tenant\"}[1h])) by (namespace)\n    /\n    sum(rate(tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_count{namespace=~\".*-tenant\"}[1h])) by (namespace)\n)",
+              "interval": "",
+              "legendFormat": "{{namespace}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Top 10 namespaces by average TaskRun duration",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Tekton by namespace",
       "type": "row"
     }
   ],
