@@ -96,3 +96,17 @@ spec:
   configMapRef:
     name: tenant-performance
     key: tenant-performance.json
+---
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: controllers-overview
+  labels:
+    app: appstudio-grafana
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: "appstudio-grafana"
+  configMapRef:
+    name: controllers-overview
+    key: controllers-overview.json
