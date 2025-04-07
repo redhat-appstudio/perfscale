@@ -16,7 +16,7 @@ fi
 
 dashboard_tmp=$( mktemp)
 
-cat "$dashboard" | jq 'walk(if type == "object" then with_entries(select(.key | test("datasource") | not)) else . end)' >"$dashboard_tmp"
+jq 'walk(if type == "object" then with_entries(select(.key | test("datasource") | not)) else . end)' "$dashboard" >"$dashboard_tmp"
 cp "$dashboard_tmp" "$dashboard"
 
 echo "Cleaned dashboard '$dashboard'"
