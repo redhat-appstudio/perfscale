@@ -95,7 +95,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"application-service\",pod=~\"application-service-controller-manager-[0-9a-z-]+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"application-service\",pod=~\"application-service-controller-manager-[0-9a-z-]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -119,7 +119,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"application-service\",pod=~\"application-service-controller-manager-[0-9a-z-]+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"application-service\",pod=~\"application-service-controller-manager-[0-9a-z-]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -251,7 +251,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"build-service\",pod=~\"build-service-controller-manager-[0-9a-z-]+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"build-service\",pod=~\"build-service-controller-manager-[0-9a-z-]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -275,7 +275,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"build-service\",pod=~\"build-service-controller-manager-[0-9a-z-]+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"build-service\",pod=~\"build-service-controller-manager-[0-9a-z-]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -407,7 +407,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"image-controller\",pod=~\"image-controller-controller-manager-[0-9a-z-]+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"image-controller\",pod=~\"image-controller-controller-manager-[0-9a-z-]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -431,7 +431,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"image-controller\",pod=~\"image-controller-controller-manager-[0-9a-z-]+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"image-controller\",pod=~\"image-controller-controller-manager-[0-9a-z-]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -563,7 +563,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"integration-service\",pod=~\"integration-service-controller-manager-[0-9a-z-]+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"integration-service\",pod=~\"integration-service-controller-manager-[0-9a-z-]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -587,7 +587,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"integration-service\",pod=~\"integration-service-controller-manager-[0-9a-z-]+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"integration-service\",pod=~\"integration-service-controller-manager-[0-9a-z-]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -719,7 +719,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"jvm-build-service\",pod=~\"hacbs-jvm-operator-[0-9a-z-]+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"jvm-build-service\",pod=~\"hacbs-jvm-operator-[0-9a-z-]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -743,7 +743,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"jvm-build-service\",pod=~\"hacbs-jvm-operator-[0-9a-z-]+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"jvm-build-service\",pod=~\"hacbs-jvm-operator-[0-9a-z-]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -875,7 +875,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"multi-platform-controller\",pod=~\"multi-platform-controller-[0-9a-z-]+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"multi-platform-controller\",pod=~\"multi-platform-controller-[0-9a-z-]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -899,7 +899,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"multi-platform-controller\",pod=~\"multi-platform-controller-[0-9a-z-]+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"multi-platform-controller\",pod=~\"multi-platform-controller-[0-9a-z-]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -1031,7 +1031,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"multi-platform-controller\",pod=~\"multi-platform-otp-server-[0-9a-z-]+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"multi-platform-controller\",pod=~\"multi-platform-otp-server-[0-9a-z-]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -1055,7 +1055,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"multi-platform-controller\",pod=~\"multi-platform-otp-server-[0-9a-z-]+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"multi-platform-controller\",pod=~\"multi-platform-otp-server-[0-9a-z-]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -1187,7 +1187,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"notification-controller\",pod=~\"notification-controller-controller-manager-[0-9a-z-]+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"notification-controller\",pod=~\"notification-controller-controller-manager-[0-9a-z-]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -1211,7 +1211,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"notification-controller\",pod=~\"notification-controller-controller-manager-[0-9a-z-]+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"notification-controller\",pod=~\"notification-controller-controller-manager-[0-9a-z-]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -1343,7 +1343,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-etcd\",pod=~\"etcd-ip-[0-9]+-[0-9]+-[0-9]+-[0-9]+.ec2.internal\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-etcd\",pod=~\"etcd-ip-[0-9]+-[0-9]+-[0-9]+-[0-9]+.ec2.internal\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -1367,7 +1367,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-etcd\",pod=~\"etcd-ip-[0-9]+-[0-9]+-[0-9]+-[0-9]+.ec2.internal\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-etcd\",pod=~\"etcd-ip-[0-9]+-[0-9]+-[0-9]+-[0-9]+.ec2.internal\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -1499,7 +1499,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-kube-apiserver\",pod=~\"kube-apiserver-ip-.+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-kube-apiserver\",pod=~\"kube-apiserver-ip-.+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -1523,7 +1523,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-kube-apiserver\",pod=~\"kube-apiserver-ip-.+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-kube-apiserver\",pod=~\"kube-apiserver-ip-.+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -1655,7 +1655,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"pipeline-metrics-exporter-[0-9a-z-]+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"pipeline-metrics-exporter-[0-9a-z-]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -1679,7 +1679,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"pipeline-metrics-exporter-[0-9a-z-]+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"pipeline-metrics-exporter-[0-9a-z-]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -1811,7 +1811,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"pipelines-as-code-controller-[0-9a-z-]+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"pipelines-as-code-controller-[0-9a-z-]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -1835,7 +1835,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"pipelines-as-code-controller-[0-9a-z-]+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"pipelines-as-code-controller-[0-9a-z-]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -1967,7 +1967,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"pipelines-as-code-watcher-[0-9a-z-]+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"pipelines-as-code-watcher-[0-9a-z-]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -1991,7 +1991,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"pipelines-as-code-watcher-[0-9a-z-]+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"pipelines-as-code-watcher-[0-9a-z-]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -2123,7 +2123,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"pipelines-as-code-webhook-[0-9a-z-]+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"pipelines-as-code-webhook-[0-9a-z-]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -2147,7 +2147,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"pipelines-as-code-webhook-[0-9a-z-]+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"pipelines-as-code-webhook-[0-9a-z-]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -2279,7 +2279,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"pipelines-console-plugin-[0-9a-z-]+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"pipelines-console-plugin-[0-9a-z-]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -2303,7 +2303,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"pipelines-console-plugin-[0-9a-z-]+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"pipelines-console-plugin-[0-9a-z-]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -2435,7 +2435,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-chains-controller-[0-9a-z-]+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-chains-controller-[0-9a-z-]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -2459,7 +2459,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-chains-controller-[0-9a-z-]+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-chains-controller-[0-9a-z-]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -2591,7 +2591,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-events-controller-[0-9a-z-]+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-events-controller-[0-9a-z-]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -2615,7 +2615,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-events-controller-[0-9a-z-]+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-events-controller-[0-9a-z-]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -2747,7 +2747,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-operator-proxy-webhook-[0-9a-z-]+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-operator-proxy-webhook-[0-9a-z-]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -2771,7 +2771,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-operator-proxy-webhook-[0-9a-z-]+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-operator-proxy-webhook-[0-9a-z-]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -2903,7 +2903,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-pipelines-controller-[0-9]+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-pipelines-controller-[0-9]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -2927,7 +2927,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-pipelines-controller-[0-9]+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-pipelines-controller-[0-9]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -3059,7 +3059,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-pipelines-remote-resolvers-[0-9]+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-pipelines-remote-resolvers-[0-9]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -3083,7 +3083,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-pipelines-remote-resolvers-[0-9]+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-pipelines-remote-resolvers-[0-9]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -3215,7 +3215,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-triggers-controller-[0-9a-z-]+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-triggers-controller-[0-9a-z-]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -3239,7 +3239,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-triggers-controller-[0-9a-z-]+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-triggers-controller-[0-9a-z-]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -3371,7 +3371,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-triggers-core-interceptors-[0-9a-z-]+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-triggers-core-interceptors-[0-9a-z-]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -3395,7 +3395,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-triggers-core-interceptors-[0-9a-z-]+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-triggers-core-interceptors-[0-9a-z-]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -3527,7 +3527,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-triggers-webhook-[0-9a-z-]+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-triggers-webhook-[0-9a-z-]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -3551,7 +3551,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-triggers-webhook-[0-9a-z-]+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tekton-triggers-webhook-[0-9a-z-]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -3683,7 +3683,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tkn-cli-serve-[0-9a-z-]+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tkn-cli-serve-[0-9a-z-]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -3707,7 +3707,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tkn-cli-serve-[0-9a-z-]+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-pipelines\",pod=~\"tkn-cli-serve-[0-9a-z-]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -3839,7 +3839,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"project-controller\",pod=~\"project-controller-controller-manager-[0-9a-z-]+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"project-controller\",pod=~\"project-controller-controller-manager-[0-9a-z-]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -3863,7 +3863,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"project-controller\",pod=~\"project-controller-controller-manager-[0-9a-z-]+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"project-controller\",pod=~\"project-controller-controller-manager-[0-9a-z-]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -3995,7 +3995,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"release-service\",pod=~\"release-service-controller-manager-[0-9a-z-]+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"release-service\",pod=~\"release-service-controller-manager-[0-9a-z-]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -4019,7 +4019,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"release-service\",pod=~\"release-service-controller-manager-[0-9a-z-]+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"release-service\",pod=~\"release-service-controller-manager-[0-9a-z-]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -4151,7 +4151,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"release-service\",pod=~\"release-service-monitor-deployment-[0-9a-z-]+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"release-service\",pod=~\"release-service-monitor-deployment-[0-9a-z-]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -4175,7 +4175,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"release-service\",pod=~\"release-service-monitor-deployment-[0-9a-z-]+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"release-service\",pod=~\"release-service-monitor-deployment-[0-9a-z-]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -4307,7 +4307,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"tekton-logging\",pod=~\"vector-tekton-logs-collector-.+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"tekton-logging\",pod=~\"vector-tekton-logs-collector-.+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -4331,7 +4331,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"tekton-logging\",pod=~\"vector-tekton-logs-collector-.+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"tekton-logging\",pod=~\"vector-tekton-logs-collector-.+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -4463,7 +4463,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"tekton-results\",pod=~\"tekton-results-api-.+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"tekton-results\",pod=~\"tekton-results-api-.+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -4487,7 +4487,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"tekton-results\",pod=~\"tekton-results-api-.+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"tekton-results\",pod=~\"tekton-results-api-.+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -4619,7 +4619,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"tekton-results\",pod=~\"tekton-results-api-for-watcher-.+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"tekton-results\",pod=~\"tekton-results-api-for-watcher-.+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -4643,7 +4643,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"tekton-results\",pod=~\"tekton-results-api-for-watcher-.+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"tekton-results\",pod=~\"tekton-results-api-for-watcher-.+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
@@ -4775,7 +4775,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"tekton-results\",pod=~\"tekton-results-watcher-.+\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"tekton-results\",pod=~\"tekton-results-watcher-.+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -4799,7 +4799,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"tekton-results\",pod=~\"tekton-results-watcher-.+\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"tekton-results\",pod=~\"tekton-results-watcher-.+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
