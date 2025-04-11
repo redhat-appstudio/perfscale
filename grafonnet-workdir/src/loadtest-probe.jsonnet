@@ -41,7 +41,8 @@ local queryTarget(testId, fieldName) = {
   rawSql: |||
     SELECT
         EXTRACT(EPOCH FROM start) AS "time",
-        (label_values->>'%s')::DOUBLE PRECISION AS "value"
+        (label_values->>'%s')::DOUBLE PRECISION AS "value",
+        '%s' as "metric"
     FROM
         data
     WHERE
@@ -50,7 +51,7 @@ local queryTarget(testId, fieldName) = {
         AND label_values->>'.results.measurements.KPI.mean' != '-1'
     ORDER BY
         start;
-  ||| % [fieldName, testId],
+  ||| % [fieldName, fieldName, testId],
   format: 'time_series',
 };
 local queryTargets(testId, fieldNames) = timeSeries.queryOptions.withTargets(
