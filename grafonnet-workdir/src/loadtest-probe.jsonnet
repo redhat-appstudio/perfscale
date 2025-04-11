@@ -23,103 +23,41 @@ local memberClusterVar =
   + grafonnet.dashboard.variable.query.selectionOptions.withIncludeAll()
   + grafonnet.dashboard.variable.custom.generalOptions.withCurrent('all');
 
-// Custom panel target
-local jsonQuery(testId) = {
-  targets: [
-    {
-      cacheDurationSeconds: 300,
-      fields: [
-        {
-          jsonPath: '$.[*].values',
-        },
-        {
-          jsonPath: '$.[*].start',
-          language: 'jsonpath',
-          name: '',
-          type: 'time',
-        },
-      ],
-      method: 'GET',
-      params: [],
-      queryParams: '',
-      refId: 'A',
-      urlPath: '/api/test/%g/labelValues' % testId,
-    },
-  ],
+// Panel query
+local jsonQueryTarget(testId, fieldName) = {
+  rawSql: |||
+    SELECT
+        EXTRACT(EPOCH FROM start) AS "time",
+        (label_values->>'%s')::DOUBLE PRECISION AS "value"
+    FROM
+        data
+    WHERE
+        horreum_testid = %g
+        AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'
+        AND label_values->>'.results.measurements.KPI.mean' != '-1'
+    ORDER BY
+        start;
+  ||| % [fieldName, testId],
+  format: 'time_series',
 };
-
-// Transformation filters needed for Horreum data
-local transformExtract =
-  timeSeries.queryOptions.transformation.withId('extractFields')
-  + timeSeries.queryOptions.transformation.withOptions(
-    {
-      delimiter: ',',
-      format: 'json',
-      jsonPaths: [],
-      keepTime: false,
-      replace: false,
-      source: 'values',
-    }
-  );
-local transformFilter =
-  timeSeries.queryOptions.transformation.withId('filterByValue')
-  + timeSeries.queryOptions.transformation.withOptions(
-    {
-      filters: [
-        {
-          config: {
-            id: 'notEqual',
-            options: {
-              value: '-1',
-            },
-          },
-          fieldName: '.results.measurements.KPI.mean',
-        },
-        {
-          config: {
-            id: 'equal',
-            options: {
-              value: '${member_cluster}',
-            },
-          },
-          fieldName: '.metadata.env.MEMBER_CLUSTER',
-        },
-      ],
-      match: 'all',
-      type: 'include',
-    }
-  );
-local transformOnlySome(fieldNames) =
-  timeSeries.queryOptions.transformation.withId('filterFieldsByName')
-  + timeSeries.queryOptions.transformation.withOptions(
-    {
-      byVariable: false,
-      include: {
-        names: [
-          'start',
-        ] + fieldNames,
-      },
-    }
-  );
+local jsonQuery(testId, fieldNames) = {
+  targets: [jsonQueryTarget(testId, fieldName) for fieldName in fieldNames],
+};
 
 // Panel finally
 local kpiPanel(testId, fieldNames, fieldUnit, panelName='') =
   local title = if panelName == '' then std.join(',', fieldNames) else panelName;
   timeSeries.new('%s on ${member_cluster}' % title)
   + timeSeries.queryOptions.withDatasource(
-    type='marcusolsson-json-datasource',
-    uid='aefiy92ewod1cc',
+    type='grafana-postgresql-datasource',
+    uid='aeiglzjd1f2m8a',
   )
   + timeSeries.standardOptions.withUnit(fieldUnit)
   + timeSeries.standardOptions.withMin(0)
   + timeSeries.panelOptions.withRepeat('member_cluster')
   + timeSeries.panelOptions.withRepeatDirection(value='h')
-  + timeSeries.queryOptions.withTransformations([
-    transformExtract,
-    transformFilter,
-    transformOnlySome(fieldNames),
-  ])
-  + jsonQuery(testId)
+  + timeSeries.queryOptions.withTransformations([])
+  + jsonQuery(testId, fieldNames)
   + timeSeries.gridPos.withW(24)
   + timeSeries.gridPos.withH(8);
 
