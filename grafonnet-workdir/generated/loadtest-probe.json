@@ -4,7 +4,7 @@
       {
          "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "aeiglzjd1f2m8a"
+            "uid": "$datasource"
          },
          "fieldConfig": {
             "defaults": {
@@ -33,7 +33,7 @@
       {
          "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "aeiglzjd1f2m8a"
+            "uid": "$datasource"
          },
          "fieldConfig": {
             "defaults": {
@@ -62,7 +62,7 @@
       {
          "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "aeiglzjd1f2m8a"
+            "uid": "$datasource"
          },
          "fieldConfig": {
             "defaults": {
@@ -135,7 +135,7 @@
       {
          "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "aeiglzjd1f2m8a"
+            "uid": "$datasource"
          },
          "fieldConfig": {
             "defaults": {
@@ -208,7 +208,7 @@
       {
          "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "aeiglzjd1f2m8a"
+            "uid": "$datasource"
          },
          "fieldConfig": {
             "defaults": {
@@ -305,7 +305,7 @@
       {
          "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "aeiglzjd1f2m8a"
+            "uid": "$datasource"
          },
          "fieldConfig": {
             "defaults": {
@@ -402,7 +402,7 @@
       {
          "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "aeiglzjd1f2m8a"
+            "uid": "$datasource"
          },
          "fieldConfig": {
             "defaults": {
@@ -499,7 +499,7 @@
       {
          "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "aeiglzjd1f2m8a"
+            "uid": "$datasource"
          },
          "fieldConfig": {
             "defaults": {
@@ -596,7 +596,7 @@
       {
          "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "aeiglzjd1f2m8a"
+            "uid": "$datasource"
          },
          "fieldConfig": {
             "defaults": {

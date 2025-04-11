@@ -4,6 +4,19 @@ local grafonnet = import 'github.com/grafana/grafonnet/gen/grafonnet-latest/main
 local dashboard = grafonnet.dashboard;
 local timeSeries = grafonnet.panel.timeSeries;
 
+// Define "datasource" variable
+local datasourceVar =
+  grafonnet.dashboard.variable.datasource.new(
+    'datasource',
+    'grafana-postgresql-datasource',
+  )
+  + grafonnet.dashboard.variable.datasource.withRegex('.*grafana-postgresql-datasource.*')  // TODO
+  + grafonnet.dashboard.variable.custom.generalOptions.withLabel('Datasource')
+  + grafonnet.dashboard.variable.custom.generalOptions.withDescription(
+    'Description'
+  )
+  + grafonnet.dashboard.variable.custom.generalOptions.withCurrent('grafana-postgresql-datasource');
+
 // Define "member_cluster" multi-select variable
 local memberClusterVar =
   grafonnet.dashboard.variable.custom.new(
@@ -24,7 +37,7 @@ local memberClusterVar =
   + grafonnet.dashboard.variable.custom.generalOptions.withCurrent('all');
 
 // Panel query
-local jsonQueryTarget(testId, fieldName) = {
+local queryTarget(testId, fieldName) = {
   rawSql: |||
     SELECT
         EXTRACT(EPOCH FROM start) AS "time",
@@ -40,9 +53,9 @@ local jsonQueryTarget(testId, fieldName) = {
   ||| % [fieldName, testId],
   format: 'time_series',
 };
-local jsonQuery(testId, fieldNames) = {
-  targets: [jsonQueryTarget(testId, fieldName) for fieldName in fieldNames],
-};
+local queryTargets(testId, fieldNames) = timeSeries.queryOptions.withTargets(
+  [queryTarget(testId, fieldName) for fieldName in fieldNames],
+);
 
 // Panel finally
 local kpiPanel(testId, fieldNames, fieldUnit, panelName='') =
@@ -50,14 +63,14 @@ local kpiPanel(testId, fieldNames, fieldUnit, panelName='') =
   timeSeries.new('%s on ${member_cluster}' % title)
   + timeSeries.queryOptions.withDatasource(
     type='grafana-postgresql-datasource',
-    uid='aeiglzjd1f2m8a',
+    uid='${datasource}',
   )
   + timeSeries.standardOptions.withUnit(fieldUnit)
   + timeSeries.standardOptions.withMin(0)
   + timeSeries.panelOptions.withRepeat('member_cluster')
   + timeSeries.panelOptions.withRepeatDirection(value='h')
   + timeSeries.queryOptions.withTransformations([])
-  + jsonQuery(testId, fieldNames)
+  + queryTargets(testId, fieldNames)
   + timeSeries.gridPos.withW(24)
   + timeSeries.gridPos.withH(8);
 
@@ -65,6 +78,7 @@ dashboard.new('Konflux clusters load-test probe results')
 + dashboard.withDescription('Dashboard visualizes Konflux clusters load-test probe results. Related Horreum test is https://horreum.corp.redhat.com/test/372.')
 + dashboard.time.withFrom(value='now-24h')
 + dashboard.withVariables([
+  datasourceVar,
   memberClusterVar,
 ])
 + dashboard.withPanels([
