@@ -36,12 +36,35 @@ local memberClusterVar =
   + grafonnet.dashboard.variable.query.selectionOptions.withIncludeAll()
   + grafonnet.dashboard.variable.custom.generalOptions.withCurrent('all');
 
+local smoothingVar =
+  grafonnet.dashboard.variable.custom.new(
+    'smoothing',
+    values=[
+      'Off',
+      '3 hours',
+      '12 hours',
+      '1 day',
+      '3 days',
+    ],
+  )
+  + grafonnet.dashboard.variable.custom.generalOptions.withLabel('Smoothing')
+  + grafonnet.dashboard.variable.custom.generalOptions.withDescription(
+    'Description'
+  )
+  + grafonnet.dashboard.variable.custom.generalOptions.withCurrent('Off');
+
 // Panel query
 local queryTarget(testId, fieldName) = {
   rawSql: |||
     SELECT
         EXTRACT(EPOCH FROM start) AS "time",
-        (label_values->>'%s')::DOUBLE PRECISION AS "value",
+        CASE
+            WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'%s')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)
+            WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'%s')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)
+            WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'%s')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)
+            WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'%s')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)
+            ELSE (label_values->>'%s')::DOUBLE PRECISION
+        END AS "value",
         '%s' as "metric"
     FROM
         data
@@ -51,7 +74,7 @@ local queryTarget(testId, fieldName) = {
         AND label_values->>'.results.measurements.KPI.mean' != '-1'
     ORDER BY
         start;
-  ||| % [fieldName, fieldName, testId],
+  ||| % [fieldName, fieldName, fieldName, fieldName, fieldName, fieldName, testId],
   format: 'time_series',
 };
 local queryTargets(testId, fieldNames) = timeSeries.queryOptions.withTargets(
@@ -81,6 +104,7 @@ dashboard.new('Konflux clusters load-test probe results')
 + dashboard.withVariables([
   datasourceVar,
   memberClusterVar,
+  smoothingVar,
 ])
 + dashboard.withPanels([
   // Main panels
