@@ -95,6 +95,7 @@ local kpiPanel(testId, fieldNames, fieldUnit, panelName='') =
   + timeSeries.standardOptions.withMin(0)
   + timeSeries.panelOptions.withRepeat('member_cluster')
   + timeSeries.panelOptions.withRepeatDirection(value='h')
+  + timeSeries.panelOptions.withMaxPerRow(6)
   + timeSeries.queryOptions.withTransformations([])
   + queryTargets(testId, fieldNames)
   + timeSeries.gridPos.withW(24)
