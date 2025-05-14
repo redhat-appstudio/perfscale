@@ -142,7 +142,7 @@ dashboard.new('Konflux clusters load-test probe results')
     '__results_measurements_validateSnapshotCreation_error_rate',
     '__results_measurements_validateTestPipelineRunCondition_error_rate',
     '__results_measurements_validateTestPipelineRunCreation_error_rate',
-  ], 'none', 'Error rate by test phase'),
+  ], 'none', 'Error rate by test phase', includePassingFilter=false),
   // Panels showing per task data
   kpiPanel(372, [
     '__results_durations_stats_taskruns__build_apply_tags__passed_duration_mean',
