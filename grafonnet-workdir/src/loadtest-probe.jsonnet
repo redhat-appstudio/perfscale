@@ -56,7 +56,8 @@ local smoothingVar =
   + grafonnet.dashboard.variable.custom.generalOptions.withCurrent('Off');
 
 // Panel query
-local queryTarget(testId, fieldName) = {
+local queryTarget(testId, fieldName, includePassingFilter=true) = {
+  local passingFilter = if includePassingFilter then "AND label_values->>'.results.measurements.KPI.mean' != '-1'" else '',
   rawSql: |||
     SELECT
         EXTRACT(EPOCH FROM start) AS "time",
@@ -73,18 +74,18 @@ local queryTarget(testId, fieldName) = {
     WHERE
         horreum_testid = %g
         AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'
-        AND label_values->>'.results.measurements.KPI.mean' != '-1'
+        %s
     ORDER BY
         start;
-  ||| % [fieldName, fieldName, fieldName, fieldName, fieldName, fieldName, testId],
+  ||| % [fieldName, fieldName, fieldName, fieldName, fieldName, fieldName, testId, passingFilter],
   format: 'time_series',
 };
-local queryTargets(testId, fieldNames) = timeSeries.queryOptions.withTargets(
-  [queryTarget(testId, fieldName) for fieldName in fieldNames],
+local queryTargets(testId, fieldNames, includePassingFilter=true) = timeSeries.queryOptions.withTargets(
+  [queryTarget(testId, fieldName, includePassingFilter) for fieldName in fieldNames],
 );
 
 // Panel finally
-local kpiPanel(testId, fieldNames, fieldUnit, panelName='') =
+local kpiPanel(testId, fieldNames, fieldUnit, panelName='', includePassingFilter=true) =
   local title = if panelName == '' then std.join(',', fieldNames) else panelName;
   timeSeries.new('%s on ${member_cluster}' % title)
   + timeSeries.queryOptions.withDatasource(
@@ -97,7 +98,7 @@ local kpiPanel(testId, fieldNames, fieldUnit, panelName='') =
   + timeSeries.panelOptions.withRepeatDirection(value='h')
   + timeSeries.panelOptions.withMaxPerRow(6)
   + timeSeries.queryOptions.withTransformations([])
-  + queryTargets(testId, fieldNames)
+  + queryTargets(testId, fieldNames, includePassingFilter)
   + timeSeries.gridPos.withW(24)
   + timeSeries.gridPos.withH(8);
 
@@ -111,8 +112,8 @@ dashboard.new('Konflux clusters load-test probe results')
 ])
 + dashboard.withPanels([
   // Main panels
-  kpiPanel(372, ['__results_measurements_KPI_mean'], 's'),
-  kpiPanel(372, ['__results_measurements_KPI_errors'], 'none'),
+  kpiPanel(372, ['__results_measurements_KPI_mean'], 's', 'Mean duration'),
+  kpiPanel(372, ['__results_measurements_KPI_errors'], 'none', 'Failures', includePassingFilter=false),
   // Panels splitting test actions
   kpiPanel(372, [
     '__results_measurements_HandleUser_pass_duration_mean',
