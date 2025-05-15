@@ -1,0 +1,301 @@
+{
+  "description": "Dashboard visualizes Konflux clusters load-test RPM probe results. Related Horreum test is https://horreum.corp.redhat.com/test/372 with filter by label `.repo_type = libecpg-test-fork`.",
+  "panels": [
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24
+      },
+      "id": 1,
+      "maxPerRow": 6,
+      "pluginVersion": "v11.4.0",
+      "repeat": "member_cluster",
+      "repeatDirection": "h",
+      "targets": [
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_KPI_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_KPI_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_KPI_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_KPI_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_KPI_mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_KPI_mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
+        }
+      ],
+      "title": "Mean duration on ${member_cluster}",
+      "transformations": [],
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "none"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24
+      },
+      "id": 2,
+      "maxPerRow": 6,
+      "pluginVersion": "v11.4.0",
+      "repeat": "member_cluster",
+      "repeatDirection": "h",
+      "targets": [
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_KPI_errors')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_KPI_errors')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_KPI_errors')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_KPI_errors')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_KPI_errors')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_KPI_errors' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    \nORDER BY\n    start;\n"
+        }
+      ],
+      "title": "Failures on ${member_cluster}",
+      "transformations": [],
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24
+      },
+      "id": 3,
+      "maxPerRow": 6,
+      "pluginVersion": "v11.4.0",
+      "repeat": "member_cluster",
+      "repeatDirection": "h",
+      "targets": [
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_HandleUser_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_HandleUser_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_HandleUser_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_HandleUser_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_HandleUser_pass_duration_mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_HandleUser_pass_duration_mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
+        },
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_createApplication_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_createApplication_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_createApplication_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_createApplication_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_createApplication_pass_duration_mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_createApplication_pass_duration_mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
+        },
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_createComponent_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_createComponent_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_createComponent_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_createComponent_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_createComponent_pass_duration_mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_createComponent_pass_duration_mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
+        },
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_createIntegrationTestScenario_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_createIntegrationTestScenario_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_createIntegrationTestScenario_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_createIntegrationTestScenario_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_createIntegrationTestScenario_pass_duration_mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_createIntegrationTestScenario_pass_duration_mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
+        },
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_validateApplication_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_validateApplication_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_validateApplication_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_validateApplication_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_validateApplication_pass_duration_mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_validateApplication_pass_duration_mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
+        },
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_validateIntegrationTestScenario_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_validateIntegrationTestScenario_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_validateIntegrationTestScenario_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_validateIntegrationTestScenario_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_validateIntegrationTestScenario_pass_duration_mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_validateIntegrationTestScenario_pass_duration_mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
+        },
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_validatePipelineRunCondition_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_validatePipelineRunCondition_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_validatePipelineRunCondition_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_validatePipelineRunCondition_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_validatePipelineRunCondition_pass_duration_mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_validatePipelineRunCondition_pass_duration_mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
+        },
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_validatePipelineRunCreation_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_validatePipelineRunCreation_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_validatePipelineRunCreation_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_validatePipelineRunCreation_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_validatePipelineRunCreation_pass_duration_mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_validatePipelineRunCreation_pass_duration_mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
+        },
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_validatePipelineRunSignature_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_validatePipelineRunSignature_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_validatePipelineRunSignature_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_validatePipelineRunSignature_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_validatePipelineRunSignature_pass_duration_mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_validatePipelineRunSignature_pass_duration_mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
+        },
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_validateSnapshotCreation_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_validateSnapshotCreation_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_validateSnapshotCreation_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_validateSnapshotCreation_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_validateSnapshotCreation_pass_duration_mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_validateSnapshotCreation_pass_duration_mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
+        },
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_validateTestPipelineRunCondition_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_validateTestPipelineRunCondition_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_validateTestPipelineRunCondition_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_validateTestPipelineRunCondition_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_validateTestPipelineRunCondition_pass_duration_mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_validateTestPipelineRunCondition_pass_duration_mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
+        },
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_validateTestPipelineRunCreation_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_validateTestPipelineRunCreation_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_validateTestPipelineRunCreation_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_validateTestPipelineRunCreation_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_validateTestPipelineRunCreation_pass_duration_mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_validateTestPipelineRunCreation_pass_duration_mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
+        }
+      ],
+      "title": "Duration by test phase on ${member_cluster}",
+      "transformations": [],
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "none"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24
+      },
+      "id": 4,
+      "maxPerRow": 6,
+      "pluginVersion": "v11.4.0",
+      "repeat": "member_cluster",
+      "repeatDirection": "h",
+      "targets": [
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_HandleUser_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_HandleUser_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_HandleUser_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_HandleUser_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_HandleUser_error_rate')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_HandleUser_error_rate' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    \nORDER BY\n    start;\n"
+        },
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_createApplication_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_createApplication_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_createApplication_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_createApplication_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_createApplication_error_rate')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_createApplication_error_rate' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    \nORDER BY\n    start;\n"
+        },
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_createComponent_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_createComponent_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_createComponent_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_createComponent_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_createComponent_error_rate')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_createComponent_error_rate' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    \nORDER BY\n    start;\n"
+        },
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_createIntegrationTestScenario_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_createIntegrationTestScenario_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_createIntegrationTestScenario_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_createIntegrationTestScenario_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_createIntegrationTestScenario_error_rate')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_createIntegrationTestScenario_error_rate' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    \nORDER BY\n    start;\n"
+        },
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_validateApplication_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_validateApplication_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_validateApplication_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_validateApplication_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_validateApplication_error_rate')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_validateApplication_error_rate' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    \nORDER BY\n    start;\n"
+        },
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_validateIntegrationTestScenario_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_validateIntegrationTestScenario_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_validateIntegrationTestScenario_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_validateIntegrationTestScenario_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_validateIntegrationTestScenario_error_rate')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_validateIntegrationTestScenario_error_rate' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    \nORDER BY\n    start;\n"
+        },
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_validatePipelineRunCondition_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_validatePipelineRunCondition_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_validatePipelineRunCondition_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_validatePipelineRunCondition_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_validatePipelineRunCondition_error_rate')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_validatePipelineRunCondition_error_rate' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    \nORDER BY\n    start;\n"
+        },
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_validatePipelineRunCreation_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_validatePipelineRunCreation_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_validatePipelineRunCreation_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_validatePipelineRunCreation_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_validatePipelineRunCreation_error_rate')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_validatePipelineRunCreation_error_rate' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    \nORDER BY\n    start;\n"
+        },
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_validatePipelineRunSignature_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_validatePipelineRunSignature_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_validatePipelineRunSignature_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_validatePipelineRunSignature_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_validatePipelineRunSignature_error_rate')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_validatePipelineRunSignature_error_rate' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    \nORDER BY\n    start;\n"
+        },
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_validateSnapshotCreation_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_validateSnapshotCreation_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_validateSnapshotCreation_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_validateSnapshotCreation_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_validateSnapshotCreation_error_rate')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_validateSnapshotCreation_error_rate' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    \nORDER BY\n    start;\n"
+        },
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_validateTestPipelineRunCondition_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_validateTestPipelineRunCondition_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_validateTestPipelineRunCondition_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_validateTestPipelineRunCondition_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_validateTestPipelineRunCondition_error_rate')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_validateTestPipelineRunCondition_error_rate' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    \nORDER BY\n    start;\n"
+        },
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_validateTestPipelineRunCreation_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_validateTestPipelineRunCreation_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_validateTestPipelineRunCreation_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_validateTestPipelineRunCreation_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_validateTestPipelineRunCreation_error_rate')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_validateTestPipelineRunCreation_error_rate' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND label_values->>'.repo_type' = 'libecpg-test-fork'\n    \nORDER BY\n    start;\n"
+        }
+      ],
+      "title": "Error rate by test phase on ${member_cluster}",
+      "transformations": [],
+      "type": "timeseries"
+    }
+  ],
+  "schemaVersion": 39,
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "grafana-postgresql-datasource",
+          "value": "grafana-postgresql-datasource"
+        },
+        "description": "Description",
+        "label": "Datasource",
+        "name": "datasource",
+        "query": "grafana-postgresql-datasource",
+        "regex": ".*grafana-postgresql-datasource.*",
+        "type": "datasource"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": [
+            "all"
+          ],
+          "value": [
+            "all"
+          ]
+        },
+        "description": "Description",
+        "includeAll": true,
+        "label": "Member cluster",
+        "multi": true,
+        "name": "member_cluster",
+        "options": [
+          {
+            "selected": true,
+            "text": "https://api.stone-prod-p02.hjvn.p1.openshiftapps.com:6443/",
+            "value": "https://api.stone-prod-p02.hjvn.p1.openshiftapps.com:6443/"
+          }
+        ],
+        "query": "https://api.stone-prod-p02.hjvn.p1.openshiftapps.com:6443/ : https://api.stone-prod-p02.hjvn.p1.openshiftapps.com:6443/",
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "Off",
+          "value": "Off"
+        },
+        "description": "Description",
+        "label": "Smoothing",
+        "name": "smoothing",
+        "options": [
+          {
+            "selected": true,
+            "text": "Off",
+            "value": "Off"
+          },
+          {
+            "selected": false,
+            "text": "3 hours",
+            "value": "3 hours"
+          },
+          {
+            "selected": false,
+            "text": "12 hours",
+            "value": "12 hours"
+          },
+          {
+            "selected": false,
+            "text": "1 day",
+            "value": "1 day"
+          },
+          {
+            "selected": false,
+            "text": "3 days",
+            "value": "3 days"
+          }
+        ],
+        "query": "Off : Off,3 hours : 3 hours,12 hours : 12 hours,1 day : 1 day,3 days : 3 days",
+        "type": "custom"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timezone": "utc",
+  "title": "Konflux clusters load-test RPM probe results"
+}
