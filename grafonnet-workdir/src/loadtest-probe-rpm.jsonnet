@@ -3,6 +3,7 @@ local grafonnet = import 'github.com/grafana/grafonnet/gen/grafonnet-latest/main
 // Just some shortcuts
 local dashboard = grafonnet.dashboard;
 local timeSeries = grafonnet.panel.timeSeries;
+local table = grafonnet.panel.table;
 
 // Define "datasource" variable
 local datasourceVar =
@@ -98,6 +99,42 @@ local kpiPanel(testId, fieldNames, fieldUnit, panelName='', includePassingFilter
   + timeSeries.gridPos.withW(24)
   + timeSeries.gridPos.withH(8);
 
+local errorPanel() =
+  table.new('Error reasons on ${member_cluster}')
+  + table.queryOptions.withDatasource(
+    type='grafana-postgresql-datasource',
+    uid='${datasource}',
+  )
+  + table.standardOptions.withUnit('string')
+  + table.standardOptions.withMin(0)
+  + table.panelOptions.withRepeat('member_cluster')
+  + table.panelOptions.withRepeatDirection(value='h')
+  + table.panelOptions.withMaxPerRow(6)
+  + table.queryOptions.withTransformations([])
+  + table.options.footer.withEnablePagination()
+  + table.fieldConfig.defaults.custom.withFilterable()
+  + table.queryOptions.withTargets([
+    {
+      rawSql: |||
+        SELECT
+            EXTRACT(EPOCH FROM start) AS "time",
+            label_values->>'__results_errors_error_reasons_simple' AS "Error reasons"
+        FROM
+            data
+        WHERE
+            horreum_testid = 372
+            AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'
+            AND label_values->>'.repo_type' = 'libecpg-test-fork'
+            AND $__timeFilter(start)
+        ORDER BY
+            start DESC;
+      |||,
+      format: 'time_series',
+    },
+  ])
+  + table.gridPos.withW(24)
+  + table.gridPos.withH(10);
+
 dashboard.new('Konflux clusters load-test RPM probe results')
 + dashboard.withDescription('Dashboard visualizes Konflux clusters load-test RPM probe results. Related Horreum test is https://horreum.corp.redhat.com/test/372 with filter by label `.repo_type = libecpg-test-fork`.')
 + dashboard.time.withFrom(value='now-24h')
@@ -110,6 +147,7 @@ dashboard.new('Konflux clusters load-test RPM probe results')
   // Main panels
   kpiPanel(372, ['__results_measurements_KPI_mean'], 's', 'Mean duration'),
   kpiPanel(372, ['__results_measurements_KPI_errors'], 'none', 'Failures', includePassingFilter=false),
+  errorPanel(),
   // Panels splitting test actions
   kpiPanel(372, [
     '__results_measurements_HandleUser_pass_duration_mean',
