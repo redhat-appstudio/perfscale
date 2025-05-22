@@ -76,6 +76,7 @@ local queryTarget(testId, fieldName, includePassingFilter=true) = {
         horreum_testid = %g
         AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'
         AND ( label_values->>'.repo_type' = 'nodejs-devfile-sample' OR NOT (label_values ? '.repo_type') )
+        AND $__timeFilter(start)
         %s
     ORDER BY
         start;
