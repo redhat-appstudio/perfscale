@@ -101,6 +101,7 @@ local kpiPanel(testId, fieldNames, fieldUnit, panelName='', includePassingFilter
   + timeSeries.panelOptions.withRepeatDirection(value='h')
   + timeSeries.panelOptions.withMaxPerRow(6)
   + timeSeries.queryOptions.withTransformations([])
+  + timeSeries.fieldConfig.defaults.custom.withInsertNulls(5400000)
   + queryTargets(testId, fieldNames, includePassingFilter)
   + timeSeries.gridPos.withW(24)
   + timeSeries.gridPos.withH(8);
@@ -142,7 +143,8 @@ local errorPanel() =
   + table.gridPos.withH(10);
 
 dashboard.new('Konflux clusters load-test probe results')
-+ dashboard.withDescription('Dashboard visualizes Konflux clusters load-test probe results. Related Horreum test is https://horreum.corp.redhat.com/test/372.')
++ dashboard.withUid('eemn5s45vh6v4e')
++ dashboard.withDescription('Dashboard visualizes Konflux clusters load-test probe results. Related Horreum test is https://horreum.corp.redhat.com/test/372 with filter by label `.repo_type = nodejs-devfile-sample`.')
 + dashboard.time.withFrom(value='now-24h')
 + dashboard.withVariables([
   datasourceVar,
