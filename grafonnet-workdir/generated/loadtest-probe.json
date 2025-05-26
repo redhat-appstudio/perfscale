@@ -1,5 +1,5 @@
 {
-  "description": "Dashboard visualizes Konflux clusters load-test probe results. Related Horreum test is https://horreum.corp.redhat.com/test/372 with filter by label `.repo_type = nodejs-devfile-sample`.",
+  "description": "Dashboard visualizes Konflux clusters loadtest probe results. Related Horreum test is https://horreum.corp.redhat.com/test/372 with filter by label `.repo_type = nodejs-devfile-sample`.",
   "panels": [
     {
       "datasource": {
@@ -873,10 +873,10 @@
     ]
   },
   "time": {
-    "from": "now-24h",
+    "from": "now-7d",
     "to": "now"
   },
   "timezone": "utc",
-  "title": "Konflux clusters load-test probe results",
-  "uid": "eemn5s45vh6v4e"
+  "title": "Konflux clusters loadtest probe results",
+  "uid": "Konflux_clusters_loadtest_probe_results"
 }

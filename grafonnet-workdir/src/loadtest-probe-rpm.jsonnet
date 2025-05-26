@@ -137,10 +137,10 @@ local errorPanel() =
   + table.gridPos.withW(24)
   + table.gridPos.withH(10);
 
-dashboard.new('Konflux clusters load-test RPM probe results')
-+ dashboard.withUid('eemn5s45vh6v4e')
-+ dashboard.withDescription('Dashboard visualizes Konflux clusters load-test RPM probe results. Related Horreum test is https://horreum.corp.redhat.com/test/372 with filter by label `.repo_type = libecpg-test-fork`.')
-+ dashboard.time.withFrom(value='now-24h')
+dashboard.new('Konflux clusters loadtest RPM probe results')
++ dashboard.withUid('Konflux_clusters_loadtest_RPM_probe_res')
++ dashboard.withDescription('Dashboard visualizes Konflux clusters loadtest RPM probe results. Related Horreum test is https://horreum.corp.redhat.com/test/372 with filter by label `.repo_type = libecpg-test-fork`.')
++ dashboard.time.withFrom(value='now-7d')
 + dashboard.withVariables([
   datasourceVar,
   memberClusterVar,
