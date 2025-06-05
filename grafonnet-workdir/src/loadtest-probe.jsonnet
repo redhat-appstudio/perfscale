@@ -3,6 +3,7 @@ local grafonnet = import 'github.com/grafana/grafonnet/gen/grafonnet-latest/main
 // Just some shortcuts
 local dashboard = grafonnet.dashboard;
 local timeSeries = grafonnet.panel.timeSeries;
+local stat = grafonnet.panel.stat;
 local table = grafonnet.panel.table;
 
 // Define "datasource" variable
@@ -106,7 +107,29 @@ local kpiPanel(testId, fieldNames, fieldUnit, panelName='', includePassingFilter
   + timeSeries.gridPos.withW(24)
   + timeSeries.gridPos.withH(8);
 
-local errorPanel() =
+local kpiErrorsPanel(testId, fieldNames, panelName='') =
+  local title = if panelName == '' then std.join(',', fieldNames) else panelName;
+  stat.new('%s on ${member_cluster}' % title)
+  + stat.queryOptions.withDatasource(
+    type='grafana-postgresql-datasource',
+    uid='${datasource}',
+  )
+  + stat.standardOptions.withUnit('percentunit')
+  + stat.standardOptions.withMin(0)
+  + stat.standardOptions.color.withMode('thresholds')
+  + stat.standardOptions.thresholds.withMode('absolute')
+  + stat.standardOptions.thresholds.withSteps([{ color: 'green', value: null }, { color: 'red', value: 0.1 }])
+  + stat.panelOptions.withRepeat('member_cluster')
+  + stat.panelOptions.withRepeatDirection(value='h')
+  + stat.panelOptions.withMaxPerRow(6)
+  + stat.queryOptions.withTransformations([])
+  + stat.options.reduceOptions.withCalcs(['mean'])
+  + stat.options.reduceOptions.withValues(false)
+  + queryTargets(testId, fieldNames, false)
+  + stat.gridPos.withW(24)
+  + stat.gridPos.withH(8);
+
+local errorTablePanel() =
   table.new('Error reasons on ${member_cluster}')
   + table.queryOptions.withDatasource(
     type='grafana-postgresql-datasource',
@@ -154,8 +177,8 @@ dashboard.new('Konflux clusters loadtest probe results')
 + dashboard.withPanels([
   // Main panels
   kpiPanel(372, ['__results_measurements_KPI_mean'], 's', 'Mean duration'),
-  kpiPanel(372, ['__results_measurements_KPI_errors'], 'none', 'Failures', includePassingFilter=false),
-  errorPanel(),
+  kpiErrorsPanel(372, ['__results_measurements_KPI_errors'], 'Failure rate'),
+  errorTablePanel(),
   // Panels splitting test actions
   kpiPanel(372, [
     '__results_measurements_HandleUser_pass_duration_mean',
