@@ -97,16 +97,16 @@ local kpiPanel(testId, fieldNames, fieldUnit, panelName='', includePassingFilter
     type='grafana-postgresql-datasource',
     uid='${datasource}',
   )
-  + timeSeries.standardOptions.withUnit(fieldUnit)
-  + timeSeries.standardOptions.withMin(0)
-  + timeSeries.panelOptions.withRepeat('member_cluster')
-  + timeSeries.panelOptions.withRepeatDirection(value='h')
-  + timeSeries.panelOptions.withMaxPerRow(6)
-  + timeSeries.queryOptions.withTransformations([])
   + timeSeries.fieldConfig.defaults.custom.withInsertNulls(5400000)
-  + queryTargets(testId, fieldNames, includePassingFilter)
+  + timeSeries.gridPos.withH(8)
   + timeSeries.gridPos.withW(24)
-  + timeSeries.gridPos.withH(8);
+  + timeSeries.panelOptions.withMaxPerRow(6)
+  + timeSeries.panelOptions.withRepeatDirection(value='h')
+  + timeSeries.panelOptions.withRepeat('member_cluster')
+  + timeSeries.queryOptions.withTransformations([])
+  + timeSeries.standardOptions.withMin(0)
+  + timeSeries.standardOptions.withUnit(fieldUnit)
+  + queryTargets(testId, fieldNames, includePassingFilter);
 
 local kpiErrorsPanel(testId, fieldNames, panelName='') =
   local title = if panelName == '' then std.join(',', fieldNames) else panelName;
@@ -115,20 +115,20 @@ local kpiErrorsPanel(testId, fieldNames, panelName='') =
     type='grafana-postgresql-datasource',
     uid='${datasource}',
   )
-  + stat.standardOptions.withUnit('percentunit')
-  + stat.standardOptions.withMin(0)
+  + stat.gridPos.withH(8)
+  + stat.gridPos.withW(24)
+  + stat.options.reduceOptions.withCalcs(['mean'])
+  + stat.options.reduceOptions.withValues(false)
+  + stat.panelOptions.withMaxPerRow(6)
+  + stat.panelOptions.withRepeatDirection(value='h')
+  + stat.panelOptions.withRepeat('member_cluster')
+  + stat.queryOptions.withTransformations([])
   + stat.standardOptions.color.withMode('thresholds')
   + stat.standardOptions.thresholds.withMode('absolute')
   + stat.standardOptions.thresholds.withSteps([{ color: 'green', value: null }, { color: 'red', value: 0.1 }])
-  + stat.panelOptions.withRepeat('member_cluster')
-  + stat.panelOptions.withRepeatDirection(value='h')
-  + stat.panelOptions.withMaxPerRow(6)
-  + stat.queryOptions.withTransformations([])
-  + stat.options.reduceOptions.withCalcs(['mean'])
-  + stat.options.reduceOptions.withValues(false)
-  + queryTargets(testId, fieldNames, false)
-  + stat.gridPos.withW(24)
-  + stat.gridPos.withH(8);
+  + stat.standardOptions.withMin(0)
+  + stat.standardOptions.withUnit('percentunit')
+  + queryTargets(testId, fieldNames, false);
 
 local errorTablePanel() =
   table.new('Error reasons detail on ${member_cluster}')
@@ -136,14 +136,16 @@ local errorTablePanel() =
     type='grafana-postgresql-datasource',
     uid='${datasource}',
   )
-  + table.standardOptions.withUnit('string')
-  + table.standardOptions.withMin(0)
-  + table.panelOptions.withRepeat('member_cluster')
-  + table.panelOptions.withRepeatDirection(value='h')
-  + table.panelOptions.withMaxPerRow(6)
-  + table.queryOptions.withTransformations([])
-  + table.options.footer.withEnablePagination()
   + table.fieldConfig.defaults.custom.withFilterable()
+  + table.gridPos.withH(10)
+  + table.gridPos.withW(24)
+  + table.options.footer.withEnablePagination()
+  + table.panelOptions.withMaxPerRow(6)
+  + table.panelOptions.withRepeatDirection(value='h')
+  + table.panelOptions.withRepeat('member_cluster')
+  + table.queryOptions.withTransformations([])
+  + table.standardOptions.withMin(0)
+  + table.standardOptions.withUnit('string')
   + table.queryOptions.withTargets([
     {
       rawSql: |||
@@ -162,9 +164,7 @@ local errorTablePanel() =
       |||,
       format: 'time_series',
     },
-  ])
-  + table.gridPos.withW(24)
-  + table.gridPos.withH(10);
+  ]);
 
 local errorPiePanel() =
   pieChart.new('Error reasons overall on ${member_cluster}')
@@ -172,15 +172,17 @@ local errorPiePanel() =
     type='grafana-postgresql-datasource',
     uid='${datasource}',
   )
-  + pieChart.standardOptions.withUnit('none')
-  + pieChart.standardOptions.withMin(0)
-  + pieChart.panelOptions.withRepeat('member_cluster')
-  + pieChart.panelOptions.withRepeatDirection(value='h')
-  + pieChart.panelOptions.withMaxPerRow(6)
-  + pieChart.queryOptions.withTransformations([])
+  + pieChart.gridPos.withH(10)
+  + pieChart.gridPos.withW(24)
   + pieChart.options.reduceOptions.withValues(true)
-  + pieChart.standardOptions.withNoValue('no error detected')
   + pieChart.options.withDisplayLabels(['value'])
+  + pieChart.panelOptions.withMaxPerRow(6)
+  + pieChart.panelOptions.withRepeatDirection(value='h')
+  + pieChart.panelOptions.withRepeat('member_cluster')
+  + pieChart.queryOptions.withTransformations([])
+  + pieChart.standardOptions.withMin(0)
+  + pieChart.standardOptions.withNoValue('no error detected')
+  + pieChart.standardOptions.withUnit('none')
   + pieChart.queryOptions.withTargets([
     {
       rawSql: |||
@@ -208,9 +210,7 @@ local errorPiePanel() =
       |||,
       format: 'table',
     },
-  ])
-  + pieChart.gridPos.withW(24)
-  + pieChart.gridPos.withH(10);
+  ]);
 
 dashboard.new('Konflux clusters loadtest probe results')
 + dashboard.withUid('Konflux_clusters_loadtest_probe_results')
