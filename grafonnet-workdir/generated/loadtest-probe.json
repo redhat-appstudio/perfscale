@@ -122,9 +122,48 @@
           "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    label_values->>'__results_errors_error_reasons_simple' AS \"Error reasons\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND ( label_values->>'.repo_type' = 'nodejs-devfile-sample' OR NOT (label_values ? '.repo_type') )\n    AND $__timeFilter(start)\nORDER BY\n    start DESC;\n"
         }
       ],
-      "title": "Error reasons on ${member_cluster}",
+      "title": "Error reasons detail on ${member_cluster}",
       "transformations": [],
       "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "noValue": "no error detected",
+          "unit": "none"
+        }
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24
+      },
+      "id": 4,
+      "maxPerRow": 6,
+      "options": {
+        "displayLabels": [
+          "value"
+        ],
+        "reduceOptions": {
+          "values": true
+        }
+      },
+      "pluginVersion": "v11.4.0",
+      "repeat": "member_cluster",
+      "repeatDirection": "h",
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT\n    COALESCE(\n        CASE\n            WHEN label_values ? '__results_errors_error_reasons_simple' THEN\n                regexp_replace(label_values->>'__results_errors_error_reasons_simple', '[0-9]+x ', '', 'g')\n            ELSE\n                NULL\n        END,\n        '') AS \"Error\",\n    COUNT(*) AS \"Count\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'\n    AND ( label_values->>'.repo_type' = 'nodejs-devfile-sample' OR NOT (label_values ? '.repo_type') )\n    AND $__timeFilter(start)\nGROUP BY\n    \"Error\"\nORDER BY\n    \"Error\" ASC;\n"
+        }
+      ],
+      "title": "Error reasons overall on ${member_cluster}",
+      "transformations": [],
+      "type": "piechart"
     },
     {
       "datasource": {
@@ -144,7 +183,7 @@
         "h": 8,
         "w": 24
       },
-      "id": 4,
+      "id": 5,
       "maxPerRow": 6,
       "pluginVersion": "v11.4.0",
       "repeat": "member_cluster",
@@ -221,7 +260,7 @@
         "h": 8,
         "w": 24
       },
-      "id": 5,
+      "id": 6,
       "maxPerRow": 6,
       "pluginVersion": "v11.4.0",
       "repeat": "member_cluster",
@@ -298,7 +337,7 @@
         "h": 8,
         "w": 24
       },
-      "id": 6,
+      "id": 7,
       "maxPerRow": 6,
       "pluginVersion": "v11.4.0",
       "repeat": "member_cluster",
@@ -399,7 +438,7 @@
         "h": 8,
         "w": 24
       },
-      "id": 7,
+      "id": 8,
       "maxPerRow": 6,
       "pluginVersion": "v11.4.0",
       "repeat": "member_cluster",
@@ -500,7 +539,7 @@
         "h": 8,
         "w": 24
       },
-      "id": 8,
+      "id": 9,
       "maxPerRow": 6,
       "pluginVersion": "v11.4.0",
       "repeat": "member_cluster",
@@ -601,7 +640,7 @@
         "h": 8,
         "w": 24
       },
-      "id": 9,
+      "id": 10,
       "maxPerRow": 6,
       "pluginVersion": "v11.4.0",
       "repeat": "member_cluster",
@@ -702,7 +741,7 @@
         "h": 8,
         "w": 24
       },
-      "id": 10,
+      "id": 11,
       "maxPerRow": 6,
       "pluginVersion": "v11.4.0",
       "repeat": "member_cluster",

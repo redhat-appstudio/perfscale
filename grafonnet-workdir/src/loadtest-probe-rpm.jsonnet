@@ -5,6 +5,7 @@ local dashboard = grafonnet.dashboard;
 local timeSeries = grafonnet.panel.timeSeries;
 local stat = grafonnet.panel.stat;
 local table = grafonnet.panel.table;
+local pieChart = grafonnet.panel.pieChart;
 
 // Define "datasource" variable
 local datasourceVar =
@@ -125,7 +126,7 @@ local kpiErrorsPanel(testId, fieldNames, panelName='') =
   + stat.gridPos.withH(8);
 
 local errorTablePanel() =
-  table.new('Error reasons on ${member_cluster}')
+  table.new('Error reasons detail on ${member_cluster}')
   + table.queryOptions.withDatasource(
     type='grafana-postgresql-datasource',
     uid='${datasource}',
@@ -160,6 +161,52 @@ local errorTablePanel() =
   + table.gridPos.withW(24)
   + table.gridPos.withH(10);
 
+local errorPiePanel() =
+  pieChart.new('Error reasons overall on ${member_cluster}')
+  + pieChart.queryOptions.withDatasource(
+    type='grafana-postgresql-datasource',
+    uid='${datasource}',
+  )
+  + pieChart.standardOptions.withUnit('none')
+  + pieChart.standardOptions.withMin(0)
+  + pieChart.panelOptions.withRepeat('member_cluster')
+  + pieChart.panelOptions.withRepeatDirection(value='h')
+  + pieChart.panelOptions.withMaxPerRow(6)
+  + pieChart.queryOptions.withTransformations([])
+  + pieChart.options.reduceOptions.withValues(true)
+  + pieChart.standardOptions.withNoValue('no error detected')
+  + pieChart.options.withDisplayLabels(['value'])
+  + pieChart.queryOptions.withTargets([
+    {
+      rawSql: |||
+        SELECT
+            COALESCE(
+                CASE
+                    WHEN label_values ? '__results_errors_error_reasons_simple' THEN
+                        regexp_replace(label_values->>'__results_errors_error_reasons_simple', '[0-9]+x ', '', 'g')
+                    ELSE
+                        NULL
+                END,
+                '') AS "Error",
+            COUNT(*) AS "Count"
+        FROM
+            data
+        WHERE
+            horreum_testid = 372
+            AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'
+            AND label_values->>'.repo_type' = 'libecpg-test-fork'
+            AND $__timeFilter(start)
+        GROUP BY
+            "Error"
+        ORDER BY
+            "Error" ASC;
+      |||,
+      format: 'table',
+    },
+  ])
+  + pieChart.gridPos.withW(24)
+  + pieChart.gridPos.withH(10);
+
 dashboard.new('Konflux clusters loadtest RPM probe results')
 + dashboard.withUid('Konflux_clusters_loadtest_RPM_probe_res')
 + dashboard.withDescription('Dashboard visualizes Konflux clusters loadtest RPM probe results. Related Horreum test is https://horreum.corp.redhat.com/test/372 with filter by label `.repo_type = libecpg-test-fork`.')
@@ -174,6 +221,7 @@ dashboard.new('Konflux clusters loadtest RPM probe results')
   kpiPanel(372, ['__results_measurements_KPI_mean'], 's', 'Mean duration'),
   kpiErrorsPanel(372, ['__results_measurements_KPI_errors'], 'Failure rate'),
   errorTablePanel(),
+  errorPiePanel(),
   // Panels splitting test actions
   kpiPanel(372, [
     '__results_measurements_HandleUser_pass_duration_mean',
