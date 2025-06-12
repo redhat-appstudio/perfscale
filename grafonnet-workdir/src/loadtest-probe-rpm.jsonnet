@@ -26,6 +26,7 @@ local memberClusterVar =
     'member_cluster',
     values=[
       'https://api.stone-prod-p02.hjvn.p1.openshiftapps.com:6443/',
+      'https://api.stone-prd-rh01.pg1f.p1.openshiftapps.com:6443/',
     ],
   )
   + grafonnet.dashboard.variable.custom.generalOptions.withLabel('Member cluster')
@@ -72,7 +73,7 @@ local queryTarget(testId, fieldName, includePassingFilter=true) = {
     WHERE
         horreum_testid = %g
         AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'
-        AND label_values->>'.repo_type' = 'libecpg-test-fork'
+        AND (label_values->>'.repo_type' LIKE 'libecpg%%')
         AND $__timeFilter(start)
         %s
     ORDER BY
@@ -152,7 +153,7 @@ local errorTablePanel() =
         WHERE
             horreum_testid = 372
             AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'
-            AND label_values->>'.repo_type' = 'libecpg-test-fork'
+            AND (label_values->>'.repo_type' LIKE 'libecpg%%')
             AND $__timeFilter(start)
         ORDER BY
             start DESC;
@@ -196,7 +197,7 @@ local errorPiePanel() =
         WHERE
             horreum_testid = 372
             AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'
-            AND label_values->>'.repo_type' = 'libecpg-test-fork'
+            AND (label_values->>'.repo_type' LIKE 'libecpg%%')
             AND $__timeFilter(start)
         GROUP BY
             "Error"
@@ -209,7 +210,7 @@ local errorPiePanel() =
 
 dashboard.new('Konflux clusters loadtest RPM probe results')
 + dashboard.withUid('Konflux_clusters_loadtest_RPM_probe_res')
-+ dashboard.withDescription('Dashboard visualizes Konflux clusters loadtest RPM probe results. Related Horreum test is https://horreum.corp.redhat.com/test/372 with filter by label `.repo_type = libecpg-test-fork`.')
++ dashboard.withDescription('Dashboard visualizes Konflux clusters loadtest RPM probe results. Related Horreum test is https://horreum.corp.redhat.com/test/372 with filter by label `.repo_type = libecpg*`.')
 + dashboard.time.withFrom(value='now-7d')
 + dashboard.withVariables([
   datasourceVar,

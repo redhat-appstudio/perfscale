@@ -77,7 +77,7 @@ local queryTarget(testId, fieldName, includePassingFilter=true) = {
     WHERE
         horreum_testid = %g
         AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'
-        AND ( label_values->>'.repo_type' = 'nodejs-devfile-sample' OR NOT (label_values ? '.repo_type') )
+        AND label_values->>'.repo_type' = 'nodejs-devfile-sample'
         AND $__timeFilter(start)
         %s
     ORDER BY
@@ -157,7 +157,7 @@ local errorTablePanel() =
         WHERE
             horreum_testid = 372
             AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'
-            AND ( label_values->>'.repo_type' = 'nodejs-devfile-sample' OR NOT (label_values ? '.repo_type') )
+            AND label_values->>'.repo_type' = 'nodejs-devfile-sample'
             AND $__timeFilter(start)
         ORDER BY
             start DESC;
@@ -201,7 +201,7 @@ local errorPiePanel() =
         WHERE
             horreum_testid = 372
             AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'
-            AND ( label_values->>'.repo_type' = 'nodejs-devfile-sample' OR NOT (label_values ? '.repo_type') )
+            AND label_values->>'.repo_type' = 'nodejs-devfile-sample'
             AND $__timeFilter(start)
         GROUP BY
             "Error"
