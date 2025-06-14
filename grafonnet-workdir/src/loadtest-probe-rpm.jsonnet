@@ -27,6 +27,8 @@ local memberClusterVar =
     values=[
       'https://api.stone-prod-p02.hjvn.p1.openshiftapps.com:6443/',
       'https://api.stone-prd-rh01.pg1f.p1.openshiftapps.com:6443/',
+      'https://api.kflux-rhel-p01.fc38.p1.openshiftapps.com:6443/',
+      'https://api.kfluxfedorap01.toli.p1.openshiftapps.com:6443/',
     ],
   )
   + grafonnet.dashboard.variable.custom.generalOptions.withLabel('Member cluster')
