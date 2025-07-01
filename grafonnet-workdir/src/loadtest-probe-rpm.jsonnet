@@ -11,7 +11,7 @@ local pieChart = grafonnet.panel.pieChart;
 local datasourceVar =
   grafonnet.dashboard.variable.datasource.new(
     'datasource',
-    'grafana-postgresql-datasource',
+    'postgres',
   )
   + grafonnet.dashboard.variable.datasource.withRegex('.*grafana-postgresql-datasource.*')  // TODO
   + grafonnet.dashboard.variable.custom.generalOptions.withLabel('Datasource')
@@ -74,7 +74,7 @@ local queryTarget(testId, fieldName, includePassingFilter=true) = {
         data
     WHERE
         horreum_testid = %g
-        AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'
+        AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}
         AND (label_values->>'.repo_type' LIKE 'libecpg%%')
         AND $__timeFilter(start)
         %s
@@ -92,7 +92,7 @@ local kpiPanel(testId, fieldNames, fieldUnit, panelName='', includePassingFilter
   local title = if panelName == '' then std.join(',', fieldNames) else panelName;
   timeSeries.new('%s on ${member_cluster}' % title)
   + timeSeries.queryOptions.withDatasource(
-    type='grafana-postgresql-datasource',
+    type='postgres',
     uid='${datasource}',
   )
   + timeSeries.fieldConfig.defaults.custom.withInsertNulls(5400000)
@@ -110,7 +110,7 @@ local kpiErrorsPanel(testId, fieldNames, panelName='') =
   local title = if panelName == '' then std.join(',', fieldNames) else panelName;
   stat.new('%s on ${member_cluster}' % title)
   + stat.queryOptions.withDatasource(
-    type='grafana-postgresql-datasource',
+    type='postgres',
     uid='${datasource}',
   )
   + stat.gridPos.withH(8)
@@ -131,7 +131,7 @@ local kpiErrorsPanel(testId, fieldNames, panelName='') =
 local errorTablePanel() =
   table.new('Error reasons detail on ${member_cluster}')
   + table.queryOptions.withDatasource(
-    type='grafana-postgresql-datasource',
+    type='postgres',
     uid='${datasource}',
   )
   + table.fieldConfig.defaults.custom.withFilterable()
@@ -154,7 +154,7 @@ local errorTablePanel() =
             data
         WHERE
             horreum_testid = 372
-            AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'
+            AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}
             AND (label_values->>'.repo_type' LIKE 'libecpg%%')
             AND $__timeFilter(start)
         ORDER BY
@@ -167,7 +167,7 @@ local errorTablePanel() =
 local errorPiePanel() =
   pieChart.new('Error reasons overall on ${member_cluster}')
   + pieChart.queryOptions.withDatasource(
-    type='grafana-postgresql-datasource',
+    type='postgres',
     uid='${datasource}',
   )
   + pieChart.gridPos.withH(10)
@@ -198,7 +198,7 @@ local errorPiePanel() =
             data
         WHERE
             horreum_testid = 372
-            AND label_values->>'.metadata.env.MEMBER_CLUSTER' = '${member_cluster}'
+            AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}
             AND (label_values->>'.repo_type' LIKE 'libecpg%%')
             AND $__timeFilter(start)
         GROUP BY
