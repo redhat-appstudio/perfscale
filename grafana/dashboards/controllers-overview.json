@@ -323,7 +323,7 @@
       },
       "id": 9,
       "panels": [],
-      "title": "Info about image-controller / image-controller-controller-manager-[0-9a-z-]+",
+      "title": "Info about etcd-shield / etcd-shield-[0-9a-z-]+",
       "type": "row"
     },
     {
@@ -351,7 +351,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"image-controller\",pod=~\"image-controller-controller-manager-[0-9a-z-]+\"}[$__rate_interval]))",
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"etcd-shield\",pod=~\"etcd-shield-[0-9a-z-]+\"}[$__rate_interval]))",
           "legendFormat": "{{pod}}"
         },
         {
@@ -359,7 +359,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (avg(kube_pod_container_resource_requests{resource=\"cpu\", namespace=\"image-controller\",pod=~\"image-controller-controller-manager-[0-9a-z-]+\"}))",
+          "expr": "sum by (pod) (avg(kube_pod_container_resource_requests{resource=\"cpu\", namespace=\"etcd-shield\",pod=~\"etcd-shield-[0-9a-z-]+\"}))",
           "legendFormat": "REQUESTS"
         },
         {
@@ -367,7 +367,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (avg(kube_pod_container_resource_limits{resource=\"cpu\", namespace=\"image-controller\",pod=~\"image-controller-controller-manager-[0-9a-z-]+\"}))",
+          "expr": "sum by (pod) (avg(kube_pod_container_resource_limits{resource=\"cpu\", namespace=\"etcd-shield\",pod=~\"etcd-shield-[0-9a-z-]+\"}))",
           "legendFormat": "LIMITS"
         },
         {
@@ -375,11 +375,11 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"image-controller\",pod=~\"image-controller-controller-manager-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"etcd-shield\",pod=~\"etcd-shield-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
-      "title": "CPU usage for image-controller / image-controller-controller-manager-[0-9a-z-]+",
+      "title": "CPU usage for etcd-shield / etcd-shield-[0-9a-z-]+",
       "type": "timeseries"
     },
     {
@@ -407,7 +407,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"image-controller\",pod=~\"image-controller-controller-manager-[0-9a-z-]+\",container=\"\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"etcd-shield\",pod=~\"etcd-shield-[0-9a-z-]+\",container=\"\"})",
           "legendFormat": "{{pod}}"
         },
         {
@@ -415,7 +415,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg(sum by (pod) (kube_pod_container_resource_requests{resource=\"memory\",namespace=\"image-controller\",pod=~\"image-controller-controller-manager-[0-9a-z-]+\"}))",
+          "expr": "avg(sum by (pod) (kube_pod_container_resource_requests{resource=\"memory\",namespace=\"etcd-shield\",pod=~\"etcd-shield-[0-9a-z-]+\"}))",
           "legendFormat": "REQUESTS"
         },
         {
@@ -423,7 +423,7 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg(sum by (pod) (kube_pod_container_resource_limits{resource=\"memory\",namespace=\"image-controller\",pod=~\"image-controller-controller-manager-[0-9a-z-]+\"}))",
+          "expr": "avg(sum by (pod) (kube_pod_container_resource_limits{resource=\"memory\",namespace=\"etcd-shield\",pod=~\"etcd-shield-[0-9a-z-]+\"}))",
           "legendFormat": "LIMITS"
         },
         {
@@ -431,11 +431,11 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"image-controller\",pod=~\"image-controller-controller-manager-[0-9a-z-]+\",container=\"\"}))[24h:])",
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"etcd-shield\",pod=~\"etcd-shield-[0-9a-z-]+\",container=\"\"}))[24h:])",
           "legendFormat": "24h AVG"
         }
       ],
-      "title": "Mem usage for image-controller / image-controller-controller-manager-[0-9a-z-]+",
+      "title": "Mem usage for etcd-shield / etcd-shield-[0-9a-z-]+",
       "type": "timeseries"
     },
     {
@@ -462,11 +462,11 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"image-controller\",pod=~\"image-controller-controller-manager-[0-9a-z-]+\"})",
+          "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"etcd-shield\",pod=~\"etcd-shield-[0-9a-z-]+\"})",
           "legendFormat": "restarts"
         }
       ],
-      "title": "Restarts of image-controller / image-controller-controller-manager-[0-9a-z-]+",
+      "title": "Restarts of etcd-shield / etcd-shield-[0-9a-z-]+",
       "type": "timeseries"
     },
     {
@@ -479,7 +479,7 @@
       },
       "id": 13,
       "panels": [],
-      "title": "Info about integration-service / integration-service-controller-manager-[0-9a-z-]+",
+      "title": "Info about external-secrets-operator / external-secrets-operator-controller-manager-[0-9a-z-]+",
       "type": "row"
     },
     {
@@ -500,474 +500,6 @@
         "y": 28
       },
       "id": 14,
-      "pluginVersion": "v11.4.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"integration-service\",pod=~\"integration-service-controller-manager-[0-9a-z-]+\"}[$__rate_interval]))",
-          "legendFormat": "{{pod}}"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "sum by (pod) (avg(kube_pod_container_resource_requests{resource=\"cpu\", namespace=\"integration-service\",pod=~\"integration-service-controller-manager-[0-9a-z-]+\"}))",
-          "legendFormat": "REQUESTS"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "sum by (pod) (avg(kube_pod_container_resource_limits{resource=\"cpu\", namespace=\"integration-service\",pod=~\"integration-service-controller-manager-[0-9a-z-]+\"}))",
-          "legendFormat": "LIMITS"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"integration-service\",pod=~\"integration-service-controller-manager-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
-          "legendFormat": "24h AVG"
-        }
-      ],
-      "title": "CPU usage for integration-service / integration-service-controller-manager-[0-9a-z-]+",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "min": 0,
-          "unit": "bytes"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 28
-      },
-      "id": 15,
-      "pluginVersion": "v11.4.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"integration-service\",pod=~\"integration-service-controller-manager-[0-9a-z-]+\",container=\"\"})",
-          "legendFormat": "{{pod}}"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "avg(sum by (pod) (kube_pod_container_resource_requests{resource=\"memory\",namespace=\"integration-service\",pod=~\"integration-service-controller-manager-[0-9a-z-]+\"}))",
-          "legendFormat": "REQUESTS"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "avg(sum by (pod) (kube_pod_container_resource_limits{resource=\"memory\",namespace=\"integration-service\",pod=~\"integration-service-controller-manager-[0-9a-z-]+\"}))",
-          "legendFormat": "LIMITS"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"integration-service\",pod=~\"integration-service-controller-manager-[0-9a-z-]+\",container=\"\"}))[24h:])",
-          "legendFormat": "24h AVG"
-        }
-      ],
-      "title": "Mem usage for integration-service / integration-service-controller-manager-[0-9a-z-]+",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 28
-      },
-      "id": 16,
-      "pluginVersion": "v11.4.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"integration-service\",pod=~\"integration-service-controller-manager-[0-9a-z-]+\"})",
-          "legendFormat": "restarts"
-        }
-      ],
-      "title": "Restarts of integration-service / integration-service-controller-manager-[0-9a-z-]+",
-      "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 36
-      },
-      "id": 17,
-      "panels": [],
-      "title": "Info about jvm-build-service / hacbs-jvm-operator-[0-9a-z-]+",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "min": 0,
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 0,
-        "y": 37
-      },
-      "id": 18,
-      "pluginVersion": "v11.4.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"jvm-build-service\",pod=~\"hacbs-jvm-operator-[0-9a-z-]+\"}[$__rate_interval]))",
-          "legendFormat": "{{pod}}"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "sum by (pod) (avg(kube_pod_container_resource_requests{resource=\"cpu\", namespace=\"jvm-build-service\",pod=~\"hacbs-jvm-operator-[0-9a-z-]+\"}))",
-          "legendFormat": "REQUESTS"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "sum by (pod) (avg(kube_pod_container_resource_limits{resource=\"cpu\", namespace=\"jvm-build-service\",pod=~\"hacbs-jvm-operator-[0-9a-z-]+\"}))",
-          "legendFormat": "LIMITS"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"jvm-build-service\",pod=~\"hacbs-jvm-operator-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
-          "legendFormat": "24h AVG"
-        }
-      ],
-      "title": "CPU usage for jvm-build-service / hacbs-jvm-operator-[0-9a-z-]+",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "min": 0,
-          "unit": "bytes"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 37
-      },
-      "id": 19,
-      "pluginVersion": "v11.4.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"jvm-build-service\",pod=~\"hacbs-jvm-operator-[0-9a-z-]+\",container=\"\"})",
-          "legendFormat": "{{pod}}"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "avg(sum by (pod) (kube_pod_container_resource_requests{resource=\"memory\",namespace=\"jvm-build-service\",pod=~\"hacbs-jvm-operator-[0-9a-z-]+\"}))",
-          "legendFormat": "REQUESTS"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "avg(sum by (pod) (kube_pod_container_resource_limits{resource=\"memory\",namespace=\"jvm-build-service\",pod=~\"hacbs-jvm-operator-[0-9a-z-]+\"}))",
-          "legendFormat": "LIMITS"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"jvm-build-service\",pod=~\"hacbs-jvm-operator-[0-9a-z-]+\",container=\"\"}))[24h:])",
-          "legendFormat": "24h AVG"
-        }
-      ],
-      "title": "Mem usage for jvm-build-service / hacbs-jvm-operator-[0-9a-z-]+",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 37
-      },
-      "id": 20,
-      "pluginVersion": "v11.4.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"jvm-build-service\",pod=~\"hacbs-jvm-operator-[0-9a-z-]+\"})",
-          "legendFormat": "restarts"
-        }
-      ],
-      "title": "Restarts of jvm-build-service / hacbs-jvm-operator-[0-9a-z-]+",
-      "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 45
-      },
-      "id": 21,
-      "panels": [],
-      "title": "Info about repository-validator / repository-validator-controller-manager-[0-9a-z-]+",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "min": 0,
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 0,
-        "y": 46
-      },
-      "id": 22,
-      "pluginVersion": "v11.4.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"repository-validator\",pod=~\"repository-validator-controller-manager-[0-9a-z-]+\"}[$__rate_interval]))",
-          "legendFormat": "{{pod}}"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "sum by (pod) (avg(kube_pod_container_resource_requests{resource=\"cpu\", namespace=\"repository-validator\",pod=~\"repository-validator-controller-manager-[0-9a-z-]+\"}))",
-          "legendFormat": "REQUESTS"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "sum by (pod) (avg(kube_pod_container_resource_limits{resource=\"cpu\", namespace=\"repository-validator\",pod=~\"repository-validator-controller-manager-[0-9a-z-]+\"}))",
-          "legendFormat": "LIMITS"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"repository-validator\",pod=~\"repository-validator-controller-manager-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
-          "legendFormat": "24h AVG"
-        }
-      ],
-      "title": "CPU usage for repository-validator / repository-validator-controller-manager-[0-9a-z-]+",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "min": 0,
-          "unit": "bytes"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 46
-      },
-      "id": 23,
-      "pluginVersion": "v11.4.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"repository-validator\",pod=~\"repository-validator-controller-manager-[0-9a-z-]+\",container=\"\"})",
-          "legendFormat": "{{pod}}"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "avg(sum by (pod) (kube_pod_container_resource_requests{resource=\"memory\",namespace=\"repository-validator\",pod=~\"repository-validator-controller-manager-[0-9a-z-]+\"}))",
-          "legendFormat": "REQUESTS"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "avg(sum by (pod) (kube_pod_container_resource_limits{resource=\"memory\",namespace=\"repository-validator\",pod=~\"repository-validator-controller-manager-[0-9a-z-]+\"}))",
-          "legendFormat": "LIMITS"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"repository-validator\",pod=~\"repository-validator-controller-manager-[0-9a-z-]+\",container=\"\"}))[24h:])",
-          "legendFormat": "24h AVG"
-        }
-      ],
-      "title": "Mem usage for repository-validator / repository-validator-controller-manager-[0-9a-z-]+",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 46
-      },
-      "id": 24,
-      "pluginVersion": "v11.4.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"repository-validator\",pod=~\"repository-validator-controller-manager-[0-9a-z-]+\"})",
-          "legendFormat": "restarts"
-        }
-      ],
-      "title": "Restarts of repository-validator / repository-validator-controller-manager-[0-9a-z-]+",
-      "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 54
-      },
-      "id": 25,
-      "panels": [],
-      "title": "Info about external-secrets-operator / external-secrets-operator-controller-manager-[0-9a-z-]+",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "min": 0,
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 0,
-        "y": 55
-      },
-      "id": 26,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -1021,9 +553,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 55
+        "y": 28
       },
-      "id": 27,
+      "id": 15,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -1076,9 +608,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 55
+        "y": 28
       },
-      "id": 28,
+      "id": 16,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -1099,11 +631,479 @@
         "h": 1,
         "w": 24,
         "x": 0,
+        "y": 36
+      },
+      "id": 17,
+      "panels": [],
+      "title": "Info about image-controller / image-controller-controller-manager-[0-9a-z-]+",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 37
+      },
+      "id": 18,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"image-controller\",pod=~\"image-controller-controller-manager-[0-9a-z-]+\"}[$__rate_interval]))",
+          "legendFormat": "{{pod}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (avg(kube_pod_container_resource_requests{resource=\"cpu\", namespace=\"image-controller\",pod=~\"image-controller-controller-manager-[0-9a-z-]+\"}))",
+          "legendFormat": "REQUESTS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (avg(kube_pod_container_resource_limits{resource=\"cpu\", namespace=\"image-controller\",pod=~\"image-controller-controller-manager-[0-9a-z-]+\"}))",
+          "legendFormat": "LIMITS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"image-controller\",pod=~\"image-controller-controller-manager-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "legendFormat": "24h AVG"
+        }
+      ],
+      "title": "CPU usage for image-controller / image-controller-controller-manager-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 37
+      },
+      "id": 19,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"image-controller\",pod=~\"image-controller-controller-manager-[0-9a-z-]+\",container=\"\"})",
+          "legendFormat": "{{pod}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg(sum by (pod) (kube_pod_container_resource_requests{resource=\"memory\",namespace=\"image-controller\",pod=~\"image-controller-controller-manager-[0-9a-z-]+\"}))",
+          "legendFormat": "REQUESTS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg(sum by (pod) (kube_pod_container_resource_limits{resource=\"memory\",namespace=\"image-controller\",pod=~\"image-controller-controller-manager-[0-9a-z-]+\"}))",
+          "legendFormat": "LIMITS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"image-controller\",pod=~\"image-controller-controller-manager-[0-9a-z-]+\",container=\"\"}))[24h:])",
+          "legendFormat": "24h AVG"
+        }
+      ],
+      "title": "Mem usage for image-controller / image-controller-controller-manager-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 37
+      },
+      "id": 20,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"image-controller\",pod=~\"image-controller-controller-manager-[0-9a-z-]+\"})",
+          "legendFormat": "restarts"
+        }
+      ],
+      "title": "Restarts of image-controller / image-controller-controller-manager-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 45
+      },
+      "id": 21,
+      "panels": [],
+      "title": "Info about integration-service / integration-service-controller-manager-[0-9a-z-]+",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 46
+      },
+      "id": 22,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"integration-service\",pod=~\"integration-service-controller-manager-[0-9a-z-]+\"}[$__rate_interval]))",
+          "legendFormat": "{{pod}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (avg(kube_pod_container_resource_requests{resource=\"cpu\", namespace=\"integration-service\",pod=~\"integration-service-controller-manager-[0-9a-z-]+\"}))",
+          "legendFormat": "REQUESTS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (avg(kube_pod_container_resource_limits{resource=\"cpu\", namespace=\"integration-service\",pod=~\"integration-service-controller-manager-[0-9a-z-]+\"}))",
+          "legendFormat": "LIMITS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"integration-service\",pod=~\"integration-service-controller-manager-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "legendFormat": "24h AVG"
+        }
+      ],
+      "title": "CPU usage for integration-service / integration-service-controller-manager-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 46
+      },
+      "id": 23,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"integration-service\",pod=~\"integration-service-controller-manager-[0-9a-z-]+\",container=\"\"})",
+          "legendFormat": "{{pod}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg(sum by (pod) (kube_pod_container_resource_requests{resource=\"memory\",namespace=\"integration-service\",pod=~\"integration-service-controller-manager-[0-9a-z-]+\"}))",
+          "legendFormat": "REQUESTS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg(sum by (pod) (kube_pod_container_resource_limits{resource=\"memory\",namespace=\"integration-service\",pod=~\"integration-service-controller-manager-[0-9a-z-]+\"}))",
+          "legendFormat": "LIMITS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"integration-service\",pod=~\"integration-service-controller-manager-[0-9a-z-]+\",container=\"\"}))[24h:])",
+          "legendFormat": "24h AVG"
+        }
+      ],
+      "title": "Mem usage for integration-service / integration-service-controller-manager-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 46
+      },
+      "id": 24,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"integration-service\",pod=~\"integration-service-controller-manager-[0-9a-z-]+\"})",
+          "legendFormat": "restarts"
+        }
+      ],
+      "title": "Restarts of integration-service / integration-service-controller-manager-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 54
+      },
+      "id": 25,
+      "panels": [],
+      "title": "Info about jvm-build-service / hacbs-jvm-operator-[0-9a-z-]+",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 55
+      },
+      "id": 26,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"jvm-build-service\",pod=~\"hacbs-jvm-operator-[0-9a-z-]+\"}[$__rate_interval]))",
+          "legendFormat": "{{pod}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (avg(kube_pod_container_resource_requests{resource=\"cpu\", namespace=\"jvm-build-service\",pod=~\"hacbs-jvm-operator-[0-9a-z-]+\"}))",
+          "legendFormat": "REQUESTS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (avg(kube_pod_container_resource_limits{resource=\"cpu\", namespace=\"jvm-build-service\",pod=~\"hacbs-jvm-operator-[0-9a-z-]+\"}))",
+          "legendFormat": "LIMITS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"jvm-build-service\",pod=~\"hacbs-jvm-operator-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "legendFormat": "24h AVG"
+        }
+      ],
+      "title": "CPU usage for jvm-build-service / hacbs-jvm-operator-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 55
+      },
+      "id": 27,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"jvm-build-service\",pod=~\"hacbs-jvm-operator-[0-9a-z-]+\",container=\"\"})",
+          "legendFormat": "{{pod}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg(sum by (pod) (kube_pod_container_resource_requests{resource=\"memory\",namespace=\"jvm-build-service\",pod=~\"hacbs-jvm-operator-[0-9a-z-]+\"}))",
+          "legendFormat": "REQUESTS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg(sum by (pod) (kube_pod_container_resource_limits{resource=\"memory\",namespace=\"jvm-build-service\",pod=~\"hacbs-jvm-operator-[0-9a-z-]+\"}))",
+          "legendFormat": "LIMITS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"jvm-build-service\",pod=~\"hacbs-jvm-operator-[0-9a-z-]+\",container=\"\"}))[24h:])",
+          "legendFormat": "24h AVG"
+        }
+      ],
+      "title": "Mem usage for jvm-build-service / hacbs-jvm-operator-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 55
+      },
+      "id": 28,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"jvm-build-service\",pod=~\"hacbs-jvm-operator-[0-9a-z-]+\"})",
+          "legendFormat": "restarts"
+        }
+      ],
+      "title": "Restarts of jvm-build-service / hacbs-jvm-operator-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
         "y": 63
       },
       "id": 29,
       "panels": [],
-      "title": "Info about mintmaker / mintmaker-controller-manager-[0-9a-z-]+",
+      "title": "Info about konflux-kyverno / kyverno-admission-controller-[0-9a-z-]+",
       "type": "row"
     },
     {
@@ -1124,6 +1124,630 @@
         "y": 64
       },
       "id": 30,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"konflux-kyverno\",pod=~\"kyverno-admission-controller-[0-9a-z-]+\"}[$__rate_interval]))",
+          "legendFormat": "{{pod}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (avg(kube_pod_container_resource_requests{resource=\"cpu\", namespace=\"konflux-kyverno\",pod=~\"kyverno-admission-controller-[0-9a-z-]+\"}))",
+          "legendFormat": "REQUESTS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (avg(kube_pod_container_resource_limits{resource=\"cpu\", namespace=\"konflux-kyverno\",pod=~\"kyverno-admission-controller-[0-9a-z-]+\"}))",
+          "legendFormat": "LIMITS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"konflux-kyverno\",pod=~\"kyverno-admission-controller-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "legendFormat": "24h AVG"
+        }
+      ],
+      "title": "CPU usage for konflux-kyverno / kyverno-admission-controller-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 64
+      },
+      "id": 31,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"konflux-kyverno\",pod=~\"kyverno-admission-controller-[0-9a-z-]+\",container=\"\"})",
+          "legendFormat": "{{pod}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg(sum by (pod) (kube_pod_container_resource_requests{resource=\"memory\",namespace=\"konflux-kyverno\",pod=~\"kyverno-admission-controller-[0-9a-z-]+\"}))",
+          "legendFormat": "REQUESTS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg(sum by (pod) (kube_pod_container_resource_limits{resource=\"memory\",namespace=\"konflux-kyverno\",pod=~\"kyverno-admission-controller-[0-9a-z-]+\"}))",
+          "legendFormat": "LIMITS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"konflux-kyverno\",pod=~\"kyverno-admission-controller-[0-9a-z-]+\",container=\"\"}))[24h:])",
+          "legendFormat": "24h AVG"
+        }
+      ],
+      "title": "Mem usage for konflux-kyverno / kyverno-admission-controller-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 64
+      },
+      "id": 32,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"konflux-kyverno\",pod=~\"kyverno-admission-controller-[0-9a-z-]+\"})",
+          "legendFormat": "restarts"
+        }
+      ],
+      "title": "Restarts of konflux-kyverno / kyverno-admission-controller-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 72
+      },
+      "id": 33,
+      "panels": [],
+      "title": "Info about konflux-kyverno / kyverno-background-controller-[0-9a-z-]+",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 73
+      },
+      "id": 34,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"konflux-kyverno\",pod=~\"kyverno-background-controller-[0-9a-z-]+\"}[$__rate_interval]))",
+          "legendFormat": "{{pod}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (avg(kube_pod_container_resource_requests{resource=\"cpu\", namespace=\"konflux-kyverno\",pod=~\"kyverno-background-controller-[0-9a-z-]+\"}))",
+          "legendFormat": "REQUESTS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (avg(kube_pod_container_resource_limits{resource=\"cpu\", namespace=\"konflux-kyverno\",pod=~\"kyverno-background-controller-[0-9a-z-]+\"}))",
+          "legendFormat": "LIMITS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"konflux-kyverno\",pod=~\"kyverno-background-controller-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "legendFormat": "24h AVG"
+        }
+      ],
+      "title": "CPU usage for konflux-kyverno / kyverno-background-controller-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 73
+      },
+      "id": 35,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"konflux-kyverno\",pod=~\"kyverno-background-controller-[0-9a-z-]+\",container=\"\"})",
+          "legendFormat": "{{pod}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg(sum by (pod) (kube_pod_container_resource_requests{resource=\"memory\",namespace=\"konflux-kyverno\",pod=~\"kyverno-background-controller-[0-9a-z-]+\"}))",
+          "legendFormat": "REQUESTS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg(sum by (pod) (kube_pod_container_resource_limits{resource=\"memory\",namespace=\"konflux-kyverno\",pod=~\"kyverno-background-controller-[0-9a-z-]+\"}))",
+          "legendFormat": "LIMITS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"konflux-kyverno\",pod=~\"kyverno-background-controller-[0-9a-z-]+\",container=\"\"}))[24h:])",
+          "legendFormat": "24h AVG"
+        }
+      ],
+      "title": "Mem usage for konflux-kyverno / kyverno-background-controller-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 73
+      },
+      "id": 36,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"konflux-kyverno\",pod=~\"kyverno-background-controller-[0-9a-z-]+\"})",
+          "legendFormat": "restarts"
+        }
+      ],
+      "title": "Restarts of konflux-kyverno / kyverno-background-controller-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 81
+      },
+      "id": 37,
+      "panels": [],
+      "title": "Info about konflux-kyverno / kyverno-cleanup-controller-[0-9a-z-]+",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 82
+      },
+      "id": 38,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"konflux-kyverno\",pod=~\"kyverno-cleanup-controller-[0-9a-z-]+\"}[$__rate_interval]))",
+          "legendFormat": "{{pod}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (avg(kube_pod_container_resource_requests{resource=\"cpu\", namespace=\"konflux-kyverno\",pod=~\"kyverno-cleanup-controller-[0-9a-z-]+\"}))",
+          "legendFormat": "REQUESTS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (avg(kube_pod_container_resource_limits{resource=\"cpu\", namespace=\"konflux-kyverno\",pod=~\"kyverno-cleanup-controller-[0-9a-z-]+\"}))",
+          "legendFormat": "LIMITS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"konflux-kyverno\",pod=~\"kyverno-cleanup-controller-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "legendFormat": "24h AVG"
+        }
+      ],
+      "title": "CPU usage for konflux-kyverno / kyverno-cleanup-controller-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 82
+      },
+      "id": 39,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"konflux-kyverno\",pod=~\"kyverno-cleanup-controller-[0-9a-z-]+\",container=\"\"})",
+          "legendFormat": "{{pod}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg(sum by (pod) (kube_pod_container_resource_requests{resource=\"memory\",namespace=\"konflux-kyverno\",pod=~\"kyverno-cleanup-controller-[0-9a-z-]+\"}))",
+          "legendFormat": "REQUESTS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg(sum by (pod) (kube_pod_container_resource_limits{resource=\"memory\",namespace=\"konflux-kyverno\",pod=~\"kyverno-cleanup-controller-[0-9a-z-]+\"}))",
+          "legendFormat": "LIMITS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"konflux-kyverno\",pod=~\"kyverno-cleanup-controller-[0-9a-z-]+\",container=\"\"}))[24h:])",
+          "legendFormat": "24h AVG"
+        }
+      ],
+      "title": "Mem usage for konflux-kyverno / kyverno-cleanup-controller-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 82
+      },
+      "id": 40,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"konflux-kyverno\",pod=~\"kyverno-cleanup-controller-[0-9a-z-]+\"})",
+          "legendFormat": "restarts"
+        }
+      ],
+      "title": "Restarts of konflux-kyverno / kyverno-cleanup-controller-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 90
+      },
+      "id": 41,
+      "panels": [],
+      "title": "Info about kueue-external-admission / alert-mgr-kueue-admission-controller-manager-[0-9a-z-]+",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 91
+      },
+      "id": 42,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"kueue-external-admission\",pod=~\"alert-mgr-kueue-admission-controller-manager-[0-9a-z-]+\"}[$__rate_interval]))",
+          "legendFormat": "{{pod}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (avg(kube_pod_container_resource_requests{resource=\"cpu\", namespace=\"kueue-external-admission\",pod=~\"alert-mgr-kueue-admission-controller-manager-[0-9a-z-]+\"}))",
+          "legendFormat": "REQUESTS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (avg(kube_pod_container_resource_limits{resource=\"cpu\", namespace=\"kueue-external-admission\",pod=~\"alert-mgr-kueue-admission-controller-manager-[0-9a-z-]+\"}))",
+          "legendFormat": "LIMITS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"kueue-external-admission\",pod=~\"alert-mgr-kueue-admission-controller-manager-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "legendFormat": "24h AVG"
+        }
+      ],
+      "title": "CPU usage for kueue-external-admission / alert-mgr-kueue-admission-controller-manager-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 91
+      },
+      "id": 43,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"kueue-external-admission\",pod=~\"alert-mgr-kueue-admission-controller-manager-[0-9a-z-]+\",container=\"\"})",
+          "legendFormat": "{{pod}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg(sum by (pod) (kube_pod_container_resource_requests{resource=\"memory\",namespace=\"kueue-external-admission\",pod=~\"alert-mgr-kueue-admission-controller-manager-[0-9a-z-]+\"}))",
+          "legendFormat": "REQUESTS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg(sum by (pod) (kube_pod_container_resource_limits{resource=\"memory\",namespace=\"kueue-external-admission\",pod=~\"alert-mgr-kueue-admission-controller-manager-[0-9a-z-]+\"}))",
+          "legendFormat": "LIMITS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"kueue-external-admission\",pod=~\"alert-mgr-kueue-admission-controller-manager-[0-9a-z-]+\",container=\"\"}))[24h:])",
+          "legendFormat": "24h AVG"
+        }
+      ],
+      "title": "Mem usage for kueue-external-admission / alert-mgr-kueue-admission-controller-manager-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 91
+      },
+      "id": 44,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"kueue-external-admission\",pod=~\"alert-mgr-kueue-admission-controller-manager-[0-9a-z-]+\"})",
+          "legendFormat": "restarts"
+        }
+      ],
+      "title": "Restarts of kueue-external-admission / alert-mgr-kueue-admission-controller-manager-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 99
+      },
+      "id": 45,
+      "panels": [],
+      "title": "Info about mintmaker / mintmaker-controller-manager-[0-9a-z-]+",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 100
+      },
+      "id": 46,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -1177,9 +1801,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 64
+        "y": 100
       },
-      "id": 31,
+      "id": 47,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -1232,9 +1856,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 64
+        "y": 100
       },
-      "id": 32,
+      "id": 48,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -1255,9 +1879,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 72
+        "y": 108
       },
-      "id": 33,
+      "id": 49,
       "panels": [],
       "title": "Info about multi-platform-controller / multi-platform-controller-[0-9a-z-]+",
       "type": "row"
@@ -1277,9 +1901,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 73
+        "y": 109
       },
-      "id": 34,
+      "id": 50,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -1333,9 +1957,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 73
+        "y": 109
       },
-      "id": 35,
+      "id": 51,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -1388,9 +2012,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 73
+        "y": 109
       },
-      "id": 36,
+      "id": 52,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -1411,9 +2035,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 81
+        "y": 117
       },
-      "id": 37,
+      "id": 53,
       "panels": [],
       "title": "Info about multi-platform-controller / multi-platform-otp-server-[0-9a-z-]+",
       "type": "row"
@@ -1433,9 +2057,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 82
+        "y": 118
       },
-      "id": 38,
+      "id": 54,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -1489,9 +2113,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 82
+        "y": 118
       },
-      "id": 39,
+      "id": 55,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -1544,9 +2168,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 82
+        "y": 118
       },
-      "id": 40,
+      "id": 56,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -1567,9 +2191,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 90
+        "y": 126
       },
-      "id": 41,
+      "id": 57,
       "panels": [],
       "title": "Info about notification-controller / notification-controller-controller-manager-[0-9a-z-]+",
       "type": "row"
@@ -1589,9 +2213,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 91
+        "y": 127
       },
-      "id": 42,
+      "id": 58,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -1645,9 +2269,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 91
+        "y": 127
       },
-      "id": 43,
+      "id": 59,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -1700,9 +2324,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 91
+        "y": 127
       },
-      "id": 44,
+      "id": 60,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -1723,9 +2347,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 99
+        "y": 135
       },
-      "id": 45,
+      "id": 61,
       "panels": [],
       "title": "Info about openshift-etcd / etcd-ip-[0-9]+-[0-9]+-[0-9]+-[0-9]+.ec2.internal",
       "type": "row"
@@ -1745,9 +2369,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 100
+        "y": 136
       },
-      "id": 46,
+      "id": 62,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -1801,9 +2425,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 100
+        "y": 136
       },
-      "id": 47,
+      "id": 63,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -1856,9 +2480,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 100
+        "y": 136
       },
-      "id": 48,
+      "id": 64,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -1879,9 +2503,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 108
+        "y": 144
       },
-      "id": 49,
+      "id": 65,
       "panels": [],
       "title": "Info about openshift-kube-apiserver / kube-apiserver-ip-.+",
       "type": "row"
@@ -1901,9 +2525,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 109
+        "y": 145
       },
-      "id": 50,
+      "id": 66,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -1957,9 +2581,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 109
+        "y": 145
       },
-      "id": 51,
+      "id": 67,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -2012,9 +2636,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 109
+        "y": 145
       },
-      "id": 52,
+      "id": 68,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -2035,9 +2659,165 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 117
+        "y": 153
       },
-      "id": 53,
+      "id": 69,
+      "panels": [],
+      "title": "Info about openshift-kueue-operator / kueue-controller-manager-[0-9a-z-]+",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 154
+      },
+      "id": 70,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"openshift-kueue-operator\",pod=~\"kueue-controller-manager-[0-9a-z-]+\"}[$__rate_interval]))",
+          "legendFormat": "{{pod}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (avg(kube_pod_container_resource_requests{resource=\"cpu\", namespace=\"openshift-kueue-operator\",pod=~\"kueue-controller-manager-[0-9a-z-]+\"}))",
+          "legendFormat": "REQUESTS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (avg(kube_pod_container_resource_limits{resource=\"cpu\", namespace=\"openshift-kueue-operator\",pod=~\"kueue-controller-manager-[0-9a-z-]+\"}))",
+          "legendFormat": "LIMITS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"openshift-kueue-operator\",pod=~\"kueue-controller-manager-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "legendFormat": "24h AVG"
+        }
+      ],
+      "title": "CPU usage for openshift-kueue-operator / kueue-controller-manager-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 154
+      },
+      "id": 71,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-kueue-operator\",pod=~\"kueue-controller-manager-[0-9a-z-]+\",container=\"\"})",
+          "legendFormat": "{{pod}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg(sum by (pod) (kube_pod_container_resource_requests{resource=\"memory\",namespace=\"openshift-kueue-operator\",pod=~\"kueue-controller-manager-[0-9a-z-]+\"}))",
+          "legendFormat": "REQUESTS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg(sum by (pod) (kube_pod_container_resource_limits{resource=\"memory\",namespace=\"openshift-kueue-operator\",pod=~\"kueue-controller-manager-[0-9a-z-]+\"}))",
+          "legendFormat": "LIMITS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"openshift-kueue-operator\",pod=~\"kueue-controller-manager-[0-9a-z-]+\",container=\"\"}))[24h:])",
+          "legendFormat": "24h AVG"
+        }
+      ],
+      "title": "Mem usage for openshift-kueue-operator / kueue-controller-manager-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 154
+      },
+      "id": 72,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"openshift-kueue-operator\",pod=~\"kueue-controller-manager-[0-9a-z-]+\"})",
+          "legendFormat": "restarts"
+        }
+      ],
+      "title": "Restarts of openshift-kueue-operator / kueue-controller-manager-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 162
+      },
+      "id": 73,
       "panels": [],
       "title": "Info about openshift-pipelines / pipeline-metrics-exporter-[0-9a-z-]+",
       "type": "row"
@@ -2057,9 +2837,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 118
+        "y": 163
       },
-      "id": 54,
+      "id": 74,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -2113,9 +2893,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 118
+        "y": 163
       },
-      "id": 55,
+      "id": 75,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -2168,9 +2948,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 118
+        "y": 163
       },
-      "id": 56,
+      "id": 76,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -2191,9 +2971,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 126
+        "y": 171
       },
-      "id": 57,
+      "id": 77,
       "panels": [],
       "title": "Info about openshift-pipelines / pipelines-as-code-controller-[0-9a-z-]+",
       "type": "row"
@@ -2213,9 +2993,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 127
+        "y": 172
       },
-      "id": 58,
+      "id": 78,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -2269,9 +3049,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 127
+        "y": 172
       },
-      "id": 59,
+      "id": 79,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -2324,9 +3104,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 127
+        "y": 172
       },
-      "id": 60,
+      "id": 80,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -2347,9 +3127,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 135
+        "y": 180
       },
-      "id": 61,
+      "id": 81,
       "panels": [],
       "title": "Info about openshift-pipelines / pipelines-as-code-watcher-[0-9a-z-]+",
       "type": "row"
@@ -2369,9 +3149,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 136
+        "y": 181
       },
-      "id": 62,
+      "id": 82,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -2425,9 +3205,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 136
+        "y": 181
       },
-      "id": 63,
+      "id": 83,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -2480,9 +3260,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 136
+        "y": 181
       },
-      "id": 64,
+      "id": 84,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -2503,9 +3283,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 144
+        "y": 189
       },
-      "id": 65,
+      "id": 85,
       "panels": [],
       "title": "Info about openshift-pipelines / pipelines-as-code-webhook-[0-9a-z-]+",
       "type": "row"
@@ -2525,9 +3305,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 145
+        "y": 190
       },
-      "id": 66,
+      "id": 86,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -2581,9 +3361,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 145
+        "y": 190
       },
-      "id": 67,
+      "id": 87,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -2636,9 +3416,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 145
+        "y": 190
       },
-      "id": 68,
+      "id": 88,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -2659,9 +3439,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 153
+        "y": 198
       },
-      "id": 69,
+      "id": 89,
       "panels": [],
       "title": "Info about openshift-pipelines / pipelines-console-plugin-[0-9a-z-]+",
       "type": "row"
@@ -2681,9 +3461,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 154
+        "y": 199
       },
-      "id": 70,
+      "id": 90,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -2737,9 +3517,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 154
+        "y": 199
       },
-      "id": 71,
+      "id": 91,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -2792,9 +3572,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 154
+        "y": 199
       },
-      "id": 72,
+      "id": 92,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -2815,9 +3595,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 162
+        "y": 207
       },
-      "id": 73,
+      "id": 93,
       "panels": [],
       "title": "Info about openshift-pipelines / tekton-chains-controller-[0-9a-z-]+",
       "type": "row"
@@ -2837,9 +3617,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 163
+        "y": 208
       },
-      "id": 74,
+      "id": 94,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -2893,9 +3673,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 163
+        "y": 208
       },
-      "id": 75,
+      "id": 95,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -2948,9 +3728,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 163
+        "y": 208
       },
-      "id": 76,
+      "id": 96,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -2971,9 +3751,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 171
+        "y": 216
       },
-      "id": 77,
+      "id": 97,
       "panels": [],
       "title": "Info about openshift-pipelines / tekton-events-controller-[0-9a-z-]+",
       "type": "row"
@@ -2993,9 +3773,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 172
+        "y": 217
       },
-      "id": 78,
+      "id": 98,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -3049,9 +3829,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 172
+        "y": 217
       },
-      "id": 79,
+      "id": 99,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -3104,9 +3884,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 172
+        "y": 217
       },
-      "id": 80,
+      "id": 100,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -3127,9 +3907,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 180
+        "y": 225
       },
-      "id": 81,
+      "id": 101,
       "panels": [],
       "title": "Info about openshift-pipelines / tekton-operator-proxy-webhook-[0-9a-z-]+",
       "type": "row"
@@ -3149,9 +3929,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 181
+        "y": 226
       },
-      "id": 82,
+      "id": 102,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -3205,9 +3985,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 181
+        "y": 226
       },
-      "id": 83,
+      "id": 103,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -3260,9 +4040,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 181
+        "y": 226
       },
-      "id": 84,
+      "id": 104,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -3283,9 +4063,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 189
+        "y": 234
       },
-      "id": 85,
+      "id": 105,
       "panels": [],
       "title": "Info about openshift-pipelines / tekton-pipelines-controller-[0-9]+",
       "type": "row"
@@ -3305,9 +4085,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 190
+        "y": 235
       },
-      "id": 86,
+      "id": 106,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -3361,9 +4141,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 190
+        "y": 235
       },
-      "id": 87,
+      "id": 107,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -3416,9 +4196,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 190
+        "y": 235
       },
-      "id": 88,
+      "id": 108,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -3439,9 +4219,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 198
+        "y": 243
       },
-      "id": 89,
+      "id": 109,
       "panels": [],
       "title": "Info about openshift-pipelines / tekton-pipelines-remote-resolvers-[0-9]+",
       "type": "row"
@@ -3461,9 +4241,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 199
+        "y": 244
       },
-      "id": 90,
+      "id": 110,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -3517,9 +4297,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 199
+        "y": 244
       },
-      "id": 91,
+      "id": 111,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -3572,9 +4352,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 199
+        "y": 244
       },
-      "id": 92,
+      "id": 112,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -3595,9 +4375,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 207
+        "y": 252
       },
-      "id": 93,
+      "id": 113,
       "panels": [],
       "title": "Info about openshift-pipelines / tekton-triggers-controller-[0-9a-z-]+",
       "type": "row"
@@ -3617,9 +4397,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 208
+        "y": 253
       },
-      "id": 94,
+      "id": 114,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -3673,9 +4453,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 208
+        "y": 253
       },
-      "id": 95,
+      "id": 115,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -3728,9 +4508,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 208
+        "y": 253
       },
-      "id": 96,
+      "id": 116,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -3751,9 +4531,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 216
+        "y": 261
       },
-      "id": 97,
+      "id": 117,
       "panels": [],
       "title": "Info about openshift-pipelines / tekton-triggers-core-interceptors-[0-9a-z-]+",
       "type": "row"
@@ -3773,9 +4553,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 217
+        "y": 262
       },
-      "id": 98,
+      "id": 118,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -3829,9 +4609,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 217
+        "y": 262
       },
-      "id": 99,
+      "id": 119,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -3884,9 +4664,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 217
+        "y": 262
       },
-      "id": 100,
+      "id": 120,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -3907,9 +4687,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 225
+        "y": 270
       },
-      "id": 101,
+      "id": 121,
       "panels": [],
       "title": "Info about openshift-pipelines / tekton-triggers-webhook-[0-9a-z-]+",
       "type": "row"
@@ -3929,9 +4709,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 226
+        "y": 271
       },
-      "id": 102,
+      "id": 122,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -3985,9 +4765,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 226
+        "y": 271
       },
-      "id": 103,
+      "id": 123,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -4040,9 +4820,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 226
+        "y": 271
       },
-      "id": 104,
+      "id": 124,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -4063,9 +4843,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 234
+        "y": 279
       },
-      "id": 105,
+      "id": 125,
       "panels": [],
       "title": "Info about openshift-pipelines / tkn-cli-serve-[0-9a-z-]+",
       "type": "row"
@@ -4085,9 +4865,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 235
+        "y": 280
       },
-      "id": 106,
+      "id": 126,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -4141,9 +4921,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 235
+        "y": 280
       },
-      "id": 107,
+      "id": 127,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -4196,9 +4976,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 235
+        "y": 280
       },
-      "id": 108,
+      "id": 128,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -4219,9 +4999,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 243
+        "y": 288
       },
-      "id": 109,
+      "id": 129,
       "panels": [],
       "title": "Info about project-controller / project-controller-controller-manager-[0-9a-z-]+",
       "type": "row"
@@ -4241,9 +5021,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 244
+        "y": 289
       },
-      "id": 110,
+      "id": 130,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -4297,9 +5077,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 244
+        "y": 289
       },
-      "id": 111,
+      "id": 131,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -4352,9 +5132,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 244
+        "y": 289
       },
-      "id": 112,
+      "id": 132,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -4375,9 +5155,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 252
+        "y": 297
       },
-      "id": 113,
+      "id": 133,
       "panels": [],
       "title": "Info about release-service / release-service-controller-manager-[0-9a-z-]+",
       "type": "row"
@@ -4397,9 +5177,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 253
+        "y": 298
       },
-      "id": 114,
+      "id": 134,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -4453,9 +5233,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 253
+        "y": 298
       },
-      "id": 115,
+      "id": 135,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -4508,9 +5288,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 253
+        "y": 298
       },
-      "id": 116,
+      "id": 136,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -4531,9 +5311,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 261
+        "y": 306
       },
-      "id": 117,
+      "id": 137,
       "panels": [],
       "title": "Info about release-service / release-service-monitor-deployment-[0-9a-z-]+",
       "type": "row"
@@ -4553,9 +5333,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 262
+        "y": 307
       },
-      "id": 118,
+      "id": 138,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -4609,9 +5389,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 262
+        "y": 307
       },
-      "id": 119,
+      "id": 139,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -4664,9 +5444,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 262
+        "y": 307
       },
-      "id": 120,
+      "id": 140,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -4687,9 +5467,477 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 270
+        "y": 315
       },
-      "id": 121,
+      "id": 141,
+      "panels": [],
+      "title": "Info about repository-validator / repository-validator-controller-manager-[0-9a-z-]+",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 316
+      },
+      "id": 142,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"repository-validator\",pod=~\"repository-validator-controller-manager-[0-9a-z-]+\"}[$__rate_interval]))",
+          "legendFormat": "{{pod}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (avg(kube_pod_container_resource_requests{resource=\"cpu\", namespace=\"repository-validator\",pod=~\"repository-validator-controller-manager-[0-9a-z-]+\"}))",
+          "legendFormat": "REQUESTS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (avg(kube_pod_container_resource_limits{resource=\"cpu\", namespace=\"repository-validator\",pod=~\"repository-validator-controller-manager-[0-9a-z-]+\"}))",
+          "legendFormat": "LIMITS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"repository-validator\",pod=~\"repository-validator-controller-manager-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "legendFormat": "24h AVG"
+        }
+      ],
+      "title": "CPU usage for repository-validator / repository-validator-controller-manager-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 316
+      },
+      "id": 143,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"repository-validator\",pod=~\"repository-validator-controller-manager-[0-9a-z-]+\",container=\"\"})",
+          "legendFormat": "{{pod}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg(sum by (pod) (kube_pod_container_resource_requests{resource=\"memory\",namespace=\"repository-validator\",pod=~\"repository-validator-controller-manager-[0-9a-z-]+\"}))",
+          "legendFormat": "REQUESTS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg(sum by (pod) (kube_pod_container_resource_limits{resource=\"memory\",namespace=\"repository-validator\",pod=~\"repository-validator-controller-manager-[0-9a-z-]+\"}))",
+          "legendFormat": "LIMITS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"repository-validator\",pod=~\"repository-validator-controller-manager-[0-9a-z-]+\",container=\"\"}))[24h:])",
+          "legendFormat": "24h AVG"
+        }
+      ],
+      "title": "Mem usage for repository-validator / repository-validator-controller-manager-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 316
+      },
+      "id": 144,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"repository-validator\",pod=~\"repository-validator-controller-manager-[0-9a-z-]+\"})",
+          "legendFormat": "restarts"
+        }
+      ],
+      "title": "Restarts of repository-validator / repository-validator-controller-manager-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 324
+      },
+      "id": 145,
+      "panels": [],
+      "title": "Info about tekton-kueue / tekton-kueue-controller-manager-[0-9a-z-]+",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 325
+      },
+      "id": 146,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"tekton-kueue\",pod=~\"tekton-kueue-controller-manager-[0-9a-z-]+\"}[$__rate_interval]))",
+          "legendFormat": "{{pod}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (avg(kube_pod_container_resource_requests{resource=\"cpu\", namespace=\"tekton-kueue\",pod=~\"tekton-kueue-controller-manager-[0-9a-z-]+\"}))",
+          "legendFormat": "REQUESTS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (avg(kube_pod_container_resource_limits{resource=\"cpu\", namespace=\"tekton-kueue\",pod=~\"tekton-kueue-controller-manager-[0-9a-z-]+\"}))",
+          "legendFormat": "LIMITS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"tekton-kueue\",pod=~\"tekton-kueue-controller-manager-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "legendFormat": "24h AVG"
+        }
+      ],
+      "title": "CPU usage for tekton-kueue / tekton-kueue-controller-manager-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 325
+      },
+      "id": 147,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"tekton-kueue\",pod=~\"tekton-kueue-controller-manager-[0-9a-z-]+\",container=\"\"})",
+          "legendFormat": "{{pod}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg(sum by (pod) (kube_pod_container_resource_requests{resource=\"memory\",namespace=\"tekton-kueue\",pod=~\"tekton-kueue-controller-manager-[0-9a-z-]+\"}))",
+          "legendFormat": "REQUESTS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg(sum by (pod) (kube_pod_container_resource_limits{resource=\"memory\",namespace=\"tekton-kueue\",pod=~\"tekton-kueue-controller-manager-[0-9a-z-]+\"}))",
+          "legendFormat": "LIMITS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"tekton-kueue\",pod=~\"tekton-kueue-controller-manager-[0-9a-z-]+\",container=\"\"}))[24h:])",
+          "legendFormat": "24h AVG"
+        }
+      ],
+      "title": "Mem usage for tekton-kueue / tekton-kueue-controller-manager-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 325
+      },
+      "id": 148,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"tekton-kueue\",pod=~\"tekton-kueue-controller-manager-[0-9a-z-]+\"})",
+          "legendFormat": "restarts"
+        }
+      ],
+      "title": "Restarts of tekton-kueue / tekton-kueue-controller-manager-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 333
+      },
+      "id": 149,
+      "panels": [],
+      "title": "Info about tekton-kueue / tekton-kueue-webhook-[0-9a-z-]+",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 334
+      },
+      "id": 150,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"tekton-kueue\",pod=~\"tekton-kueue-webhook-[0-9a-z-]+\"}[$__rate_interval]))",
+          "legendFormat": "{{pod}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (avg(kube_pod_container_resource_requests{resource=\"cpu\", namespace=\"tekton-kueue\",pod=~\"tekton-kueue-webhook-[0-9a-z-]+\"}))",
+          "legendFormat": "REQUESTS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (avg(kube_pod_container_resource_limits{resource=\"cpu\", namespace=\"tekton-kueue\",pod=~\"tekton-kueue-webhook-[0-9a-z-]+\"}))",
+          "legendFormat": "LIMITS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"tekton-kueue\",pod=~\"tekton-kueue-webhook-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "legendFormat": "24h AVG"
+        }
+      ],
+      "title": "CPU usage for tekton-kueue / tekton-kueue-webhook-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 334
+      },
+      "id": 151,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"tekton-kueue\",pod=~\"tekton-kueue-webhook-[0-9a-z-]+\",container=\"\"})",
+          "legendFormat": "{{pod}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg(sum by (pod) (kube_pod_container_resource_requests{resource=\"memory\",namespace=\"tekton-kueue\",pod=~\"tekton-kueue-webhook-[0-9a-z-]+\"}))",
+          "legendFormat": "REQUESTS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg(sum by (pod) (kube_pod_container_resource_limits{resource=\"memory\",namespace=\"tekton-kueue\",pod=~\"tekton-kueue-webhook-[0-9a-z-]+\"}))",
+          "legendFormat": "LIMITS"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace=\"tekton-kueue\",pod=~\"tekton-kueue-webhook-[0-9a-z-]+\",container=\"\"}))[24h:])",
+          "legendFormat": "24h AVG"
+        }
+      ],
+      "title": "Mem usage for tekton-kueue / tekton-kueue-webhook-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 334
+      },
+      "id": 152,
+      "pluginVersion": "v11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"tekton-kueue\",pod=~\"tekton-kueue-webhook-[0-9a-z-]+\"})",
+          "legendFormat": "restarts"
+        }
+      ],
+      "title": "Restarts of tekton-kueue / tekton-kueue-webhook-[0-9a-z-]+",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 342
+      },
+      "id": 153,
       "panels": [],
       "title": "Info about tekton-logging / vector-tekton-logs-collector-.+",
       "type": "row"
@@ -4709,9 +5957,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 271
+        "y": 343
       },
-      "id": 122,
+      "id": 154,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -4765,9 +6013,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 271
+        "y": 343
       },
-      "id": 123,
+      "id": 155,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -4820,9 +6068,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 271
+        "y": 343
       },
-      "id": 124,
+      "id": 156,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -4843,9 +6091,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 279
+        "y": 351
       },
-      "id": 125,
+      "id": 157,
       "panels": [],
       "title": "Info about tekton-results / tekton-results-api-.+",
       "type": "row"
@@ -4865,9 +6113,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 280
+        "y": 352
       },
-      "id": 126,
+      "id": 158,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -4921,9 +6169,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 280
+        "y": 352
       },
-      "id": 127,
+      "id": 159,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -4976,9 +6224,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 280
+        "y": 352
       },
-      "id": 128,
+      "id": 160,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -4999,9 +6247,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 288
+        "y": 360
       },
-      "id": 129,
+      "id": 161,
       "panels": [],
       "title": "Info about tekton-results / tekton-results-api-for-watcher-.+",
       "type": "row"
@@ -5021,9 +6269,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 289
+        "y": 361
       },
-      "id": 130,
+      "id": 162,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -5077,9 +6325,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 289
+        "y": 361
       },
-      "id": 131,
+      "id": 163,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -5132,9 +6380,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 289
+        "y": 361
       },
-      "id": 132,
+      "id": 164,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -5155,9 +6403,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 297
+        "y": 369
       },
-      "id": 133,
+      "id": 165,
       "panels": [],
       "title": "Info about tekton-results / tekton-results-watcher-.+",
       "type": "row"
@@ -5177,9 +6425,9 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 298
+        "y": 370
       },
-      "id": 134,
+      "id": 166,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -5233,9 +6481,9 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 298
+        "y": 370
       },
-      "id": 135,
+      "id": 167,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
@@ -5288,9 +6536,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 298
+        "y": 370
       },
-      "id": 136,
+      "id": 168,
       "pluginVersion": "v11.4.0",
       "targets": [
         {
