@@ -32,6 +32,7 @@ local memberClusterVar =
       'https://api.kflux-prd-rh02.0fk9.p1.openshiftapps.com:6443/',
       'https://api.stone-prod-p01.wcfb.p1.openshiftapps.com:6443/',
       'https://api.kflux-prd-rh03.nnv1.p1.openshiftapps.com:6443/',
+      'https://api.kflux-rhel-p01.fc38.p1.openshiftapps.com:6443/',
     ],
   )
   + grafonnet.dashboard.variable.custom.generalOptions.withLabel('Member cluster')
