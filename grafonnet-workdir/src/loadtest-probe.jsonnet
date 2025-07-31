@@ -5,6 +5,7 @@ local dashboard = grafonnet.dashboard;
 local timeSeries = grafonnet.panel.timeSeries;
 local stat = grafonnet.panel.stat;
 local table = grafonnet.panel.table;
+local row = grafonnet.panel.row;
 local pieChart = grafonnet.panel.pieChart;
 
 // Define "datasource" variable
@@ -225,11 +226,16 @@ dashboard.new('Konflux clusters loadtest probe results')
 ])
 + dashboard.withPanels([
   // Main panels
+  row.new('KPI durations'),
   kpiPanel(372, ['__results_measurements_KPI_mean'], 's', 'Mean duration'),
+  row.new('KPI errors'),
   kpiErrorsPanel(372, ['__results_measurements_KPI_errors'], 'Failure rate'),
+  row.new('Errors table'),
   errorTablePanel(),
+  row.new('Errors pie-chart'),
   errorPiePanel(),
   // Panels splitting test actions
+  row.new('Duration by test phase'),
   kpiPanel(372, [
     '__results_measurements_HandleUser_pass_duration_mean',
     '__results_measurements_createApplication_pass_duration_mean',
@@ -254,6 +260,7 @@ dashboard.new('Konflux clusters loadtest probe results')
     '__results_measurements_validateTestPipelineRunCondition_pass_duration_mean',
     '__results_measurements_validateTestPipelineRunCreation_pass_duration_mean',
   ], 's', 'Duration by test phase'),
+  row.new('Error rate by test phase'),
   kpiPanel(372, [
     '__results_measurements_HandleUser_error_rate',
     '__results_measurements_createApplication_error_rate',
@@ -279,6 +286,7 @@ dashboard.new('Konflux clusters loadtest probe results')
     '__results_measurements_validateTestPipelineRunCreation_error_rate',
   ], 'none', 'Error rate by test phase', includePassingFilter=false),
   // Panels showing per task data
+  row.new('Overall duration by task run'),
   kpiPanel(372, [
     '__results_durations_stats_taskruns__build_apply_tags__passed_duration_mean',
     '__results_durations_stats_taskruns__build_buildah__passed_duration_mean',
@@ -299,6 +307,7 @@ dashboard.new('Konflux clusters loadtest probe results')
     '__results_durations_stats_taskruns__build_summary__passed_duration_mean',
     '__results_durations_stats_taskruns__test_test_output__passed_duration_mean',
   ], 's', 'Overall duration by task run'),
+  row.new('Running duration by task run'),
   kpiPanel(372, [
     '__results_durations_stats_taskruns__build_apply_tags__passed_running_mean',
     '__results_durations_stats_taskruns__build_buildah__passed_running_mean',
@@ -319,6 +328,7 @@ dashboard.new('Konflux clusters loadtest probe results')
     '__results_durations_stats_taskruns__build_summary__passed_running_mean',
     '__results_durations_stats_taskruns__test_test_output__passed_running_mean',
   ], 's', 'Running duration by task run'),
+  row.new('Scheduled duration by task run'),
   kpiPanel(372, [
     '__results_durations_stats_taskruns__build_apply_tags__passed_scheduled_mean',
     '__results_durations_stats_taskruns__build_buildah__passed_scheduled_mean',
@@ -339,6 +349,7 @@ dashboard.new('Konflux clusters loadtest probe results')
     '__results_durations_stats_taskruns__build_summary__passed_scheduled_mean',
     '__results_durations_stats_taskruns__test_test_output__passed_scheduled_mean',
   ], 's', 'Scheduled duration by task run'),
+  row.new('Idle duration by task run'),
   kpiPanel(372, [
     '__results_durations_stats_taskruns__build_apply_tags__passed_idle_mean',
     '__results_durations_stats_taskruns__build_buildah__passed_idle_mean',
@@ -359,6 +370,7 @@ dashboard.new('Konflux clusters loadtest probe results')
     '__results_durations_stats_taskruns__build_summary__passed_idle_mean',
     '__results_durations_stats_taskruns__test_test_output__passed_idle_mean',
   ], 's', 'Idle duration by task run'),
+  row.new('Count of task runs'),
   kpiPanel(372, [
     '__results_durations_stats_taskruns__build_apply_tags__passed_duration_samples',
     '__results_durations_stats_taskruns__build_buildah__passed_duration_samples',
