@@ -247,7 +247,8 @@ dashboard.new('Konflux clusters loadtest probe results')
     '__results_measurements_createReleasePlan_pass_duration_mean',
     '__results_measurements_getPaCPullNumber_pass_duration_mean',
     '__results_measurements_validateApplication_pass_duration_mean',
-    '__results_measurements_validateComponentBuildSA_pass_duration_mean',
+    '__results_measurements_validateComponentBuildSA_pass_duration_mean',  // TODO: Delme later, I was renamed to just __results_measurements_validateComponent_...
+    '__results_measurements_validateComponent_pass_duration_mean',
     '__results_measurements_validateIntegrationTestScenario_pass_duration_mean',
     '__results_measurements_validatePipelineRunCondition_pass_duration_mean',
     '__results_measurements_validatePipelineRunCreation_pass_duration_mean',
@@ -272,7 +273,8 @@ dashboard.new('Konflux clusters loadtest probe results')
     '__results_measurements_createReleasePlan_error_rate',
     '__results_measurements_getPaCPullNumber_error_rate',
     '__results_measurements_validateApplication_error_rate',
-    '__results_measurements_validateComponentBuildSA_error_rate',
+    '__results_measurements_validateComponentBuildSA_error_rate',  // TODO: Delme later, I was renamed to just __results_measurements_validateComponent_...
+    '__results_measurements_validateComponent_error_rate',
     '__results_measurements_validateIntegrationTestScenario_error_rate',
     '__results_measurements_validatePipelineRunCondition_error_rate',
     '__results_measurements_validatePipelineRunCreation_error_rate',
