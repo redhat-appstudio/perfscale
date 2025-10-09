@@ -89,8 +89,6 @@ metadata:
   name: controllers-overview
   labels:
     app: appstudio-grafana
-  annotations:
-    argocd.argoproj.io/sync-options: ServerSideApply=true
 spec:
   instanceSelector:
     matchLabels:
