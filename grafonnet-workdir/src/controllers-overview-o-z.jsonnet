@@ -168,6 +168,8 @@ dashboard.new('Performance: Controllers resources and restarts overview (namespa
     myRow('product-kubearchive', 'kubearchive-sink-[0-9a-z-]+'),
     myRow('product-kubearchive', 'otel-collector-[0-9a-z-]+'),
     myRow('product-kubearchive', 'postgresql-[0-9a-z-]+'),
+    myRow('product-kubearchive-logging', 'loki-[0-9a-z-]+'),
+    myRow('product-kubearchive-logging', 'vector-[0-9a-z-]+'),
     myRow('project-controller', 'project-controller-controller-manager-[0-9a-z-]+'),
     myRow('release-service', 'release-service-controller-manager-[0-9a-z-]+'),
     myRow('release-service', 'release-service-monitor-deployment-[0-9a-z-]+'),
