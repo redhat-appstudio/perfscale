@@ -23,6 +23,9 @@ configMapGenerator:
   - name: tenant-performance
     files:
       - dashboards/tenant-performance.json
-  - name: controllers-overview
+  - name: controllers-overview-a-n
     files:
-      - dashboards/controllers-overview.json
+      - dashboards/controllers-overview-a-n.json
+  - name: controllers-overview-o-z
+    files:
+      - dashboards/controllers-overview-o-z.json

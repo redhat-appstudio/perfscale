@@ -86,7 +86,21 @@ spec:
 apiVersion: grafana.integreatly.org/v1beta1
 kind: GrafanaDashboard
 metadata:
-  name: controllers-overview
+  name: controllers-overview-a-n
+  labels:
+    app: appstudio-grafana
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: "appstudio-grafana"
+  configMapRef:
+    name: controllers-overview
+    key: controllers-overview.json
+---
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: controllers-overview-o-z
   labels:
     app: appstudio-grafana
 spec:

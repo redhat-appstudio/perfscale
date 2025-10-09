@@ -138,7 +138,7 @@ local myRow(namespace, pod_rex) =
   ]);
 
 // Finally dashboard
-dashboard.new('Performance: Controllers resources and restarts overview')
+dashboard.new('Performance: Controllers resources and restarts overview (namespaces starting with a - n)')
 + dashboard.withDescription('Dashboard visualizes Konflux controllers basic resources use and health indicators: CPU, memory usage and number of restarts. Aim is to help spot unusual behavior.')
 + dashboard.time.withFrom(value='now-24h')
 + dashboard.withVariables([
@@ -169,37 +169,5 @@ dashboard.new('Performance: Controllers resources and restarts overview')
     myRow('multi-platform-controller', 'multi-platform-controller-[0-9a-z-]+'),
     myRow('multi-platform-controller', 'multi-platform-otp-server-[0-9a-z-]+'),
     myRow('notification-controller', 'notification-controller-controller-manager-[0-9a-z-]+'),
-    myRow('openshift-etcd', 'etcd-ip-[0-9]+-[0-9]+-[0-9]+-[0-9]+.ec2.internal'),
-    myRow('openshift-kube-apiserver', 'kube-apiserver-ip-.+'),
-    myRow('openshift-kueue-operator', 'kueue-controller-manager-[0-9a-z-]+'),
-    myRow('openshift-pipelines', 'pipeline-metrics-exporter-[0-9a-z-]+'),
-    myRow('openshift-pipelines', 'pipelines-as-code-controller-[0-9a-z-]+'),
-    myRow('openshift-pipelines', 'pipelines-as-code-watcher-[0-9a-z-]+'),
-    myRow('openshift-pipelines', 'pipelines-as-code-webhook-[0-9a-z-]+'),
-    myRow('openshift-pipelines', 'pipelines-console-plugin-[0-9a-z-]+'),
-    myRow('openshift-pipelines', 'tekton-chains-controller-[0-9a-z-]+'),
-    myRow('openshift-pipelines', 'tekton-events-controller-[0-9a-z-]+'),
-    myRow('openshift-pipelines', 'tekton-operator-proxy-webhook-[0-9a-z-]+'),
-    myRow('openshift-pipelines', 'tekton-pipelines-controller-[0-9]+'),
-    myRow('openshift-pipelines', 'tekton-pipelines-remote-resolvers-[0-9]+'),
-    myRow('openshift-pipelines', 'tekton-triggers-controller-[0-9a-z-]+'),
-    myRow('openshift-pipelines', 'tekton-triggers-core-interceptors-[0-9a-z-]+'),
-    myRow('openshift-pipelines', 'tekton-triggers-webhook-[0-9a-z-]+'),
-    myRow('openshift-pipelines', 'tkn-cli-serve-[0-9a-z-]+'),
-    myRow('product-kubearchive', 'apiserversource-kubearchive-[0-9a-z-]+'),
-    myRow('product-kubearchive', 'kubearchive-api-server-[0-9a-z-]+'),
-    myRow('product-kubearchive', 'kubearchive-sink-[0-9a-z-]+'),
-    myRow('product-kubearchive', 'otel-collector-[0-9a-z-]+'),
-    myRow('product-kubearchive', 'postgresql-[0-9a-z-]+'),
-    myRow('project-controller', 'project-controller-controller-manager-[0-9a-z-]+'),
-    myRow('release-service', 'release-service-controller-manager-[0-9a-z-]+'),
-    myRow('release-service', 'release-service-monitor-deployment-[0-9a-z-]+'),
-    myRow('repository-validator', 'repository-validator-controller-manager-[0-9a-z-]+'),
-    myRow('tekton-kueue', 'tekton-kueue-controller-manager-[0-9a-z-]+'),
-    myRow('tekton-kueue', 'tekton-kueue-webhook-[0-9a-z-]+'),
-    myRow('tekton-logging', 'vector-tekton-logs-collector-.+'),
-    myRow('tekton-results', 'tekton-results-api-.+'),
-    myRow('tekton-results', 'tekton-results-api-for-watcher-.+'),
-    myRow('tekton-results', 'tekton-results-watcher-.+'),
   ], panelWidth=8)
 )
