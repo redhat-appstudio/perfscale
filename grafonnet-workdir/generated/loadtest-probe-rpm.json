@@ -31,7 +31,7 @@
         "w": 24
       },
       "id": 2,
-      "maxPerRow": 6,
+      "maxPerRow": 4,
       "pluginVersion": "v11.4.0",
       "repeat": "member_cluster",
       "repeatDirection": "h",
@@ -88,7 +88,7 @@
         "w": 24
       },
       "id": 4,
-      "maxPerRow": 6,
+      "maxPerRow": 4,
       "options": {
         "reduceOptions": {
           "calcs": [
@@ -140,7 +140,7 @@
         "w": 24
       },
       "id": 6,
-      "maxPerRow": 6,
+      "maxPerRow": 4,
       "options": {
         "footer": {
           "enablePagination": true
@@ -187,7 +187,7 @@
         "w": 24
       },
       "id": 8,
-      "maxPerRow": 6,
+      "maxPerRow": 4,
       "options": {
         "displayLabels": [
           "value"
@@ -239,7 +239,7 @@
         "w": 24
       },
       "id": 10,
-      "maxPerRow": 6,
+      "maxPerRow": 4,
       "pluginVersion": "v11.4.0",
       "repeat": "member_cluster",
       "repeatDirection": "h",
@@ -371,7 +371,7 @@
         "w": 24
       },
       "id": 12,
-      "maxPerRow": 6,
+      "maxPerRow": 4,
       "pluginVersion": "v11.4.0",
       "repeat": "member_cluster",
       "repeatDirection": "h",
@@ -503,7 +503,7 @@
         "w": 24
       },
       "id": 14,
-      "maxPerRow": 6,
+      "maxPerRow": 4,
       "pluginVersion": "v11.4.0",
       "repeat": "member_cluster",
       "repeatDirection": "h",
@@ -579,7 +579,7 @@
         "w": 24
       },
       "id": 16,
-      "maxPerRow": 6,
+      "maxPerRow": 4,
       "pluginVersion": "v11.4.0",
       "repeat": "member_cluster",
       "repeatDirection": "h",
@@ -655,7 +655,7 @@
         "w": 24
       },
       "id": 18,
-      "maxPerRow": 6,
+      "maxPerRow": 4,
       "pluginVersion": "v11.4.0",
       "repeat": "member_cluster",
       "repeatDirection": "h",
@@ -731,7 +731,7 @@
         "w": 24
       },
       "id": 20,
-      "maxPerRow": 6,
+      "maxPerRow": 4,
       "pluginVersion": "v11.4.0",
       "repeat": "member_cluster",
       "repeatDirection": "h",
@@ -807,7 +807,7 @@
         "w": 24
       },
       "id": 22,
-      "maxPerRow": 6,
+      "maxPerRow": 4,
       "pluginVersion": "v11.4.0",
       "repeat": "member_cluster",
       "repeatDirection": "h",
@@ -883,7 +883,7 @@
         "w": 24
       },
       "id": 24,
-      "maxPerRow": 6,
+      "maxPerRow": 4,
       "pluginVersion": "v11.4.0",
       "repeat": "member_cluster",
       "repeatDirection": "h",
@@ -955,7 +955,7 @@
         "w": 24
       },
       "id": 26,
-      "maxPerRow": 6,
+      "maxPerRow": 4,
       "pluginVersion": "v11.4.0",
       "repeat": "member_cluster",
       "repeatDirection": "h",
@@ -1027,7 +1027,7 @@
         "w": 24
       },
       "id": 28,
-      "maxPerRow": 6,
+      "maxPerRow": 4,
       "pluginVersion": "v11.4.0",
       "repeat": "member_cluster",
       "repeatDirection": "h",
@@ -1099,7 +1099,7 @@
         "w": 24
       },
       "id": 30,
-      "maxPerRow": 6,
+      "maxPerRow": 4,
       "pluginVersion": "v11.4.0",
       "repeat": "member_cluster",
       "repeatDirection": "h",
@@ -1171,7 +1171,7 @@
         "w": 24
       },
       "id": 32,
-      "maxPerRow": 6,
+      "maxPerRow": 4,
       "pluginVersion": "v11.4.0",
       "repeat": "member_cluster",
       "repeatDirection": "h",
