@@ -94,8 +94,8 @@ spec:
     matchLabels:
       dashboards: "appstudio-grafana"
   configMapRef:
-    name: controllers-overview
-    key: controllers-overview.json
+    name: controllers-overview-a-n
+    key: controllers-overview-a-n.json
 ---
 apiVersion: grafana.integreatly.org/v1beta1
 kind: GrafanaDashboard
@@ -108,5 +108,5 @@ spec:
     matchLabels:
       dashboards: "appstudio-grafana"
   configMapRef:
-    name: controllers-overview
-    key: controllers-overview.json
+    name: controllers-overview-o-z
+    key: controllers-overview-o-z.json
