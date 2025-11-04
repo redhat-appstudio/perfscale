@@ -57,7 +57,7 @@ local pieChart = grafonnet.panel.pieChart;
     + grafonnet.dashboard.variable.custom.generalOptions.withCurrent('Off'),
 
 
-  durationQuery(testId, fieldName, includePassingFilter=true):: {
+  durationQuery(testId, repoType, fieldName, includePassingFilter=true):: {
     local passingFilter = if includePassingFilter then "AND label_values->>'.results.measurements.KPI.mean' != '-1'" else '',
     rawSql: |||
       SELECT
@@ -75,23 +75,23 @@ local pieChart = grafonnet.panel.pieChart;
       WHERE
           horreum_testid = %g
           AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}
-          AND label_values->>'.repo_type' = 'nodejs-devfile-sample'
+          AND label_values->>'.repo_type' = '%s'
           AND $__timeFilter(start)
           %s
       ORDER BY
           start;
-    ||| % [fieldName, fieldName, fieldName, fieldName, fieldName, fieldName, testId, passingFilter],
+    ||| % [fieldName, fieldName, fieldName, fieldName, fieldName, fieldName, testId, repoType, passingFilter],
     format: 'time_series',
   },
 
 
-  durationsQuery(testId, fieldNames, includePassingFilter=true)::
+  durationsQuery(testId, repoType, fieldNames, includePassingFilter=true)::
     timeSeries.queryOptions.withTargets(
-      [self.durationQuery(testId, fieldName, includePassingFilter) for fieldName in fieldNames],
+      [self.durationQuery(testId, repoType, fieldName, includePassingFilter) for fieldName in fieldNames],
     ),
 
 
-  errorsTableQuery(testId):: {
+  errorsTableQuery(testId, repoType):: {
     rawSql: |||
       SELECT
           EXTRACT(EPOCH FROM start) AS "time",
@@ -101,16 +101,16 @@ local pieChart = grafonnet.panel.pieChart;
       WHERE
           horreum_testid = %g
           AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}
-          AND label_values->>'.repo_type' = 'nodejs-devfile-sample'
+          AND label_values->>'.repo_type' = '%s'
           AND $__timeFilter(start)
       ORDER BY
           start DESC;
-    ||| % [testId],
+    ||| % [testId, repoType],
     format: 'time_series',
   },
 
 
-  errorsPieQuery(testId):: {
+  errorsPieQuery(testId, repoType):: {
     rawSql: |||
       SELECT
           COALESCE(
@@ -127,18 +127,18 @@ local pieChart = grafonnet.panel.pieChart;
       WHERE
           horreum_testid = %g
           AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}
-          AND label_values->>'.repo_type' = 'nodejs-devfile-sample'
+          AND label_values->>'.repo_type' = '%s'
           AND $__timeFilter(start)
       GROUP BY
           "Error"
       ORDER BY
           "Error" ASC;
-    ||| % [testId],
+    ||| % [testId, repoType],
     format: 'table',
   },
 
 
-  durationsPanel(testId, fieldNames, fieldUnit, panelName='', includePassingFilter=true)::
+  durationsPanel(testId, repoType, fieldNames, fieldUnit, panelName='', includePassingFilter=true)::
     local title = if panelName == '' then std.join(',', fieldNames) else panelName;
     timeSeries.new('%s on ${member_cluster}' % title)
     + timeSeries.queryOptions.withDatasource(
@@ -154,10 +154,10 @@ local pieChart = grafonnet.panel.pieChart;
     + timeSeries.queryOptions.withTransformations([])
     + timeSeries.standardOptions.withMin(0)
     + timeSeries.standardOptions.withUnit(fieldUnit)
-    + self.durationsQuery(testId, fieldNames, includePassingFilter),
+    + self.durationsQuery(testId, repoType, fieldNames, includePassingFilter),
 
 
-  errorsCountPanel(testId, fieldNames, panelName='')::
+  errorsCountPanel(testId, repoType, fieldNames, panelName='')::
     local title = if panelName == '' then std.join(',', fieldNames) else panelName;
     stat.new('%s on ${member_cluster}' % title)
     + stat.queryOptions.withDatasource(
@@ -177,10 +177,10 @@ local pieChart = grafonnet.panel.pieChart;
     + stat.standardOptions.thresholds.withSteps([{ color: 'green', value: null }, { color: 'red', value: 0.1 }])
     + stat.standardOptions.withMin(0)
     + stat.standardOptions.withUnit('percentunit')
-    + self.durationsQuery(testId, fieldNames, false),
+    + self.durationsQuery(testId, repoType, fieldNames, false),
 
 
-  errorsTablePanel(testId)::
+  errorsTablePanel(testId, repoType)::
     table.new('Error reasons detail on ${member_cluster}')
     + table.queryOptions.withDatasource(
       type='postgres',
@@ -196,10 +196,10 @@ local pieChart = grafonnet.panel.pieChart;
     + table.queryOptions.withTransformations([])
     + table.standardOptions.withMin(0)
     + table.standardOptions.withUnit('string')
-    + table.queryOptions.withTargets([self.errorsTableQuery(testId)]),
+    + table.queryOptions.withTargets([self.errorsTableQuery(testId, repoType)]),
 
 
-  errorsPiePanel(testId)::
+  errorsPiePanel(testId, repoType)::
     pieChart.new('Error reasons overall on ${member_cluster}')
     + pieChart.queryOptions.withDatasource(
       type='postgres',
@@ -216,7 +216,7 @@ local pieChart = grafonnet.panel.pieChart;
     + pieChart.standardOptions.withMin(0)
     + pieChart.standardOptions.withNoValue('no error detected')
     + pieChart.standardOptions.withUnit('none')
-    + pieChart.queryOptions.withTargets([self.errorsPieQuery(testId)]),
+    + pieChart.queryOptions.withTargets([self.errorsPieQuery(testId, repoType)]),
 
 }
 
