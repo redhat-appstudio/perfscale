@@ -58,7 +58,7 @@ local pieChart = grafonnet.panel.pieChart;
 
 
   joinExtraFilters(extraFilters)::
-    local string = std.join(' AND ', extraFilters);
+    local string = std.join(' AND ', [i for i in extraFilters if i != '']);
     if string == '' then
       ''
     else
@@ -231,6 +231,7 @@ local pieChart = grafonnet.panel.pieChart;
     dashboardDescription='',
     testId=0,
     repoType='',
+    templatingDir='',
     memberClusters=[],
     testPhaseStubs=[],
     taskRunStubs=[],
@@ -238,6 +239,8 @@ local pieChart = grafonnet.panel.pieChart;
   )::
     local repoTypeFilter = if std.findSubstr('%', repoType) == [] then "label_values->>'.repo_type' = '%s'" % [repoType] else "label_values->>'.repo_type' LIKE '%s'" % [repoType];
     local passingFilter = "label_values->>'.results.measurements.KPI.mean' != '-1'";
+    local templatingDirFilter = if templatingDir == 'nodejs-devfile-sample-SingleArch' then "(label_values->>'__parameters_options_PipelineRepoTemplatingSourceDir' IS NULL OR label_values->>'__parameters_options_PipelineRepoTemplatingSourceDir' = 'nodejs-devfile-sample-test/' OR label_values->>'__parameters_options_PipelineRepoTemplatingSourceDir' = 'nodejs-devfile-sample-SingleArch/')" else if templatingDir == 'nodejs-devfile-sample-MultiArch' then "label_values->>'__parameters_options_PipelineRepoTemplatingSourceDir' = 'nodejs-devfile-sample-MultiArch/'" else '';
+    local extraFilters = [repoTypeFilter, passingFilter, templatingDirFilter];
     dashboard.new(dashboardName)
     + dashboard.withUid(dashboardUid)
     + dashboard.withDescription(dashboardDescription)
@@ -250,40 +253,40 @@ local pieChart = grafonnet.panel.pieChart;
     + dashboard.withPanels([
       // Main panels
       row.new('KPI durations'),
-      self.durationsPanel(testId, ['__results_measurements_KPI_mean'], 's', 'Mean duration', extraFilters=[repoTypeFilter, passingFilter]),
+      self.durationsPanel(testId, ['__results_measurements_KPI_mean'], 's', 'Mean duration', extraFilters=extraFilters),
       row.new('KPI errors'),
-      self.errorsCountPanel(testId, ['__results_measurements_KPI_errors'], 'Failure rate', extraFilters=[repoTypeFilter, passingFilter]),
+      self.errorsCountPanel(testId, ['__results_measurements_KPI_errors'], 'Failure rate', extraFilters=extraFilters),
       row.new('Errors table'),
       self.errorsTablePanel(testId),
       row.new('Errors pie-chart'),
       self.errorsPiePanel(testId),
       // Panels splitting test actions
       row.new('Duration by test phase'),
-      self.durationsPanel(testId, [i + 'pass_duration_mean' for i in testPhaseStubs], 's', 'Duration by test phase', extraFilters=[repoTypeFilter, passingFilter]),
+      self.durationsPanel(testId, [i + 'pass_duration_mean' for i in testPhaseStubs], 's', 'Duration by test phase', extraFilters=extraFilters),
       row.new('Error rate by test phase'),
       self.durationsPanel(testId, [i + 'error_rate' for i in testPhaseStubs], 'none', 'Error rate by test phase', extraFilters=[repoTypeFilter]),
       // Panels showing per task data
       row.new('Overall duration by task run'),
-      self.durationsPanel(testId, [i + 'passed_duration_mean' for i in taskRunStubs], 's', 'Overall duration by task run', extraFilters=[repoTypeFilter, passingFilter]),
+      self.durationsPanel(testId, [i + 'passed_duration_mean' for i in taskRunStubs], 's', 'Overall duration by task run', extraFilters=extraFilters),
       row.new('Running duration by task run'),
-      self.durationsPanel(testId, [i + 'passed_running_mean' for i in taskRunStubs], 's', 'Running duration by task run', extraFilters=[repoTypeFilter, passingFilter]),
+      self.durationsPanel(testId, [i + 'passed_running_mean' for i in taskRunStubs], 's', 'Running duration by task run', extraFilters=extraFilters),
       row.new('Scheduled duration by task run'),
-      self.durationsPanel(testId, [i + 'passed_scheduled_mean' for i in taskRunStubs], 's', 'Scheduled duration by task run', extraFilters=[repoTypeFilter, passingFilter]),
+      self.durationsPanel(testId, [i + 'passed_scheduled_mean' for i in taskRunStubs], 's', 'Scheduled duration by task run', extraFilters=extraFilters),
       row.new('Idle duration by task run'),
-      self.durationsPanel(testId, [i + 'passed_idle_mean' for i in taskRunStubs], 's', 'Idle duration by task run', extraFilters=[repoTypeFilter, passingFilter]),
+      self.durationsPanel(testId, [i + 'passed_idle_mean' for i in taskRunStubs], 's', 'Idle duration by task run', extraFilters=extraFilters),
       row.new('Count of task runs'),
-      self.durationsPanel(testId, [i + 'passed_duration_samples' for i in taskRunStubs], 'none', 'Count of task runs', extraFilters=[repoTypeFilter, passingFilter]),
+      self.durationsPanel(testId, [i + 'passed_duration_samples' for i in taskRunStubs], 'none', 'Count of task runs', extraFilters=extraFilters),
       // Panels showing per task architecture data
       row.new('Overall duration by platform task run'),
-      self.durationsPanel(testId, [i + 'passed_duration_mean' for i in platformTaskRunStubs], 's', 'Overall duration by platform task run', extraFilters=[repoTypeFilter, passingFilter]),
+      self.durationsPanel(testId, [i + 'passed_duration_mean' for i in platformTaskRunStubs], 's', 'Overall duration by platform task run', extraFilters=extraFilters),
       row.new('Running duration by platform task run'),
-      self.durationsPanel(testId, [i + 'passed_running_mean' for i in platformTaskRunStubs], 's', 'Running duration by platform task run', extraFilters=[repoTypeFilter, passingFilter]),
+      self.durationsPanel(testId, [i + 'passed_running_mean' for i in platformTaskRunStubs], 's', 'Running duration by platform task run', extraFilters=extraFilters),
       row.new('Scheduled duration by platform task run'),
-      self.durationsPanel(testId, [i + 'passed_scheduled_mean' for i in platformTaskRunStubs], 's', 'Scheduled duration by platform task run', extraFilters=[repoTypeFilter, passingFilter]),
+      self.durationsPanel(testId, [i + 'passed_scheduled_mean' for i in platformTaskRunStubs], 's', 'Scheduled duration by platform task run', extraFilters=extraFilters),
       row.new('Idle duration by platform task run'),
-      self.durationsPanel(testId, [i + 'passed_idle_mean' for i in platformTaskRunStubs], 's', 'Idle duration by platform task run', extraFilters=[repoTypeFilter, passingFilter]),
+      self.durationsPanel(testId, [i + 'passed_idle_mean' for i in platformTaskRunStubs], 's', 'Idle duration by platform task run', extraFilters=extraFilters),
       row.new('Count of platform task runs'),
-      self.durationsPanel(testId, [i + 'passed_duration_samples' for i in platformTaskRunStubs], 'none', 'Count of platform task runs', extraFilters=[repoTypeFilter, passingFilter]),
+      self.durationsPanel(testId, [i + 'passed_duration_samples' for i in platformTaskRunStubs], 'none', 'Count of platform task runs', extraFilters=extraFilters),
     ]),
 
 }
