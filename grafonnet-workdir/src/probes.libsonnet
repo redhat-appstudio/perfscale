@@ -57,9 +57,15 @@ local pieChart = grafonnet.panel.pieChart;
     + grafonnet.dashboard.variable.custom.generalOptions.withCurrent('Off'),
 
 
-  durationQuery(testId, repoType, fieldName, includePassingFilter=true):: {
-    local repoTypeOperator = if std.findSubstr('%', repoType) == [] then '=' else 'LIKE',
-    local passingFilter = if includePassingFilter then "AND label_values->>'.results.measurements.KPI.mean' != '-1'" else '',
+  joinExtraFilters(extraFilters)::
+    local string = std.join(' AND ', extraFilters);
+    if string == '' then
+      ''
+    else
+      'AND ' + string,
+
+
+  durationQuery(testId, fieldName, extraFilters):: {
     rawSql: |||
       SELECT
           EXTRACT(EPOCH FROM start) AS "time",
@@ -76,24 +82,22 @@ local pieChart = grafonnet.panel.pieChart;
       WHERE
           horreum_testid = %g
           AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}
-          AND label_values->>'.repo_type' %s '%s'
           AND $__timeFilter(start)
           %s
       ORDER BY
           start;
-    ||| % [fieldName, fieldName, fieldName, fieldName, fieldName, fieldName, testId, repoTypeOperator, repoType, passingFilter],
+    ||| % [fieldName, fieldName, fieldName, fieldName, fieldName, fieldName, testId, $.joinExtraFilters(extraFilters)],
     format: 'time_series',
   },
 
 
-  durationsQuery(testId, repoType, fieldNames, includePassingFilter=true)::
+  durationsQuery(testId, fieldNames, extraFilters)::
     timeSeries.queryOptions.withTargets(
-      [self.durationQuery(testId, repoType, fieldName, includePassingFilter) for fieldName in fieldNames],
+      [self.durationQuery(testId, fieldName, extraFilters) for fieldName in fieldNames],
     ),
 
 
-  errorsTableQuery(testId, repoType):: {
-    local repoTypeOperator = if std.findSubstr('%', repoType) == [] then '=' else 'LIKE',
+  errorsTableQuery(testId, extraFilters):: {
     rawSql: |||
       SELECT
           EXTRACT(EPOCH FROM start) AS "time",
@@ -103,17 +107,16 @@ local pieChart = grafonnet.panel.pieChart;
       WHERE
           horreum_testid = %g
           AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}
-          AND label_values->>'.repo_type' %s '%s'
           AND $__timeFilter(start)
+          %s
       ORDER BY
           start DESC;
-    ||| % [testId, repoTypeOperator, repoType],
+    ||| % [testId, $.joinExtraFilters(extraFilters)],
     format: 'time_series',
   },
 
 
-  errorsPieQuery(testId, repoType):: {
-    local repoTypeOperator = if std.findSubstr('%', repoType) == [] then '=' else 'LIKE',
+  errorsPieQuery(testId, extraFilters):: {
     rawSql: |||
       SELECT
           COALESCE(
@@ -130,18 +133,18 @@ local pieChart = grafonnet.panel.pieChart;
       WHERE
           horreum_testid = %g
           AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}
-          AND label_values->>'.repo_type' %s '%s'
           AND $__timeFilter(start)
+          %s
       GROUP BY
           "Error"
       ORDER BY
           "Error" ASC;
-    ||| % [testId, repoTypeOperator, repoType],
+    ||| % [testId, $.joinExtraFilters(extraFilters)],
     format: 'table',
   },
 
 
-  durationsPanel(testId, repoType, fieldNames, fieldUnit, panelName='', includePassingFilter=true)::
+  durationsPanel(testId, fieldNames, fieldUnit, panelName='', extraFilters=[])::
     local title = if panelName == '' then std.join(',', fieldNames) else panelName;
     timeSeries.new('%s on ${member_cluster}' % title)
     + timeSeries.queryOptions.withDatasource(
@@ -157,10 +160,10 @@ local pieChart = grafonnet.panel.pieChart;
     + timeSeries.queryOptions.withTransformations([])
     + timeSeries.standardOptions.withMin(0)
     + timeSeries.standardOptions.withUnit(fieldUnit)
-    + self.durationsQuery(testId, repoType, fieldNames, includePassingFilter),
+    + self.durationsQuery(testId, fieldNames, extraFilters),
 
 
-  errorsCountPanel(testId, repoType, fieldNames, panelName='')::
+  errorsCountPanel(testId, fieldNames, panelName='', extraFilters=[])::
     local title = if panelName == '' then std.join(',', fieldNames) else panelName;
     stat.new('%s on ${member_cluster}' % title)
     + stat.queryOptions.withDatasource(
@@ -180,10 +183,10 @@ local pieChart = grafonnet.panel.pieChart;
     + stat.standardOptions.thresholds.withSteps([{ color: 'green', value: null }, { color: 'red', value: 0.1 }])
     + stat.standardOptions.withMin(0)
     + stat.standardOptions.withUnit('percentunit')
-    + self.durationsQuery(testId, repoType, fieldNames, false),
+    + self.durationsQuery(testId, fieldNames, extraFilters),
 
 
-  errorsTablePanel(testId, repoType)::
+  errorsTablePanel(testId, extraFilters=[])::
     table.new('Error reasons detail on ${member_cluster}')
     + table.queryOptions.withDatasource(
       type='postgres',
@@ -199,10 +202,10 @@ local pieChart = grafonnet.panel.pieChart;
     + table.queryOptions.withTransformations([])
     + table.standardOptions.withMin(0)
     + table.standardOptions.withUnit('string')
-    + table.queryOptions.withTargets([self.errorsTableQuery(testId, repoType)]),
+    + table.queryOptions.withTargets([self.errorsTableQuery(testId, extraFilters)]),
 
 
-  errorsPiePanel(testId, repoType)::
+  errorsPiePanel(testId, extraFilters=[])::
     pieChart.new('Error reasons overall on ${member_cluster}')
     + pieChart.queryOptions.withDatasource(
       type='postgres',
@@ -219,7 +222,7 @@ local pieChart = grafonnet.panel.pieChart;
     + pieChart.standardOptions.withMin(0)
     + pieChart.standardOptions.withNoValue('no error detected')
     + pieChart.standardOptions.withUnit('none')
-    + pieChart.queryOptions.withTargets([self.errorsPieQuery(testId, repoType)]),
+    + pieChart.queryOptions.withTargets([self.errorsPieQuery(testId, extraFilters)]),
 
 
   completeDashboard(
@@ -233,55 +236,54 @@ local pieChart = grafonnet.panel.pieChart;
     taskRunStubs=[],
     platformTaskRunStubs=[],
   )::
-    local datasourceVar = self.datasourceVar();
-    local memberClusterVar = self.memberClusterVar(memberClusters);
-    local smoothingVar = self.smoothingVar();
+    local repoTypeFilter = if std.findSubstr('%', repoType) == [] then "label_values->>'.repo_type' = '%s'" % [repoType] else "label_values->>'.repo_type' LIKE '%s'" % [repoType];
+    local passingFilter = "label_values->>'.results.measurements.KPI.mean' != '-1'";
     dashboard.new(dashboardName)
     + dashboard.withUid(dashboardUid)
     + dashboard.withDescription(dashboardDescription)
     + dashboard.time.withFrom(value='now-7d')
     + dashboard.withVariables([
-      datasourceVar,
-      memberClusterVar,
-      smoothingVar,
+      self.datasourceVar(),
+      self.memberClusterVar(memberClusters),
+      self.smoothingVar(),
     ])
     + dashboard.withPanels([
       // Main panels
       row.new('KPI durations'),
-      self.durationsPanel(testId, repoType, ['__results_measurements_KPI_mean'], 's', 'Mean duration'),
+      self.durationsPanel(testId, ['__results_measurements_KPI_mean'], 's', 'Mean duration', extraFilters=[repoTypeFilter, passingFilter]),
       row.new('KPI errors'),
-      self.errorsCountPanel(testId, repoType, ['__results_measurements_KPI_errors'], 'Failure rate'),
+      self.errorsCountPanel(testId, ['__results_measurements_KPI_errors'], 'Failure rate', extraFilters=[repoTypeFilter, passingFilter]),
       row.new('Errors table'),
-      self.errorsTablePanel(testId, repoType),
+      self.errorsTablePanel(testId),
       row.new('Errors pie-chart'),
-      self.errorsPiePanel(testId, repoType),
+      self.errorsPiePanel(testId),
       // Panels splitting test actions
       row.new('Duration by test phase'),
-      self.durationsPanel(testId, repoType, [i + 'pass_duration_mean' for i in testPhaseStubs], 's', 'Duration by test phase'),
+      self.durationsPanel(testId, [i + 'pass_duration_mean' for i in testPhaseStubs], 's', 'Duration by test phase', extraFilters=[repoTypeFilter, passingFilter]),
       row.new('Error rate by test phase'),
-      self.durationsPanel(testId, repoType, [i + 'error_rate' for i in testPhaseStubs], 'none', 'Error rate by test phase', includePassingFilter=false),
+      self.durationsPanel(testId, [i + 'error_rate' for i in testPhaseStubs], 'none', 'Error rate by test phase', extraFilters=[repoTypeFilter]),
       // Panels showing per task data
       row.new('Overall duration by task run'),
-      self.durationsPanel(testId, repoType, [i + 'passed_duration_mean' for i in taskRunStubs], 's', 'Overall duration by task run'),
+      self.durationsPanel(testId, [i + 'passed_duration_mean' for i in taskRunStubs], 's', 'Overall duration by task run', extraFilters=[repoTypeFilter, passingFilter]),
       row.new('Running duration by task run'),
-      self.durationsPanel(testId, repoType, [i + 'passed_running_mean' for i in taskRunStubs], 's', 'Running duration by task run'),
+      self.durationsPanel(testId, [i + 'passed_running_mean' for i in taskRunStubs], 's', 'Running duration by task run', extraFilters=[repoTypeFilter, passingFilter]),
       row.new('Scheduled duration by task run'),
-      self.durationsPanel(testId, repoType, [i + 'passed_scheduled_mean' for i in taskRunStubs], 's', 'Scheduled duration by task run'),
+      self.durationsPanel(testId, [i + 'passed_scheduled_mean' for i in taskRunStubs], 's', 'Scheduled duration by task run', extraFilters=[repoTypeFilter, passingFilter]),
       row.new('Idle duration by task run'),
-      self.durationsPanel(testId, repoType, [i + 'passed_idle_mean' for i in taskRunStubs], 's', 'Idle duration by task run'),
+      self.durationsPanel(testId, [i + 'passed_idle_mean' for i in taskRunStubs], 's', 'Idle duration by task run', extraFilters=[repoTypeFilter, passingFilter]),
       row.new('Count of task runs'),
-      self.durationsPanel(testId, repoType, [i + 'passed_duration_samples' for i in taskRunStubs], 'none', 'Count of task runs'),
+      self.durationsPanel(testId, [i + 'passed_duration_samples' for i in taskRunStubs], 'none', 'Count of task runs', extraFilters=[repoTypeFilter, passingFilter]),
       // Panels showing per task architecture data
       row.new('Overall duration by platform task run'),
-      self.durationsPanel(testId, repoType, [i + 'passed_duration_mean' for i in platformTaskRunStubs], 's', 'Overall duration by platform task run'),
+      self.durationsPanel(testId, [i + 'passed_duration_mean' for i in platformTaskRunStubs], 's', 'Overall duration by platform task run', extraFilters=[repoTypeFilter, passingFilter]),
       row.new('Running duration by platform task run'),
-      self.durationsPanel(testId, repoType, [i + 'passed_running_mean' for i in platformTaskRunStubs], 's', 'Running duration by platform task run'),
+      self.durationsPanel(testId, [i + 'passed_running_mean' for i in platformTaskRunStubs], 's', 'Running duration by platform task run', extraFilters=[repoTypeFilter, passingFilter]),
       row.new('Scheduled duration by platform task run'),
-      self.durationsPanel(testId, repoType, [i + 'passed_scheduled_mean' for i in platformTaskRunStubs], 's', 'Scheduled duration by platform task run'),
+      self.durationsPanel(testId, [i + 'passed_scheduled_mean' for i in platformTaskRunStubs], 's', 'Scheduled duration by platform task run', extraFilters=[repoTypeFilter, passingFilter]),
       row.new('Idle duration by platform task run'),
-      self.durationsPanel(testId, repoType, [i + 'passed_idle_mean' for i in platformTaskRunStubs], 's', 'Idle duration by platform task run'),
+      self.durationsPanel(testId, [i + 'passed_idle_mean' for i in platformTaskRunStubs], 's', 'Idle duration by platform task run', extraFilters=[repoTypeFilter, passingFilter]),
       row.new('Count of platform task runs'),
-      self.durationsPanel(testId, repoType, [i + 'passed_duration_samples' for i in platformTaskRunStubs], 'none', 'Count of platform task runs'),
+      self.durationsPanel(testId, [i + 'passed_duration_samples' for i in platformTaskRunStubs], 'none', 'Count of platform task runs', extraFilters=[repoTypeFilter, passingFilter]),
     ]),
 
 }
