@@ -58,6 +58,7 @@ local pieChart = grafonnet.panel.pieChart;
 
 
   durationQuery(testId, repoType, fieldName, includePassingFilter=true):: {
+    local repoTypeOperator = if std.findSubstr('%', repoType) == [] then '=' else 'LIKE',
     local passingFilter = if includePassingFilter then "AND label_values->>'.results.measurements.KPI.mean' != '-1'" else '',
     rawSql: |||
       SELECT
@@ -75,12 +76,12 @@ local pieChart = grafonnet.panel.pieChart;
       WHERE
           horreum_testid = %g
           AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}
-          AND label_values->>'.repo_type' = '%s'
+          AND label_values->>'.repo_type' %s '%s'
           AND $__timeFilter(start)
           %s
       ORDER BY
           start;
-    ||| % [fieldName, fieldName, fieldName, fieldName, fieldName, fieldName, testId, repoType, passingFilter],
+    ||| % [fieldName, fieldName, fieldName, fieldName, fieldName, fieldName, testId, repoTypeOperator, repoType, passingFilter],
     format: 'time_series',
   },
 
@@ -92,6 +93,7 @@ local pieChart = grafonnet.panel.pieChart;
 
 
   errorsTableQuery(testId, repoType):: {
+    local repoTypeOperator = if std.findSubstr('%', repoType) == [] then '=' else 'LIKE',
     rawSql: |||
       SELECT
           EXTRACT(EPOCH FROM start) AS "time",
@@ -101,16 +103,17 @@ local pieChart = grafonnet.panel.pieChart;
       WHERE
           horreum_testid = %g
           AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}
-          AND label_values->>'.repo_type' = '%s'
+          AND label_values->>'.repo_type' %s '%s'
           AND $__timeFilter(start)
       ORDER BY
           start DESC;
-    ||| % [testId, repoType],
+    ||| % [testId, repoTypeOperator, repoType],
     format: 'time_series',
   },
 
 
   errorsPieQuery(testId, repoType):: {
+    local repoTypeOperator = if std.findSubstr('%', repoType) == [] then '=' else 'LIKE',
     rawSql: |||
       SELECT
           COALESCE(
@@ -127,13 +130,13 @@ local pieChart = grafonnet.panel.pieChart;
       WHERE
           horreum_testid = %g
           AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}
-          AND label_values->>'.repo_type' = '%s'
+          AND label_values->>'.repo_type' %s '%s'
           AND $__timeFilter(start)
       GROUP BY
           "Error"
       ORDER BY
           "Error" ASC;
-    ||| % [testId, repoType],
+    ||| % [testId, repoTypeOperator, repoType],
     format: 'table',
   },
 
@@ -228,6 +231,7 @@ local pieChart = grafonnet.panel.pieChart;
     memberClusters=[],
     testPhaseStubs=[],
     taskRunStubs=[],
+    platformTaskRunStubs=[],
   )::
     local datasourceVar = self.datasourceVar();
     local memberClusterVar = self.memberClusterVar(memberClusters);
@@ -267,6 +271,17 @@ local pieChart = grafonnet.panel.pieChart;
       self.durationsPanel(testId, repoType, [i + 'passed_idle_mean' for i in taskRunStubs], 's', 'Idle duration by task run'),
       row.new('Count of task runs'),
       self.durationsPanel(testId, repoType, [i + 'passed_duration_samples' for i in taskRunStubs], 'none', 'Count of task runs'),
+      // Panels showing per task architecture data
+      row.new('Overall duration by platform task run'),
+      self.durationsPanel(testId, repoType, [i + 'passed_duration_mean' for i in platformTaskRunStubs], 's', 'Overall duration by platform task run'),
+      row.new('Running duration by platform task run'),
+      self.durationsPanel(testId, repoType, [i + 'passed_running_mean' for i in platformTaskRunStubs], 's', 'Running duration by platform task run'),
+      row.new('Scheduled duration by platform task run'),
+      self.durationsPanel(testId, repoType, [i + 'passed_scheduled_mean' for i in platformTaskRunStubs], 's', 'Scheduled duration by platform task run'),
+      row.new('Idle duration by platform task run'),
+      self.durationsPanel(testId, repoType, [i + 'passed_idle_mean' for i in platformTaskRunStubs], 's', 'Idle duration by platform task run'),
+      row.new('Count of platform task runs'),
+      self.durationsPanel(testId, repoType, [i + 'passed_duration_samples' for i in platformTaskRunStubs], 'none', 'Count of platform task runs'),
     ]),
 
 }
