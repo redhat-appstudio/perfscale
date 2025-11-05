@@ -1032,6 +1032,201 @@
       "title": "Count of task runs on ${member_cluster}",
       "transformations": [],
       "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0
+      },
+      "id": 23,
+      "title": "Overall duration by platform task run",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "insertNulls": 5400000
+          },
+          "min": 0,
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24
+      },
+      "id": 24,
+      "maxPerRow": 4,
+      "pluginVersion": "v11.4.0",
+      "repeat": "member_cluster",
+      "repeatDirection": "h",
+      "targets": [],
+      "title": "Overall duration by platform task run on ${member_cluster}",
+      "transformations": [],
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0
+      },
+      "id": 25,
+      "title": "Running duration by platform task run",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "insertNulls": 5400000
+          },
+          "min": 0,
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24
+      },
+      "id": 26,
+      "maxPerRow": 4,
+      "pluginVersion": "v11.4.0",
+      "repeat": "member_cluster",
+      "repeatDirection": "h",
+      "targets": [],
+      "title": "Running duration by platform task run on ${member_cluster}",
+      "transformations": [],
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0
+      },
+      "id": 27,
+      "title": "Scheduled duration by platform task run",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "insertNulls": 5400000
+          },
+          "min": 0,
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24
+      },
+      "id": 28,
+      "maxPerRow": 4,
+      "pluginVersion": "v11.4.0",
+      "repeat": "member_cluster",
+      "repeatDirection": "h",
+      "targets": [],
+      "title": "Scheduled duration by platform task run on ${member_cluster}",
+      "transformations": [],
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0
+      },
+      "id": 29,
+      "title": "Idle duration by platform task run",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "insertNulls": 5400000
+          },
+          "min": 0,
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24
+      },
+      "id": 30,
+      "maxPerRow": 4,
+      "pluginVersion": "v11.4.0",
+      "repeat": "member_cluster",
+      "repeatDirection": "h",
+      "targets": [],
+      "title": "Idle duration by platform task run on ${member_cluster}",
+      "transformations": [],
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0
+      },
+      "id": 31,
+      "title": "Count of platform task runs",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "insertNulls": 5400000
+          },
+          "min": 0,
+          "unit": "none"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24
+      },
+      "id": 32,
+      "maxPerRow": 4,
+      "pluginVersion": "v11.4.0",
+      "repeat": "member_cluster",
+      "repeatDirection": "h",
+      "targets": [],
+      "title": "Count of platform task runs on ${member_cluster}",
+      "transformations": [],
+      "type": "timeseries"
     }
   ],
   "schemaVersion": 39,
