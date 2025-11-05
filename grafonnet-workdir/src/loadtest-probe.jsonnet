@@ -66,7 +66,7 @@ probes.completeDashboard(
   dashboardUid='Konflux_clusters_loadtest_probe_results',
   testId=372,
   repoType='nodejs-devfile-sample',
-  templatingDir='',
+  templatingDir='nodejs-devfile-sample-SingleArch',
   memberClusters=memberClusters,
   testPhaseStubs=testPhaseStubs,
   taskRunStubs=taskRunStubs,
