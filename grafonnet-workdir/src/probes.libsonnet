@@ -264,7 +264,7 @@ local pieChart = grafonnet.panel.pieChart;
       row.new('Duration by test phase'),
       self.durationsPanel(testId, [i + 'pass_duration_mean' for i in testPhaseStubs], 's', 'Duration by test phase', extraFilters=extraFilters),
       row.new('Error rate by test phase'),
-      self.durationsPanel(testId, [i + 'error_rate' for i in testPhaseStubs], 'none', 'Error rate by test phase', extraFilters=[repoTypeFilter]),
+      self.durationsPanel(testId, [i + 'error_rate' for i in testPhaseStubs], 'none', 'Error rate by test phase', extraFilters=[repoTypeFilter, templatingDirFilter]),
       // Panels showing per task data
       row.new('Overall duration by task run'),
       self.durationsPanel(testId, [i + 'passed_duration_mean' for i in taskRunStubs], 's', 'Overall duration by task run', extraFilters=extraFilters),
