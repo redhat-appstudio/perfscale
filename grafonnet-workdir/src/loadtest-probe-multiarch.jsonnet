@@ -58,16 +58,23 @@ local taskRunStubs = [
   '__results_durations_stats_taskruns__build_summary__',
   '__results_durations_stats_taskruns__test_test_output__',
 ];
+local platformTaskRunStubs = [
+  '__results_durations_stats_platformtaskruns__build_buildah_remote_oci_ta_linux_amd64__',
+  '__results_durations_stats_platformtaskruns__build_buildah_remote_oci_ta_linux_arm64__',
+  '__results_durations_stats_platformtaskruns__build_buildah_remote_oci_ta_linux_s390x__',
+  '__results_durations_stats_platformtaskruns__build_buildah_remote_oci_ta_linux_ppc64le__',
+];
 
 
 probes.completeDashboard(
-  dashboardName='Konflux clusters loadtest single-arch probe results',
-  dashboardDescription='Dashboard visualizes Konflux clusters loadtest single-arch probe results. Related Horreum test is https://horreum.corp.redhat.com/test/372 with filter by label `.repo_type = nodejs-devfile-sample` and right `__parameters_options_PipelineRepoTemplatingSourceDir`.',
-  dashboardUid='Konflux_clusters_loadtest_probe_results',
+  dashboardName='Konflux clusters loadtest multi-arch probe results',
+  dashboardDescription='Dashboard visualizes Konflux clusters loadtest probe results. Related Horreum test is https://horreum.corp.redhat.com/test/372 with filter by label `.repo_type = nodejs-devfile-sample`.',
+  dashboardUid='Konflux_clusters_loadtest_multi_arch_pr',
   testId=372,
   repoType='nodejs-devfile-sample',
-  templatingDir='nodejs-devfile-sample-SingleArch',
+  templatingDir='nodejs-devfile-sample-MultiArch',
   memberClusters=memberClusters,
   testPhaseStubs=testPhaseStubs,
   taskRunStubs=taskRunStubs,
+  platformTaskRunStubs=platformTaskRunStubs,
 )

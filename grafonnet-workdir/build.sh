@@ -12,6 +12,7 @@ function build() {
 
 # Dashboards used in custom Grafana, not deployed via infra-deployments
 build src/loadtest-probe.jsonnet generated/loadtest-probe.json
+build src/loadtest-probe-multiarch.jsonnet generated/loadtest-probe-multiarch.json
 build src/loadtest-probe-rpm.jsonnet generated/loadtest-probe-rpm.json
 
 # Dashboards that live in this repo, deployed via infra-deployments
