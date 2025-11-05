@@ -255,7 +255,7 @@ local pieChart = grafonnet.panel.pieChart;
       row.new('KPI durations'),
       self.durationsPanel(testId, ['__results_measurements_KPI_mean'], 's', 'Mean duration', extraFilters=extraFilters),
       row.new('KPI errors'),
-      self.errorsCountPanel(testId, ['__results_measurements_KPI_errors'], 'Failure rate', extraFilters=extraFilters),
+      self.errorsCountPanel(testId, ['__results_measurements_KPI_errors'], 'Failure rate', extraFilters=[i for i in extraFilters if i != passingFilter]),
       row.new('Errors table'),
       self.errorsTablePanel(testId, extraFilters=extraFilters),
       row.new('Errors pie-chart'),
