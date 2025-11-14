@@ -146,7 +146,7 @@ local pieChart = grafonnet.panel.pieChart;
 
   durationsPanel(testId, fieldNames, fieldUnit, panelName='', extraFilters=[])::
     local title = if panelName == '' then std.join(',', fieldNames) else panelName;
-    timeSeries.new('%s on ${member_cluster}' % title)
+    timeSeries.new('${member_cluster}')
     + timeSeries.queryOptions.withDatasource(
       type='postgres',
       uid='${datasource}',
