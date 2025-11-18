@@ -41,7 +41,7 @@
           "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_KPI_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_KPI_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_KPI_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_KPI_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_KPI_mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_KPI_mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}\n    AND $__timeFilter(start)\n    AND label_values->>'.repo_type' LIKE 'libecpg%' AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
         }
       ],
-      "title": "Mean duration on ${member_cluster}",
+      "title": "${member_cluster}",
       "transformations": [],
       "type": "timeseries"
     },
@@ -337,7 +337,7 @@
           "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_validateTestPipelineRunCreation_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_validateTestPipelineRunCreation_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_validateTestPipelineRunCreation_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_validateTestPipelineRunCreation_pass_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_validateTestPipelineRunCreation_pass_duration_mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_validateTestPipelineRunCreation_pass_duration_mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}\n    AND $__timeFilter(start)\n    AND label_values->>'.repo_type' LIKE 'libecpg%' AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
         }
       ],
-      "title": "Duration by test phase on ${member_cluster}",
+      "title": "${member_cluster}",
       "transformations": [],
       "type": "timeseries"
     },
@@ -469,7 +469,7 @@
           "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_measurements_validateTestPipelineRunCreation_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_measurements_validateTestPipelineRunCreation_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_measurements_validateTestPipelineRunCreation_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_measurements_validateTestPipelineRunCreation_error_rate')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_measurements_validateTestPipelineRunCreation_error_rate')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_measurements_validateTestPipelineRunCreation_error_rate' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}\n    AND $__timeFilter(start)\n    AND label_values->>'.repo_type' LIKE 'libecpg%'\nORDER BY\n    start;\n"
         }
       ],
-      "title": "Error rate by test phase on ${member_cluster}",
+      "title": "${member_cluster}",
       "transformations": [],
       "type": "timeseries"
     },
@@ -545,7 +545,7 @@
           "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_durations_stats_taskruns__build_summary__passed_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_durations_stats_taskruns__build_summary__passed_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_durations_stats_taskruns__build_summary__passed_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_durations_stats_taskruns__build_summary__passed_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_durations_stats_taskruns__build_summary__passed_duration_mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_durations_stats_taskruns__build_summary__passed_duration_mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}\n    AND $__timeFilter(start)\n    AND label_values->>'.repo_type' LIKE 'libecpg%' AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
         }
       ],
-      "title": "Overall duration by task run on ${member_cluster}",
+      "title": "${member_cluster}",
       "transformations": [],
       "type": "timeseries"
     },
@@ -621,7 +621,7 @@
           "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_durations_stats_taskruns__build_summary__passed_running_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_durations_stats_taskruns__build_summary__passed_running_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_durations_stats_taskruns__build_summary__passed_running_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_durations_stats_taskruns__build_summary__passed_running_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_durations_stats_taskruns__build_summary__passed_running_mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_durations_stats_taskruns__build_summary__passed_running_mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}\n    AND $__timeFilter(start)\n    AND label_values->>'.repo_type' LIKE 'libecpg%' AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
         }
       ],
-      "title": "Running duration by task run on ${member_cluster}",
+      "title": "${member_cluster}",
       "transformations": [],
       "type": "timeseries"
     },
@@ -697,7 +697,7 @@
           "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_durations_stats_taskruns__build_summary__passed_scheduled_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_durations_stats_taskruns__build_summary__passed_scheduled_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_durations_stats_taskruns__build_summary__passed_scheduled_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_durations_stats_taskruns__build_summary__passed_scheduled_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_durations_stats_taskruns__build_summary__passed_scheduled_mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_durations_stats_taskruns__build_summary__passed_scheduled_mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}\n    AND $__timeFilter(start)\n    AND label_values->>'.repo_type' LIKE 'libecpg%' AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
         }
       ],
-      "title": "Scheduled duration by task run on ${member_cluster}",
+      "title": "${member_cluster}",
       "transformations": [],
       "type": "timeseries"
     },
@@ -773,7 +773,7 @@
           "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_durations_stats_taskruns__build_summary__passed_idle_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_durations_stats_taskruns__build_summary__passed_idle_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_durations_stats_taskruns__build_summary__passed_idle_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_durations_stats_taskruns__build_summary__passed_idle_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_durations_stats_taskruns__build_summary__passed_idle_mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_durations_stats_taskruns__build_summary__passed_idle_mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}\n    AND $__timeFilter(start)\n    AND label_values->>'.repo_type' LIKE 'libecpg%' AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
         }
       ],
-      "title": "Idle duration by task run on ${member_cluster}",
+      "title": "${member_cluster}",
       "transformations": [],
       "type": "timeseries"
     },
@@ -849,7 +849,7 @@
           "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_durations_stats_taskruns__build_summary__passed_duration_samples')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_durations_stats_taskruns__build_summary__passed_duration_samples')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_durations_stats_taskruns__build_summary__passed_duration_samples')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_durations_stats_taskruns__build_summary__passed_duration_samples')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_durations_stats_taskruns__build_summary__passed_duration_samples')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_durations_stats_taskruns__build_summary__passed_duration_samples' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}\n    AND $__timeFilter(start)\n    AND label_values->>'.repo_type' LIKE 'libecpg%' AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
         }
       ],
-      "title": "Count of task runs on ${member_cluster}",
+      "title": "${member_cluster}",
       "transformations": [],
       "type": "timeseries"
     },
@@ -921,7 +921,7 @@
           "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_duration_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_duration_mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_duration_mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}\n    AND $__timeFilter(start)\n    AND label_values->>'.repo_type' LIKE 'libecpg%' AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
         }
       ],
-      "title": "Overall duration by platform task run on ${member_cluster}",
+      "title": "${member_cluster}",
       "transformations": [],
       "type": "timeseries"
     },
@@ -993,7 +993,7 @@
           "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_running_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_running_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_running_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_running_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_running_mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_running_mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}\n    AND $__timeFilter(start)\n    AND label_values->>'.repo_type' LIKE 'libecpg%' AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
         }
       ],
-      "title": "Running duration by platform task run on ${member_cluster}",
+      "title": "${member_cluster}",
       "transformations": [],
       "type": "timeseries"
     },
@@ -1065,7 +1065,7 @@
           "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_scheduled_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_scheduled_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_scheduled_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_scheduled_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_scheduled_mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_scheduled_mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}\n    AND $__timeFilter(start)\n    AND label_values->>'.repo_type' LIKE 'libecpg%' AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
         }
       ],
-      "title": "Scheduled duration by platform task run on ${member_cluster}",
+      "title": "${member_cluster}",
       "transformations": [],
       "type": "timeseries"
     },
@@ -1137,7 +1137,7 @@
           "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_idle_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_idle_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_idle_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_idle_mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_idle_mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_idle_mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}\n    AND $__timeFilter(start)\n    AND label_values->>'.repo_type' LIKE 'libecpg%' AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
         }
       ],
-      "title": "Idle duration by platform task run on ${member_cluster}",
+      "title": "${member_cluster}",
       "transformations": [],
       "type": "timeseries"
     },
@@ -1209,7 +1209,7 @@
           "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_duration_samples')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_duration_samples')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_duration_samples')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_duration_samples')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_duration_samples')::DOUBLE PRECISION\n    END AS \"value\",\n    '__results_durations_stats_platformtaskruns__build_calculate_deps_linux_ppc64le__passed_duration_samples' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}\n    AND $__timeFilter(start)\n    AND label_values->>'.repo_type' LIKE 'libecpg%' AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
         }
       ],
-      "title": "Count of platform task runs on ${member_cluster}",
+      "title": "${member_cluster}",
       "transformations": [],
       "type": "timeseries"
     }
