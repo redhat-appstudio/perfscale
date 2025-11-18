@@ -57,6 +57,15 @@ local taskRunStubs = [
   '__results_durations_stats_taskruns__build_show_sbom__',
   '__results_durations_stats_taskruns__build_summary__',
   '__results_durations_stats_taskruns__test_test_output__',
+  '__results_durations_stats_taskruns__build_buildah_oci_ta__',
+  '__results_durations_stats_taskruns__build_prefetch_dependencies_oci_ta__',
+  '__results_durations_stats_taskruns__build_push_dockerfile_oci_ta__',
+  '__results_durations_stats_taskruns__build_sast_shell_check_oci_ta__',
+  '__results_durations_stats_taskruns__build_sast_snyk_check_oci_ta__',
+  '__results_durations_stats_taskruns__build_sast_unicode_check_oci_ta__',
+  '__results_durations_stats_taskruns__build_source_build_oci_ta__',
+  '__results_durations_stats_taskruns__managed_collect_data__',
+  '__results_durations_stats_taskruns__managed_verify_conforma_konflux_ta__',
 ];
 local platformTaskRunStubs = [
   '__results_durations_stats_platformtaskruns__build_buildah_remote_oci_ta_linux_amd64__',

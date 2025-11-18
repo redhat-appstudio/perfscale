@@ -42,6 +42,7 @@ local taskRunStubs = [
   '__results_durations_stats_taskruns__build_rpmbuild__',
   '__results_durations_stats_taskruns__build_show_sbom__',
   '__results_durations_stats_taskruns__build_summary__',
+  '__results_durations_stats_taskruns__build_get_build_target__',
 ];
 local platformTaskRunStubs = [
   '__results_durations_stats_platformtaskruns__build_rpmbuild_linux_amd64__',
