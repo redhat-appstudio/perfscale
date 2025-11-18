@@ -146,7 +146,7 @@ local pieChart = grafonnet.panel.pieChart;
 
   durationsPanel(testId, fieldNames, fieldUnit, panelName='', extraFilters=[])::
     local title = if panelName == '' then std.join(',', fieldNames) else panelName;
-    timeSeries.new('${member_cluster}')
+    timeSeries.new('${member_cluster} %s' % title)
     + timeSeries.queryOptions.withDatasource(
       type='postgres',
       uid='${datasource}',
@@ -165,7 +165,7 @@ local pieChart = grafonnet.panel.pieChart;
 
   errorsCountPanel(testId, fieldNames, panelName='', extraFilters=[])::
     local title = if panelName == '' then std.join(',', fieldNames) else panelName;
-    stat.new('%s on ${member_cluster}' % title)
+    stat.new('${member_cluster} %s' % title)
     + stat.queryOptions.withDatasource(
       type='postgres',
       uid='${datasource}',
@@ -187,7 +187,7 @@ local pieChart = grafonnet.panel.pieChart;
 
 
   errorsTablePanel(testId, extraFilters=[])::
-    table.new('Error reasons detail on ${member_cluster}')
+    table.new('${member_cluster} Error reasons detail')
     + table.queryOptions.withDatasource(
       type='postgres',
       uid='${datasource}',
@@ -206,7 +206,7 @@ local pieChart = grafonnet.panel.pieChart;
 
 
   errorsPiePanel(testId, extraFilters=[])::
-    pieChart.new('Error reasons overall on ${member_cluster}')
+    pieChart.new('${member_cluster} Error reasons overall')
     + pieChart.queryOptions.withDatasource(
       type='postgres',
       uid='${datasource}',
