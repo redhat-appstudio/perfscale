@@ -81,7 +81,7 @@ probes.completeDashboard(
   dashboardUid='Konflux_clusters_loadtest_multi_arch_pr',
   testId=372,
   repoType='nodejs-devfile-sample',
-  templatingDir='nodejs-devfile-sample-MultiArch',
+  templatingDir='MultiArchLike',
   memberClusters=memberClusters,
   testPhaseStubs=testPhaseStubs,
   taskRunStubs=taskRunStubs,
