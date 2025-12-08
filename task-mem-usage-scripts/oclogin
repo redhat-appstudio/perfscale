@@ -1,0 +1,106 @@
+#!/bin/bash
+
+set -eu -o pipefail
+#set -x
+
+function log() {
+    echo "$( date -u ) INFO ${@}"
+}
+
+function cluster_urls() {
+    local cluster="${1}"
+    if [[ -z "${cluster}" ]]; then
+        log "Cluster not provided, I do not know what to do"
+        exit 1
+    fi
+
+    row="$( echo "${CLUSTERS}" | grep "^${cluster} " | tail -n 1 )"
+    if [[ -z "${cluster}" ]]; then
+        log "Cluster not found in my list, I do not know what to do"
+        exit 1
+    fi
+
+    row_array=($row)
+    console_url="${row_array[1]}"
+    if [[ "${#row_array[@]}" -eq 2 ]]; then
+        api_url="$( echo "${console_url}" | sed -e "s|://console-openshift-console\.apps|://api|" -e "s|/$|:6443/|" )"
+    else
+        api_url="${row_array[2]}"
+    fi
+
+    echo "${console_url} ${api_url}"
+}
+
+if [[ ${#} -eq 0 ]]; then
+    cluster="list"
+elif [[ ${#} -eq 1 ]]; then
+    cluster="${1}"
+elif [[ ${#} -gt 1 ]]; then
+    log "Exactly one parameter needed, try 'list'"
+    exit 1
+fi
+
+# Original list obtained from Jan Huter
+#CLUSTERS="""
+#consoledot-perf https://console-openshift-console.apps.rhperfcluster.ptjz.p1.openshiftapps.com/
+#jenkins-agents-dno-psi https://console-openshift-console.apps.gpc.ocp-hub.prod.psi.redhat.com/
+#jenkins-dno-psi https://console-openshift-console.apps.dno.ocp-hub.prod.psi.redhat.com/
+#kfluxfedorap01 https://console-openshift-console.apps.kfluxfedorap01.toli.p1.openshiftapps.com/
+#kflux-ocp-p01 https://console-openshift-console.apps.kflux-ocp-p01.7ayg.p1.openshiftapps.com/
+#kflux-osp-p01 https://console-openshift-console.apps.kflux-osp-p01.yt45.p1.openshiftapps.com/
+#kflux-prd-rh03 https://console-openshift-console.apps.kflux-prd-rh03.nnv1.p1.openshiftapps.com/
+#kflux-rhel-p01 https://console-openshift-console.apps.kflux-rhel-p01.fc38.p1.openshiftapps.com/
+#logan-gpc-psi https://console-openshift-console.apps.gpc.ocp-hub.prod.psi.redhat.com/
+#stone-prd-rh01 https://console-openshift-console.apps.stone-prd-rh01.pg1f.p1.openshiftapps.com/
+#stone-prd-rh02 https://console-openshift-console.apps.kflux-prd-rh02.0fk9.p1.openshiftapps.com/
+#stone-prod-p01 https://console-openshift-console.apps.stone-prod-p01.wcfb.p1.openshiftapps.com/
+#stone-prod-p02 https://console-openshift-console.apps.stone-prod-p02.hjvn.p1.openshiftapps.com/
+#stone-stage-p01 https://console-openshift-console.apps.stone-stage-p01.hpmt.p1.openshiftapps.com/
+#stone-stg-rh01 https://console-openshift-console.apps.stone-stg-rh01.l2vh.p1.openshiftapps.com/
+#"""
+
+CLUSTERS="""
+kflux-c-prd-e01 https://console-openshift-console.apps.rosa.kflux-c-prd-e01.yo5u.p3.openshiftapps.com/
+kflux-c-prd-i01 https://console-openshift-console.apps.rosa.kflux-c-prd-i01.7hyu.p3.openshiftapps.com/
+kflux-c-stg-e01 https://console-openshift-console.apps.rosa.kflux-c-stg-e01.3zdg.p3.openshiftapps.com/
+kflux-c-stg-i01 https://console-openshift-console.apps.rosa.kflux-c-stg-i01.qfla.p3.openshiftapps.com/
+kflux-ocp-p01   https://console-openshift-console.apps.kflux-ocp-p01.7ayg.p1.openshiftapps.com/
+kflux-osp-p01   https://console-openshift-console.apps.kflux-osp-p01.yt45.p1.openshiftapps.com/
+kflux-prd-es01  https://console-openshift-console.apps.kflux-prd-es01.1ion.p1.openshiftapps.com/
+kflux-prd-rh03  https://console-openshift-console.apps.kflux-prd-rh03.nnv1.p1.openshiftapps.com/
+kflux-rhel-p01  https://console-openshift-console.apps.kflux-rhel-p01.fc38.p1.openshiftapps.com/
+kflux-stg-es01  https://console-openshift-console.apps.kflux-stg-es01.21tc.p1.openshiftapps.com/
+kfluxfedorap01  https://console-openshift-console.apps.kfluxfedorap01.toli.p1.openshiftapps.com/
+stone-prd-host1 https://console-openshift-console.apps.stone-prd-host1.wdlc.p1.openshiftapps.com/
+stone-prd-rh01  https://console-openshift-console.apps.stone-prd-rh01.pg1f.p1.openshiftapps.com/
+stone-prd-rh02  https://console-openshift-console.apps.kflux-prd-rh02.0fk9.p1.openshiftapps.com/
+stone-prod-p01  https://console-openshift-console.apps.stone-prod-p01.wcfb.p1.openshiftapps.com/
+stone-prod-p02  https://console-openshift-console.apps.stone-prod-p02.hjvn.p1.openshiftapps.com/
+stone-stage-p01 https://console-openshift-console.apps.stone-stage-p01.hpmt.p1.openshiftapps.com/
+stone-stg-host  https://console-openshift-console.apps.stone-stg-host.qc0p.p1.openshiftapps.com/
+stone-stg-rh01  https://console-openshift-console.apps.stone-stg-rh01.l2vh.p1.openshiftapps.com/
+"""
+
+case $cluster in
+    list)
+        echo "$CLUSTERS"
+    ;;
+    *)
+        if ! echo "${CLUSTERS}" | grep --quiet "^${cluster} "; then
+            log "Cluster '${cluster}' unknown. Try 'list'."
+            exit 1
+        fi
+        cluster_info=($( cluster_urls "$cluster" ))
+        cluster_console="${cluster_info[0]}"
+        cluster_api="${cluster_info[1]}"
+        log "Logging to '$cluster' console '$cluster_console' api '$cluster_api'"
+        echo
+        echo "Copy login command, close the browser window and paste the login command here."
+        echo "Then continue to $cluster_console"
+        echo
+        oc login --server="${cluster_api}" --web &
+        #oc login --server="${cluster_api}" --web
+    ;;
+esac
+
+#set +x

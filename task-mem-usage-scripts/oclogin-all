@@ -1,0 +1,43 @@
+#/bin/bash
+
+# Lets delete all the contexts first
+#echo "--------- Deleting all Existing Contexts first ---------"
+#for KContext in `oc config get-contexts | tail -n+2 | tr -d '*' | awk '{print $1}' | xargs`
+#do
+#	echo "Deleting \"${KContext}\""
+#	oc config delete-context ${KContext}
+#	oc config delete-cluster ${KContext}
+#done
+#echo "--------- Deleted all Existing Contexts ---------"
+#echo "--------- Listing all Existing Contexts if they still exist ---------"
+#oc config get-contexts
+#echo "---------------------------------------------------------------------"
+
+
+# Original Clusters by Jan Huter
+#CLUSTERS="consoledot-perf jenkins-agents-dno-psi jenkins-dno-psi kfluxfedorap01 kflux-ocp-p01 kflux-osp-p01 kflux-prd-rh03 kflux-rhel-p01 logan-gpc-psi stone-prd-rh01 stone-prd-rh02 stone-prod-p01 stone-prod-p02 stone-stage-p01 stone-stg-rh01"
+
+# New list picked up directly from https://eisraeli.pages.redhat.com/rhtap-link/#konflux-clusters
+# NOT Working
+#CLUSTERS="kflux-c-prd-e01 kflux-c-prd-i01 kflux-c-stg-e01 kflux-c-stg-i01 kflux-ocp-p01 kflux-osp-p01 kflux-prd-es01 kflux-prd-rh03 kflux-rhel-p01 kflux-stg-es01 kfluxfedorap01 stone-prd-host1 stone-prd-rh01 stone-prd-rh02 stone-prod-p01 stone-prod-p02 stone-stage-p01 stone-stg-host stone-stg-rh01"
+
+# New list picked up directly from https://eisraeli.pages.redhat.com/rhtap-link/#konflux-clusters
+# Working
+CLUSTERS="stone-prd-rh02 kflux-ocp-p01 kflux-osp-p01 kflux-prd-es01 kflux-prd-rh02 kflux-prd-rh03 kflux-rhel-p01 kflux-stg-es01 stone-prd-rh01 stone-prod-p01 stone-prod-p02 stone-stage-p01 stone-stg-rh01"
+
+first_cluster=1
+for KONFLUX_CLUSTER in ${CLUSTERS}
+do
+echo "--------- Logging to Konflux Cluster ${KONFLUX_CLUSTER} ---------"
+oclogin ${KONFLUX_CLUSTER}
+sleep 5
+if [ ${first_cluster} -eq 1 ]; then
+	read -s -p "Enter any Key to proceed..."
+	first_cluster=0
+fi
+echo " "
+done
+
+echo "--------- Listing all Contexts ---------"
+oc config get-contexts
+echo "--------- Done ---------"
