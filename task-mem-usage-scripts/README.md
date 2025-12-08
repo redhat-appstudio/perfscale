@@ -3,17 +3,15 @@ Scripts for extracting Memory Usage
 This directory contains a bunch of loosely stitched scripts to generate Memory usage (Max and 95 percentil) information per step/container for each `task` passed to the script. We created these initially to address: https://issues.redhat.com/browse/KONFLUX-6712.
 
 The parent script is invoked as:
-```# ./wrapper_for_promql_for_all_clusters.sh <num_of_days>
-```
+```# ./wrapper_for_promql_for_all_clusters.sh <num_of_days>```
 e.g
-```# ./wrapper_for_promql_for_all_clusters.sh 7
-```
+
+```# ./wrapper_for_promql_for_all_clusters.sh 7```
 
 This extracts the data for the last 7 days. The sampling time delta (step) inside the PromQL query is adjusted accordingly.
 
 It would be ideal to create a Python virtual environment first before executing the script. E.g:
-```python -m venv promql_for_mem_metrics
-```
+```python -m venv promql_for_mem_metrics```
 
 Highligths:
 1. As of now we are passing the TASK name and the STEP(s) name(s) manually to the script, but that can be automated in future using something like:
