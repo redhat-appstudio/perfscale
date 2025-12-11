@@ -11,46 +11,84 @@ The workflow supports:
 
 Architecture Overview (ASCII Diagram)
 ===================================
-+---------------------------------------+
-| wrapper_for_promql_for_all_clusters.sh|
-|   (loops through all Konflux clusters)|
-+---------------------------+-----------+
-                            |
-                            v
-+---------------------------+-----------+
-|     Switch kube context to cluster    |
-+---------------------------+-----------+
-                            |
-                            v
-+---------------------------+-----------+
-|         wrapper_for_promql.sh         |
-|   (per-task / per-step execution loop)|
-+---------------------------+-----------+
-                            |
-                            v
-+---------------------------------------+
-|  list_pods_for_a_particular_task.py   |
-|     - gets list of pods for task/step |
-+---------------------------+-----------+
-                            |
-                            v
-+---------------------------------------+
-| list_container_mem_usage_for_pod.py   |
-|  - fetches container_memory_* metrics |
-|  - returns Max / P95 / P90 / Median   |
-+---------------------------+-----------+
-                            |
-                            v
-+---------------------------------------+
-|            Output aggregator          |
-| (merge per-cluster × per-task results)|
-+---------------------------+-----------+
-                            |
-                            v
-+---------------------------------------+
-|     Formatters: CSV / JSON / Color    |
-|        - builds the final report      |
-+---------------------------------------+
+```text
+                                     ┌───────────────────────────────────────────┐
+                                     │ wrapper_for_promql_for_all_clusters.sh    │
+                                     │───────────────────────────────────────────│
+                                     │ • Entry point for the entire workflow     │
+                                     │ • Iterates over all Konflux clusters      │
+                                     │ • Switches kube context per cluster       │
+                                     └──────────────────────────────┬────────────┘
+                                                                    │
+                                                                    ▼
+                   ┌────────────────────────────────────────────────────────────────────┐
+                   │     kube context: (cluster-1 / cluster-2 / cluster-N)              │
+                   └──────────────────────────────────────┬─────────────────────────────┘
+                                                          │
+                                                          ▼
+          ┌──────────────────────────────────────────────────────────────────────────┐
+          │                 wrapper_for_promql.sh (per cluster driver)               │
+          │──────────────────────────────────────────────────────────────────────────│
+          │ • Reads task list (task_name + step_name)                                │
+          │ • For each <task, step> pair:                                            │
+          │       - Calls Python script to list pods                                 │
+          │       - Loops over pods and calls container-metric collector             │
+          │ • Passes through OUTPUT_MODE (human, json, csv)                          │
+          └──────────────────────────────┬───────────────────────────────────────────┘
+                                         │
+                                         ▼
+                 ┌────────────────────────────────────────────────────────────┐
+                 │   list_pods_for_a_particular_task.py                       │
+                 │────────────────────────────────────────────────────────────│
+                 │ • Accepts task, step, fuzzy namespace ("*-tenant")         │
+                 │ • Discovers matching namespaces automatically              │
+                 │ • Locates all pods belonging to that task/step             │
+                 │ • Returns pod list to wrapper_for_promql.sh                │
+                 └──────────────────────────────┬─────────────────────────────┘
+                                                │
+                                                ▼
+             ┌─────────────────────────────────────────────────────────────────────┐
+             │ list_container_mem_usage_for_a_particular_pod.py                    │
+             │─────────────────────────────────────────────────────────────────────│
+             │ • Accepts pod + container name(s)                                   │
+             │ • Sends HTTP POST requests to Prometheus API                        │
+             │ • Executes queries:                                                 │
+             │        - container_memory_max_usage_bytes                           │
+             │        - container_memory_working_set_bytes                         │
+             │        - container_memory_rss                                       │
+             │        - custom percentile aggregations                             │
+             │ • Returns:                                                          │
+             │        → MAX                                                        │
+             │        → P95                                                        │
+             │        → P90                                                        │
+             │        → MEDIAN                                                     │
+             └──────────────────────────────┬──────────────────────────────────────┘
+                                            │
+                                            ▼
+                     ┌──────────────────────────────────────────────────────────┐
+                     │             Aggregators in wrapper_for_promql.sh         │
+                     │──────────────────────────────────────────────────────────│
+                     │ • Merges:                                                │
+                     │        cluster × namespace × task × step × pod × result  │
+                     │ • Creates consolidated records                           │
+                     │ • Delegates final formatting to output backends          │
+                     └──────────────────────────────┬───────────────────────────┘
+                                                    │
+                                                    ▼
+       ┌────────────────────────────────────────────────────────────────────────────┐
+       │             Output Formatter (human / color / CSV / JSON)                  │
+       │────────────────────────────────────────────────────────────────────────────│
+       │ • Human mode:                                                              │
+       │       - ANSI-colored tables                                                │
+       │       - MAX above threshold marked in red                                  │
+       │ • CSV mode:                                                                │
+       │       - Comma-separated values for spreadsheets                            │
+       │ • JSON mode:                                                               │
+       │       - Machine-readable structured output                                 │
+       │ • Output returned to wrapper_for_promql_for_all_clusters.sh                │
+       └────────────────────────────────────────────────────────────────────────────┘
+```
+
 
 How to Run
 ===================================
