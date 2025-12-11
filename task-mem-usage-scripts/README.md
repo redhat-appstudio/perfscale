@@ -11,40 +11,46 @@ The workflow supports:
 
 Architecture Overview (ASCII Diagram)
 ===================================
-
-               +----------------------------------------+
-               | wrapper_for_promql_for_all_clusters.sh |
-               |   (loops through all Konflux clusters) |
-               +-------------------------+--------------+
-                                         |
-                                         v
-                         +---------------+----------------+
-                         | Switch kube context to cluster |
-                         +---------------+----------------+
-                                         |
-                                         v
-                         +---------------+----------------+
-                         |     wrapper_for_promql.sh      |
-                         | (Runs per-task / per-step loop)|
-                         +---------------+----------------+
-                                         |
-                                         v
-       +---------------------------------+--------------------------------+
-       |                                                                  |
-       v                                                                  v
-+---------------+                                              +-------------------------------+
-| list_pods_for_a_particular_task.py                           | list_container_mem_usage_for_ |
-| - Queries Prometheus for pods used                           |   a_particular_pod.py         |
-|   by a given task/step                                       | - Fetches container_memory_*  |
-+---------------+                                              | - Computes Max / P95 / P90    |
-       |                                                       |   Median                      |
-       v                                                       +-------------------------------+
-       +-----------------------------+--------------------------|
-                                     v                          v
-                   +----------------------------+   +-----------------------------+
-                   | Output aggregator           |   | Formatters (CSV/JSON/Color)|
-                   | Builds final result set     |-->| Produces final report      |
-                   +----------------------------+   +-----------------------------+
++---------------------------------------+
+| wrapper_for_promql_for_all_clusters.sh|
+|   (loops through all Konflux clusters)|
++---------------------------+-----------+
+                            |
+                            v
++---------------------------+-----------+
+|     Switch kube context to cluster    |
++---------------------------+-----------+
+                            |
+                            v
++---------------------------+-----------+
+|         wrapper_for_promql.sh         |
+|   (per-task / per-step execution loop)|
++---------------------------+-----------+
+                            |
+                            v
++---------------------------------------+
+|  list_pods_for_a_particular_task.py   |
+|     - gets list of pods for task/step |
++---------------------------+-----------+
+                            |
+                            v
++---------------------------------------+
+| list_container_mem_usage_for_pod.py   |
+|  - fetches container_memory_* metrics |
+|  - returns Max / P95 / P90 / Median   |
++---------------------------+-----------+
+                            |
+                            v
++---------------------------------------+
+|            Output aggregator          |
+| (merge per-cluster × per-task results)|
++---------------------------+-----------+
+                            |
+                            v
++---------------------------------------+
+|     Formatters: CSV / JSON / Color    |
+|        - builds the final report      |
++---------------------------------------+
 
 How to Run
 ===================================
