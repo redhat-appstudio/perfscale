@@ -9,7 +9,6 @@ The workflow supports:
 - Per-pod memory usage attribution
 - Automatic retrieval of Namespace, Component, Application (where available)
 
-===================================
 Architecture Overview (ASCII Diagram)
 ===================================
 
@@ -47,7 +46,6 @@ Architecture Overview (ASCII Diagram)
                    | Builds final result set     |-->| Produces final report      |
                    +----------------------------+   +-----------------------------+
 
-===================================
 How to Run
 ===================================
 
@@ -61,7 +59,6 @@ Example:
 
 The PromQL range window and sampling delta adjust automatically.
 
-===================================
 Python Virtual Environment
 ===================================
 
@@ -70,7 +67,6 @@ It is recommended to create a venv:
     ```python -m venv promql_for_mem_metrics
     source promql_for_mem_metrics/bin/activate```
 
-===================================
 Output Modes
 ===================================
 
@@ -84,7 +80,6 @@ Example:
 
     ```./wrapper_for_promql_for_all_clusters.sh 1 --csv```
 
-===================================
 CSV Output Example
 ===================================
 ```
@@ -115,7 +110,6 @@ CSV Output Example
 "stone-stg-rh01","buildah","step-prepare-sboms","0","","N/A","N/A","N/A","0","0","0"
 "stone-stg-rh01","buildah","step-upload-sbom","0","","N/A","N/A","N/A","0","0","0"
 ```
-===================================
 Konflux Cluster Authentication
 ===================================
 
