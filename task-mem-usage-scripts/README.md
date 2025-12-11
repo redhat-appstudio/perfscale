@@ -30,8 +30,8 @@ Architecture Overview (ASCII Diagram)
                                          |
                                          v
        +---------------------------------+--------------------------------+
-       |                                                                      |
-       v                                                                      v
+       |                                                                  |
+       v                                                                  v
 +---------------+                                              +-------------------------------+
 | list_pods_for_a_particular_task.py                           | list_container_mem_usage_for_ |
 | - Queries Prometheus for pods used                           |   a_particular_pod.py         |
@@ -39,8 +39,8 @@ Architecture Overview (ASCII Diagram)
 +---------------+                                              | - Computes Max / P95 / P90    |
        |                                                       |   Median                      |
        v                                                       +-------------------------------+
-       +-----------------------------+                          |
-                               v                                 v
+       +-----------------------------+--------------------------|
+                                     v                          v
                    +----------------------------+   +-----------------------------+
                    | Output aggregator           |   | Formatters (CSV/JSON/Color)|
                    | Builds final result set     |-->| Produces final report      |
@@ -51,11 +51,11 @@ How to Run
 
 Run for last N days:
 
-    ```./wrapper_for_promql_for_all_clusters.sh <num_of_days>```
+    ./wrapper_for_promql_for_all_clusters.sh <num_of_days>
 
 Example:
 
-    ```./wrapper_for_promql_for_all_clusters.sh 7```
+    ./wrapper_for_promql_for_all_clusters.sh 7
 
 The PromQL range window and sampling delta adjust automatically.
 
@@ -64,8 +64,7 @@ Python Virtual Environment
 
 It is recommended to create a venv:
 
-    ```python -m venv promql_for_mem_metrics
-    source promql_for_mem_metrics/bin/activate```
+    python -m venv promql_for_mem_metrics; source promql_for_mem_metrics/bin/activate
 
 Output Modes
 ===================================
@@ -78,7 +77,7 @@ The wrapper supports:
 
 Example:
 
-    ```./wrapper_for_promql_for_all_clusters.sh 1 --csv```
+    ./wrapper_for_promql_for_all_clusters.sh 1 --csv
 
 CSV Output Example
 ===================================
