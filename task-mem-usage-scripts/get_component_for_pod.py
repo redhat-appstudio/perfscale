@@ -1,48 +1,54 @@
 #!/usr/bin/env python3
+import json
 import sys
+
 import requests
 import urllib3
-import json
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 if len(sys.argv) < 4:
-    print(json.dumps({"error": "usage: get_component_for_pod.py <token> <prometheus_host> <pod_name>"}))
+    print(
+        json.dumps(
+            {
+                "error": (
+                    "usage: get_component_for_pod.py "
+                    "<token> <prometheus_host> <pod_name>"
+                )
+            }
+        )
+    )
     sys.exit(1)
 
-token = sys.argv[1]
-prom_host = sys.argv[2]
-pod = sys.argv[3]
+token, prom_host, pod = sys.argv[1:4]
 
 url = f"https://{prom_host}/api/v1/query"
 headers = {
     "Content-Type": "application/json",
     "Authorization": f"Bearer {token}",
 }
-# query kube_pod_labels for that pod
-params = {
-    "query": f'kube_pod_labels{{pod="{pod}"}}'
-}
+params = {"query": f'kube_pod_labels{{pod="{pod}"}}'}
 
 try:
-    r = requests.get(url, headers=headers, params=params, verify=False, timeout=30)
-except Exception as e:
-    print(json.dumps({"error": f"request failed: {e}"}))
+    response = requests.get(
+        url, headers=headers, params=params, verify=False, timeout=30
+    )
+except Exception as exc:
+    print(json.dumps({"error": f"request failed: {exc}"}))
     sys.exit(0)
 
-if r.status_code != 200:
-    print(json.dumps({"error": f"prometheus returned {r.status_code}"}))
+if response.status_code != 200:
+    print(json.dumps({"error": f"prometheus returned {response.status_code}"}))
     sys.exit(0)
 
-data = r.json().get("data", {}).get("result", [])
+data = response.json().get("data", {}).get("result", [])
 if not data:
     print(json.dumps({"component": "N/A", "application": "N/A", "pod": pod}))
     sys.exit(0)
 
 metric = data[0].get("metric", {})
 
-# try common label name variants
-candidates = [
+component_keys = [
     "appstudio_redhat_com_component",
     "label_appstudio_redhat_com_component",
     "appstudio.redhat.com/component",
@@ -50,7 +56,7 @@ candidates = [
     "app.kubernetes.io/component",
 ]
 
-a_candidates = [
+application_keys = [
     "appstudio_redhat_com_application",
     "label_appstudio_redhat_com_application",
     "appstudio.redhat.com/application",
@@ -58,15 +64,19 @@ a_candidates = [
     "app.kubernetes.io/name",
 ]
 
-def first_present(m, keys):
-    for k in keys:
-        if k in m and m[k] != "":
-            return m[k]
+
+def first_present(mapping, keys):
+    for key in keys:
+        value = mapping.get(key)
+        if value:
+            return value
     return "N/A"
 
-component = first_present(metric, candidates)
-application = first_present(metric, a_candidates)
 
-out = {"component": component, "application": application, "pod": pod}
-print(json.dumps(out))
+output = {
+    "component": first_present(metric, component_keys),
+    "application": first_present(metric, application_keys),
+    "pod": pod,
+}
 
+print(json.dumps(output))
