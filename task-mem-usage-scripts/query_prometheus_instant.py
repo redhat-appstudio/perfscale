@@ -27,4 +27,3 @@ resp = requests.get(
 )
 resp.raise_for_status()
 print(resp.text)
-
