@@ -33,6 +33,16 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional, Set, Pattern
 
+# Try to import requests, but make it optional
+try:
+    import requests
+    import urllib3
+
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
+
 # ---------------------------
 # Color output
 # ---------------------------
@@ -61,6 +71,12 @@ TIME_WINDOWS = {
     "last_7d": 168,
 }
 
+# Prometheus queries for OOM and CrashLoopBackOff detection
+# Note: These metrics may not be available in all clusters or may require
+# specific Prometheus configuration. The queries are used as a fallback
+# when oc events don't provide sufficient historical data.
+# If these queries don't work, consider using alternative metrics or
+# querying Prometheus directly to verify metric availability.
 PROMQL_OOM = (
     "kube_pod_container_status_last_terminated_reason"
     '{{reason="OOMKilled",namespace="{namespace}"}}'
@@ -82,8 +98,7 @@ DEFAULT_BATCH_SIZE = 2
 
 # Prometheus constants
 PROMETHEUS_NAMESPACE = "openshift-monitoring"
-PROMETHEUS_LABEL_SELECTOR = "app=prometheus"
-PROMETHEUS_PORT = 9090
+PROMETHEUS_ROUTE_NAME = "prometheus-k8s"  # Common route name in OpenShift
 
 
 # ---------------------------
@@ -209,14 +224,13 @@ def check_cluster_connectivity(
 # ---------------------------
 # oc-only namespace workers (no Prometheus here)
 # ---------------------------
-def find_events_by_reason_oc(
+def get_all_events_oc(
     context: str,
     namespace: str,
-    reason_substring: str,
     retries: int,
     oc_timeout_seconds: int,
-) -> List[Dict[str, str]]:
-    """Find events matching a reason substring in a namespace."""
+) -> List[Dict[str, Any]]:
+    """Get all events for a namespace (single API call for efficiency)."""
     subcmd = ["-n", namespace, "get", "events", "--ignore-not-found", "-o", "json"]
     rc, out, err = run_oc_subcommand(
         context, subcmd, retries=retries, oc_timeout_seconds=oc_timeout_seconds
@@ -228,8 +242,20 @@ def find_events_by_reason_oc(
     except json.JSONDecodeError as e:
         logging.warning(f"Failed to parse events JSON for {namespace}: {e}")
         return []
+    return obj.get("items", [])
+
+
+def find_events_by_reason_oc(
+    context: str,
+    namespace: str,
+    reason_substring: str,
+    retries: int,
+    oc_timeout_seconds: int,
+) -> List[Dict[str, str]]:
+    """Find events matching a reason substring in a namespace."""
+    events = get_all_events_oc(context, namespace, retries, oc_timeout_seconds)
     res: List[Dict[str, str]] = []
-    for ev in obj.get("items", []):
+    for ev in events:
         reason = ev.get("reason", "")
         if reason_substring.lower() not in reason.lower():
             continue
@@ -273,65 +299,138 @@ def crashloop_via_pods_oc(
 # ---------------------------
 # Prometheus fallback (can be parallelized in batches)
 # ---------------------------
-def prom_query_from_prometheus_pod(
-    context: str, namespace: str, promql: str, retries: int, oc_timeout_seconds: int
-) -> List[Dict[str, str]]:
-    """Query Prometheus via exec into prometheus pod."""
-    # Find prometheus pod using oc command (safer than shell string)
-    find_cmd = oc_cmd_parts(
-        context,
-        oc_timeout_seconds,
-        [
+def get_prometheus_route_url(
+    context: str, retries: int, oc_timeout_seconds: int
+) -> Optional[str]:
+    """Get Prometheus route URL from openshift-monitoring namespace."""
+    subcmd = [
+        "-n",
+        PROMETHEUS_NAMESPACE,
+        "get",
+        "route",
+        PROMETHEUS_ROUTE_NAME,
+        "-o",
+        "jsonpath={.spec.host}",
+        "--ignore-not-found",
+    ]
+    rc, out, err = run_oc_subcommand(
+        context, subcmd, retries=retries, oc_timeout_seconds=oc_timeout_seconds
+    )
+    if rc != 0 or not out:
+        # Try alternative: get all routes and filter
+        subcmd2 = [
             "-n",
             PROMETHEUS_NAMESPACE,
             "get",
-            "pod",
-            "-l",
-            PROMETHEUS_LABEL_SELECTOR,
+            "route",
             "-o",
-            "name",
-        ],
-    )
-    rc, out, err = run_cmd_with_retries(
-        find_cmd, retries=retries, timeout=oc_timeout_seconds + 5
-    )
-    if rc != 0 or not out:
-        return []
-    # Get first pod name (strip "pod/" prefix if present)
-    pod_lines = [line.strip() for line in out.splitlines() if line.strip()]
-    if not pod_lines:
-        return []
-    pod_name = pod_lines[0].replace("pod/", "")
+            "json",
+        ]
+        rc2, out2, err2 = run_oc_subcommand(
+            context, subcmd2, retries=retries, oc_timeout_seconds=oc_timeout_seconds
+        )
+        if rc2 == 0 and out2:
+            try:
+                routes = json.loads(out2)
+                for route in routes.get("items", []):
+                    name = route.get("metadata", {}).get("name", "")
+                    if PROMETHEUS_ROUTE_NAME in name and "federate" not in name.lower():
+                        host = route.get("spec", {}).get("host", "")
+                        if host:
+                            return f"https://{host}"
+            except json.JSONDecodeError:
+                pass
+        return None
+    host = out.strip()
+    if host:
+        return f"https://{host}"
+    return None
 
-    # Build curl command safely using subprocess arguments
-    curl_url = f"http://localhost:{PROMETHEUS_PORT}/api/v1/query"
-    exec_cmd = oc_cmd_parts(
-        context,
-        oc_timeout_seconds,
-        [
-            "-n",
-            PROMETHEUS_NAMESPACE,
-            "exec",
-            pod_name,
-            "--",
-            "curl",
-            "-s",
-            "-G",
-            curl_url,
-            "--data-urlencode",
-            f"query={promql}",
-        ],
+
+def get_oc_token(context: str, retries: int, oc_timeout_seconds: int) -> Optional[str]:
+    """Get OpenShift authentication token for the current context."""
+    subcmd = ["whoami", "--show-token"]
+    rc, out, err = run_oc_subcommand(
+        context, subcmd, retries=retries, oc_timeout_seconds=oc_timeout_seconds
     )
-    rc2, out2, err2 = run_cmd_with_retries(
-        exec_cmd, retries=retries, timeout=oc_timeout_seconds + 10
-    )
-    if rc2 != 0 or not out2:
+    if rc == 0 and out:
+        return out.strip()
+    return None
+
+
+def prom_query_from_prometheus_route(
+    context: str, namespace: str, promql: str, retries: int, oc_timeout_seconds: int
+) -> List[Dict[str, str]]:
+    """
+    Query Prometheus via HTTP API using route (no exec permissions required).
+
+    This method uses the Prometheus route exposed in openshift-monitoring namespace
+    and authenticates using the OpenShift token. This is more reliable and doesn't
+    require exec permissions on pods.
+    """
+    if not HAS_REQUESTS:
+        logging.warning(
+            "requests library not available. Install with: pip install requests"
+        )
         return []
+
+    # Get Prometheus route URL
+    prom_url = get_prometheus_route_url(context, retries, oc_timeout_seconds)
+    if not prom_url:
+        logging.debug(
+            f"Could not find Prometheus route in {PROMETHEUS_NAMESPACE} namespace"
+        )
+        return []
+
+    # Get authentication token
+    token = get_oc_token(context, retries, oc_timeout_seconds)
+    if not token:
+        logging.debug("Could not get OpenShift authentication token")
+        return []
+
+    # Build query URL
+    query_url = f"{prom_url}/api/v1/query"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {token}",
+    }
+    params = {"query": promql}
+
+    # Make HTTP request
     try:
-        resp = json.loads(out2)
+        response = requests.get(
+            query_url,
+            headers=headers,
+            params=params,
+            verify=False,
+            timeout=oc_timeout_seconds + 10,
+        )
+    except requests.exceptions.RequestException as e:
+        logging.debug(f"Prometheus HTTP request failed for {namespace}: {e}")
+        return []
+
+    if response.status_code != 200:
+        logging.debug(
+            f"Prometheus returned status {response.status_code} for {namespace}: "
+            f"{response.text[:200]}"
+        )
+        return []
+
+    try:
+        resp = response.json()
     except json.JSONDecodeError as e:
         logging.warning(f"Failed to parse Prometheus response for {namespace}: {e}")
         return []
+
+    # Validate response structure
+    if resp.get("status") != "success":
+        error_msg = resp.get("error", {}).get("error", "unknown error")
+        logging.debug(
+            f"Prometheus query returned error for {namespace}: {error_msg}. "
+            f"Query: {promql}"
+        )
+        return []
+
     res: List[Dict[str, str]] = []
     for r in resp.get("data", {}).get("result", []):
         metric = r.get("metric", {})
@@ -339,6 +438,10 @@ def prom_query_from_prometheus_pod(
         if pod:
             res.append({"pod": pod, "reason": "Prometheus", "timestamp": ""})
     return res
+
+
+# Alias for backward compatibility (in case it's called elsewhere)
+prom_query_from_prometheus_pod = prom_query_from_prometheus_route
 
 
 # ---------------------------
@@ -491,29 +594,41 @@ def save_pod_artifacts(
 def namespace_worker_oc(
     context: str, namespace: str, retries: int, oc_timeout_seconds: int
 ) -> Optional[Dict[str, Dict[str, Any]]]:
+    """Process namespace to find OOMKilled and CrashLoopBackOff pods."""
     pod_map: Dict[str, Dict[str, Any]] = {}
 
-    oom_events = find_events_by_reason_oc(
-        context,
-        namespace,
-        "OOMKilled",
-        retries=retries,
-        oc_timeout_seconds=oc_timeout_seconds,
+    # OPTIMIZATION: Fetch events once instead of 3 separate API calls
+    all_events = get_all_events_oc(
+        context, namespace, retries=retries, oc_timeout_seconds=oc_timeout_seconds
     )
-    crash_events = find_events_by_reason_oc(
-        context,
-        namespace,
-        "CrashLoop",
-        retries=retries,
-        oc_timeout_seconds=oc_timeout_seconds,
-    )
-    backoff_events = find_events_by_reason_oc(
-        context,
-        namespace,
-        "BackOff",
-        retries=retries,
-        oc_timeout_seconds=oc_timeout_seconds,
-    )
+
+    # Filter events in memory for OOMKilled, CrashLoop, and BackOff
+    oom_events: List[Dict[str, str]] = []
+    crash_events: List[Dict[str, str]] = []
+    backoff_events: List[Dict[str, str]] = []
+
+    for ev in all_events:
+        reason = ev.get("reason", "")
+        reason_lower = reason.lower()
+        pod = ev.get("involvedObject", {}).get("name")
+        ts = ev.get("eventTime") or ev.get("lastTimestamp") or ev.get("firstTimestamp")
+
+        if not pod or not ts:
+            continue
+
+        event_data = {
+            "pod": pod,
+            "reason": reason,
+            "timestamp": parse_timestamp_to_iso(ts),
+        }
+
+        if "oomkilled" in reason_lower:
+            oom_events.append(event_data)
+        elif "crashloop" in reason_lower:
+            crash_events.append(event_data)
+        elif "backoff" in reason_lower:
+            backoff_events.append(event_data)
+
     crash_pods = crashloop_via_pods_oc(
         context, namespace, retries=retries, oc_timeout_seconds=oc_timeout_seconds
     )
