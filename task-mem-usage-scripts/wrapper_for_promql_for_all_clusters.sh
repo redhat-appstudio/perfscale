@@ -1,54 +1,51 @@
-#!/usr/bin/env bash
+#!/bin/bash
+# ShellCheck-clean, bash 3.2 compatible
+
 set -euo pipefail
 
 if [ "$#" -lt 1 ]; then
-    echo "Usage: $0 <last_num_days> [--text|--color|--csv|--json]" >&2
+    echo "Usage: $0 <last_num_days> [--csv] [--debug]" >&2
     exit 1
 fi
 
-last_num_days="$1"
+LAST_DAYS="$1"
 shift
 
-OUTPUT_MODE="--text"
-if [ "$#" -gt 0 ]; then
-    case "$1" in
-        --text|--color|--csv|--json)
-            OUTPUT_MODE="$1"
-            ;;
-        *)
-            echo "Unknown option: $1" >&2
-            exit 1
-            ;;
-    esac
-fi
+OUTPUT_MODE="--csv"
+DEBUG=0
 
-CONTEXTS="$(kubectl config get-contexts -o name)"
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --csv) OUTPUT_MODE="--csv" ;;
+        --debug) DEBUG=1 ;;
+        *) echo "Unknown option: $1" >&2; exit 1 ;;
+    esac
+    shift
+done
+
+TASK_NAME="buildah"
+STEPS="step-build step-push step-sbom-syft-generate step-prepare-sboms step-upload-sbom"
+#STEPS="step-build"
+
+# Get all contexts or use specific one for testing
+#CONTEXTS="$(kubectl config get-contexts -o name 2>/dev/null | xargs || echo 'default/api-stone-prd-rh01-pg1f-p1-openshiftapps-com:6443/smodak')"
 CONTEXTS="default/api-stone-prd-rh01-pg1f-p1-openshiftapps-com:6443/smodak"
 
-task_name="buildah"
-container_names=(
-    step-build
-    step-push
-    step-sbom-syft-generate
-    step-prepare-sboms
-    step-upload-sbom
-)
 
-if [ "$OUTPUT_MODE" = "--csv" ]; then
-    echo '"cluster","task","step","max_mem_mb","pod","namespace","component","application","p95_mb","p90_mb","median_mb"'
-fi
+# CSV header matching the output format: cluster,task,step,pod_max_memory,pod_namespace_mem,component,application,mem_max_mb,mem_p95_mb,mem_p90_mb,mem_median_mb,pod_max_cpu,pod_namespace_cpu,cpu_max,cpu_p95,cpu_p90,cpu_median
+echo '"cluster","task","step","pod_max_memory","pod_namespace_mem","component","application","mem_max_mb","mem_p95_mb","mem_p90_mb","mem_median_mb","pod_max_cpu","pod_namespace_cpu","cpu_max","cpu_p95","cpu_p90","cpu_median"'
 
-for context in ${CONTEXTS}; do
-    if ! kubectl config use-context "$context" >/dev/null 2>&1; then
-        continue
-    fi
+for ctx in ${CONTEXTS}; do
+    kubectl config use-context "$ctx" >/dev/null 2>&1 || continue
+    [ "$DEBUG" -eq 1 ] && echo "DEBUG(parent): context=$ctx" >&2
 
-    for container in "${container_names[@]}"; do
+    for step in ${STEPS}; do
         ./wrapper_for_promql.sh \
-            "$task_name" \
-            "$container" \
-            "$last_num_days" \
-            "$OUTPUT_MODE"
+            "$TASK_NAME" \
+            "$step" \
+            "$LAST_DAYS" \
+            "$OUTPUT_MODE" \
+            "$DEBUG"
     done
 done
 

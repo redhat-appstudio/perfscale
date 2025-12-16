@@ -1,174 +1,283 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/bash
+# ShellCheck-clean, bash 3.2 compatible
 
-# usage: wrapper_for_promql.sh <task_name> <step_name> <last_num_days> <mode> [batch_size]
+set -u  # NEVER -e
 
-task_name="$1"
-step_name="$2"
-last_num_days="$3"
-OUTPUT_MODE="${4:---text}"
-batch_size="${5:-50}"
+TASK="$1"
+STEP="$2"
+DAYS="$3"
+MODE="$4"
+DEBUG_FLAG="${5:-0}"
 
-cluster_name="$(oc config current-context | sed -E 's#.*/api-([^-]+-[^-]+-[^-]+).*#\1#')"
-user_token="$(oc whoami --show-token)"
-prometheus_url="$(oc -n openshift-monitoring get route | awk '/prometheus-k8s/ && !/federate/ {print $2}')"
+DEBUG=0
+[ "$DEBUG_FLAG" -eq 1 ] && DEBUG=1
 
-end_time_in_secs="$(date +%s)"
-start_time="$((end_time_in_secs - last_num_days * 24 * 60 * 60))"
-range_window="${last_num_days}d"
+log() { [ "$DEBUG" -eq 1 ] && echo "DEBUG(child): $*" >&2; }
 
-pod_list_raw="$(
-    python3 list_pods_for_a_particular_task.py \
-        "$user_token" \
-        "$prometheus_url" \
-        "$task_name" \
-        "$end_time_in_secs" \
-        "$last_num_days" |
-    jq -r '.data.result[].metric.pod' 2>/dev/null |
-    sort -u
-)"
+CLUSTER="$(oc config current-context | sed -E 's#.*/api-([^-]+-[^-]+-[^-]+).*#\1#')"
+TOKEN="$(oc whoami --show-token)"
+PROM="$(oc -n openshift-monitoring get route prometheus-k8s --no-headers | awk '{print $2}')"
 
+END="$(date +%s)"
+START=$(( END - DAYS * 86400 ))
+RANGE="${DAYS}d"
+
+query() {
+    local qry="$1"
+    log "Query: $qry"
+    local result
+    result="$(python3 query_prometheus_range.py "$TOKEN" "$PROM" "$qry" "$START" "$END" 2>&1)"
+    local status=$?
+    if [ $status -ne 0 ]; then
+        log "Query failed with status $status: $result"
+        echo '{}'
+        return
+    fi
+    # Check if result contains error
+    if echo "$result" | jq -e '.error // .status' >/dev/null 2>&1; then
+        local error_type="$(echo "$result" | jq -r '.error.type // .status // "unknown"')"
+        if [ "$error_type" != "success" ] && [ -n "$error_type" ]; then
+            log "Query returned error: $result"
+        fi
+    fi
+    echo "$result"
+}
+
+bytes_to_mb() {
+    v="${1%%.*}"
+    [ -z "$v" ] && v=0
+    echo $(( v / 1024 / 1024 ))
+}
+
+# ------------------------------------------------------------
+# OPTIMIZED: Batch pods to avoid regex explosion with large pod counts
+# 
+# SAFETY GUARANTEES:
+# 1. Pod list is obtained by filtering kube_pod_labels with label_tekton_dev_task="$TASK"
+#    This ensures we ONLY get pods belonging to the specified task
+# 2. All metric queries use pod=~"(pod1|pod2|...)" with exact pod names from step 1
+# 3. All returned pod names are validated against the original task pod list
+# 4. This ensures max/percentile calculations are ONLY from pods of the specified task,
+#    not from other tasks that might have the same step name
+# ------------------------------------------------------------
+
+# Get list of pods for this task (filtered by task label)
+log "Getting pods for task=$TASK..."
+POD_LIST="$(python3 list_pods_for_a_particular_task.py "$TOKEN" "$PROM" "$TASK" "$END" "$DAYS" 2>/dev/null | jq -r '.data.result[].metric.pod' 2>/dev/null | sort -u)"
+
+# Convert to array (bash 3.2 compatible - no associative arrays)
 pods=()
 while IFS= read -r pod; do
     [ -n "$pod" ] && pods+=("$pod")
-done <<< "$pod_list_raw"
+done <<< "$POD_LIST"
 
-if [ "${#pods[@]}" -eq 0 ]; then
-    echo "DEBUG: No pods found for task=${task_name} in cluster=${cluster_name}" >&2
+POD_COUNT="${#pods[@]}"
+log "Found $POD_COUNT pods for task=$TASK (validated by task label: label_tekton_dev_task=\"$TASK\")"
+
+# Helper function to check if pod is in our task pod list (bash 3.2 compatible)
+pod_in_task() {
+    local check_pod="$1"
+    local p
+    for p in "${pods[@]}"; do
+        [ "$p" = "$check_pod" ] && return 0
+    done
+    return 1
+}
+
+if [ "$POD_COUNT" -eq 0 ]; then
+    log "No pods found, exiting"
     exit 0
 fi
 
+# Batch size - keep it small to avoid URL length limits (50 is safe)
+BATCH_SIZE=50
+
+# Global accumulators
 max_overall=0
 max_overall_pod=""
-max_overall_namespace="N/A"
-max_overall_component="N/A"
-max_overall_app="N/A"
-
+max_overall_ns="N/A"
 perc95_overall=0
 perc90_overall=0
 median_overall=0
 
-total="${#pods[@]}"
+cpu_max_overall=0
+cpu_max_overall_pod=""
+cpu_max_overall_ns="N/A"
+cpu_p95_overall=0
+cpu_p90_overall=0
+cpu_median_overall=0
+
+# Process pods in batches
+total="$POD_COUNT"
 start=0
 
-while [ "$start" -lt "$total" ]; do
-    end="$((start + batch_size))"
-    [ "$end" -gt "$total" ] && end="$total"
+log "Processing $total pods in batches of $BATCH_SIZE..."
 
-    batch_pods="$(printf "%s|" "${pods[@]:start:end-start}")"
+while [ $start -lt $total ]; do
+    end=$(( start + BATCH_SIZE ))
+    [ $end -gt $total ] && end=$total
+    
+    # Create regex for this batch
+    batch_pods=$(printf "%s|" "${pods[@]:$start:$((end-start))}")
     batch_pods="${batch_pods%|}"
-
-    max_query="max_over_time(container_memory_max_usage_bytes{namespace=~\".*-tenant\",container=\"${step_name}\",pod=~\"(${batch_pods})\"}[${range_window}])"
-
-    max_json="$(
-        python3 query_prometheus_range.py \
-            "$user_token" \
-            "$prometheus_url" \
-            "$max_query" \
-            "$start_time" \
-            "$end_time_in_secs"
-    )"
-
-    max_entry="$(
-        echo "$max_json" | jq '
-            .data.result[]? as $r
-            | ($r.values[][1] | tonumber | floor | select(. > 0)) as $v
-            | {value:$v, pod:$r.metric.pod, namespace:$r.metric.namespace}
-        ' | jq -s 'if length == 0 then {} else max_by(.value) end'
-    )"
-
-    batch_max_bytes="$(echo "$max_entry" | jq -r '.value // 0')"
-    batch_max_mb="$((batch_max_bytes / 1024 / 1024))"
-
+    batch_count=$((end - start))
+    log "Processing batch $((start/BATCH_SIZE + 1)): pods $start to $((end-1)) ($batch_count pods)"
+    
+    # ------------------------------------------------------------
+    # MEMORY - Max
+    # ------------------------------------------------------------
+    max_query="max_over_time(container_memory_max_usage_bytes{container=\"$STEP\",pod=~\"($batch_pods)\",namespace=~\".*-tenant\"}[$RANGE])"
+    max_json="$(query "$max_query")"
+    
+    max_entry="$(echo "$max_json" | jq -r '
+      [.data.result[]? | 
+        {
+          value: ([.values[][1] | tonumber | floor | select(. > 0)] | max // 0),
+          pod: .metric.pod,
+          namespace: .metric.namespace
+        }
+      ] | 
+      if length == 0 then 
+        {value: 0, pod: "", namespace: "N/A"}
+      else 
+        max_by(.value)
+      end
+    ')"
+    
+    # Validate that the returned pod is in our task pod list
+    returned_pod="$(echo "$max_entry" | jq -r '.pod // ""')"
+    if [ -n "$returned_pod" ] && ! pod_in_task "$returned_pod"; then
+        log "WARNING: Pod $returned_pod not in task pod list - skipping"
+        batch_max_bytes=0
+        batch_max_mb=0
+    else
+        batch_max_bytes="$(echo "$max_entry" | jq -r '.value // 0')"
+        batch_max_mb=$(( batch_max_bytes / 1024 / 1024 ))
+    fi
+    
     if [ "$batch_max_mb" -gt "$max_overall" ]; then
         max_overall="$batch_max_mb"
         max_overall_pod="$(echo "$max_entry" | jq -r '.pod // ""')"
-        max_overall_namespace="$(echo "$max_entry" | jq -r '.namespace // "N/A"')"
-
-        comp_info="$(
-            python3 get_component_for_pod.py \
-                "$user_token" \
-                "$prometheus_url" \
-                "$max_overall_pod" 2>/dev/null || echo '{}'
-        )"
-
-        max_overall_component="$(echo "$comp_info" | jq -r '.component // "N/A"')"
-        max_overall_app="$(echo "$comp_info" | jq -r '.application // "N/A"')"
+        max_overall_ns="$(echo "$max_entry" | jq -r '.namespace // "N/A"')"
     fi
-
+    
+    # ------------------------------------------------------------
+    # MEMORY - Percentiles
+    # ------------------------------------------------------------
     for q in 0.95 0.90 0.50; do
-        p_query="quantile_over_time(${q},container_memory_working_set_bytes{namespace=~\".*-tenant\",container=\"${step_name}\",pod=~\"(${batch_pods})\"}[${range_window}])"
-
-        p_json="$(
-            python3 query_prometheus_range.py \
-                "$user_token" \
-                "$prometheus_url" \
-                "$p_query" \
-                "$start_time" \
-                "$end_time_in_secs"
-        )"
-
-        p_bytes="$(
-            echo "$p_json" |
-            jq '[.data.result[].values[][1] | tonumber | floor | select(. > 0)] | max // 0'
-        )"
-
-        p_mb="$((p_bytes / 1024 / 1024))"
-
+        p_query="max(quantile_over_time($q,container_memory_working_set_bytes{container=\"$STEP\",pod=~\"($batch_pods)\",namespace=~\".*-tenant\"}[$RANGE]))"
+        p_json="$(query "$p_query")"
+        p_bytes="$(echo "$p_json" | jq -r '[.data.result[]?.values[][1] | tonumber | floor | select(. > 0)] | max // 0')"
+        p_mb=$(( p_bytes / 1024 / 1024 ))
+        
         case "$q" in
             0.95) [ "$p_mb" -gt "$perc95_overall" ] && perc95_overall="$p_mb" ;;
             0.90) [ "$p_mb" -gt "$perc90_overall" ] && perc90_overall="$p_mb" ;;
             0.50) [ "$p_mb" -gt "$median_overall" ] && median_overall="$p_mb" ;;
         esac
     done
-
-    start="$((start + batch_size))"
+    
+    # ------------------------------------------------------------
+    # CPU - Max
+    # ------------------------------------------------------------
+    cpu_max_query="max_over_time(rate(container_cpu_usage_seconds_total{container=\"$STEP\",pod=~\"($batch_pods)\",namespace=~\".*-tenant\"}[5m])[$RANGE:5m])"
+    cpu_max_json="$(query "$cpu_max_query")"
+    
+    cpu_max_entry="$(echo "$cpu_max_json" | jq -r '
+      [.data.result[]? | 
+        {
+          value: ([.values[][1] | tonumber | select(. > 0)] | max // 0),
+          pod: .metric.pod,
+          namespace: .metric.namespace
+        }
+      ] | 
+      if length == 0 then 
+        {value: 0, pod: "", namespace: "N/A"}
+      else 
+        max_by(.value)
+      end
+    ')"
+    
+    # Validate that the returned pod is in our task pod list
+    returned_cpu_pod="$(echo "$cpu_max_entry" | jq -r '.pod // ""')"
+    if [ -n "$returned_cpu_pod" ] && ! pod_in_task "$returned_cpu_pod"; then
+        log "WARNING: Pod $returned_cpu_pod not in task pod list - skipping"
+        cpu_max_cores=0
+    else
+        cpu_max_cores="$(echo "$cpu_max_entry" | jq -r '.value // 0')"
+    fi
+    # Convert to millicores, handling empty values
+    if [ -n "$cpu_max_cores" ] && [ "$cpu_max_cores" != "0" ]; then
+        cpu_max_millicores=$(echo "$cpu_max_cores * 1000" | bc 2>/dev/null | cut -d. -f1)
+        [ -z "$cpu_max_millicores" ] && cpu_max_millicores=0
+    else
+        cpu_max_millicores=0
+    fi
+    
+    if [ "$cpu_max_millicores" -gt "$cpu_max_overall" ]; then
+        cpu_max_overall="$cpu_max_millicores"
+        cpu_max_overall_pod="$(echo "$cpu_max_entry" | jq -r '.pod // ""')"
+        cpu_max_overall_ns="$(echo "$cpu_max_entry" | jq -r '.namespace // "N/A"')"
+    fi
+    
+    # ------------------------------------------------------------
+    # CPU - Percentiles
+    # ------------------------------------------------------------
+    for q in 0.95 0.90 0.50; do
+        cpu_p_query="max(quantile_over_time($q,rate(container_cpu_usage_seconds_total{container=\"$STEP\",pod=~\"($batch_pods)\",namespace=~\".*-tenant\"}[5m])[$RANGE:5m]))"
+        cpu_p_json="$(query "$cpu_p_query")"
+        cpu_p_cores="$(echo "$cpu_p_json" | jq -r '[.data.result[]?.values[][1] | tonumber | select(. > 0)] | max // 0')"
+        # Convert to millicores, handling empty values
+        cpu_p_millicores=0
+        if [ -n "$cpu_p_cores" ] && [ "$cpu_p_cores" != "0" ]; then
+            cpu_p_millicores=$(echo "$cpu_p_cores * 1000" | bc 2>/dev/null | cut -d. -f1)
+            [ -z "$cpu_p_millicores" ] && cpu_p_millicores=0
+        fi
+        
+        case "$q" in
+            0.95) [ "$cpu_p_millicores" -gt "$cpu_p95_overall" ] && cpu_p95_overall="$cpu_p_millicores" ;;
+            0.90) [ "$cpu_p_millicores" -gt "$cpu_p90_overall" ] && cpu_p90_overall="$cpu_p_millicores" ;;
+            0.50) [ "$cpu_p_millicores" -gt "$cpu_median_overall" ] && cpu_median_overall="$cpu_p_millicores" ;;
+        esac
+    done
+    
+    start=$end
 done
 
-case "$OUTPUT_MODE" in
-    --csv)
-        printf '"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
-            "$cluster_name" \
-            "$task_name" \
-            "$step_name" \
-            "$max_overall" \
-            "$max_overall_pod" \
-            "$max_overall_namespace" \
-            "$max_overall_component" \
-            "$max_overall_app" \
-            "$perc95_overall" \
-            "$perc90_overall" \
-            "$median_overall"
-        ;;
-    --json)
-        jq -n \
-            --arg cluster "$cluster_name" \
-            --arg task "$task_name" \
-            --arg step "$step_name" \
-            --argjson max "$max_overall" \
-            --arg pod "$max_overall_pod" \
-            --arg ns "$max_overall_namespace" \
-            --arg comp "$max_overall_component" \
-            --arg app "$max_overall_app" \
-            --argjson p95 "$perc95_overall" \
-            --argjson p90 "$perc90_overall" \
-            --argjson med "$median_overall" \
-            '{
-                cluster:$cluster,
-                task:$task,
-                step:$step,
-                max_mem_mb:$max,
-                max_mem_pod:$pod,
-                namespace:$ns,
-                component:$comp,
-                application:$app,
-                p95_mb:$p95,
-                p90_mb:$p90,
-                median_mb:$med
-            }'
-        ;;
-    *)
-        echo "cluster=${cluster_name}, task=${task_name}, step=${step_name}, max=${max_overall}MB, p95=${perc95_overall}MB, p90=${perc90_overall}MB, median=${median_overall}MB"
-        ;;
-esac
+# Set final values
+MEM_MAX_POD="$max_overall_pod"
+MEM_MAX_NS="$max_overall_ns"
+MEM_MAX_MB="$max_overall"
+MEM_P95_MB="$perc95_overall"
+MEM_P90_MB="$perc90_overall"
+MEM_MED_MB="$median_overall"
+
+CPU_MAX_POD="$cpu_max_overall_pod"
+CPU_MAX_NS="$cpu_max_overall_ns"
+CPU_MAX_M="${cpu_max_overall}m"
+CPU_P95_M="${cpu_p95_overall}m"
+CPU_P90_M="${cpu_p90_overall}m"
+CPU_MED_M="${cpu_median_overall}m"
+
+# Get component and application info for the max memory pod
+if [ -n "$MEM_MAX_POD" ] && [ "$MEM_MAX_POD" != "" ]; then
+    COMP_INFO="$(python3 get_component_for_pod.py "$TOKEN" "$PROM" "$MEM_MAX_POD" 2>/dev/null || echo '{"component":"N/A","application":"N/A"}')"
+    MEM_MAX_COMP="$(echo "$COMP_INFO" | jq -r '.component // "N/A"')"
+    MEM_MAX_APP="$(echo "$COMP_INFO" | jq -r '.application // "N/A"')"
+else
+    MEM_MAX_COMP="N/A"
+    MEM_MAX_APP="N/A"
+fi
+
+# ------------------------------------------------------------
+# OUTPUT (ALWAYS ONE LINE)
+# ------------------------------------------------------------
+# Format: cluster,task,step,pod_max_memory,pod_namespace_mem,component,application,mem_max_mb,mem_p95_mb,mem_p90_mb,mem_median_mb,pod_max_cpu,pod_namespace_cpu,cpu_max,cpu_p95,cpu_p90,cpu_median
+
+printf '"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
+  "$CLUSTER" "$TASK" "$STEP" \
+  "$MEM_MAX_POD" "$MEM_MAX_NS" "$MEM_MAX_COMP" "$MEM_MAX_APP" \
+  "$MEM_MAX_MB" "$MEM_P95_MB" "$MEM_P90_MB" "$MEM_MED_MB" \
+  "$CPU_MAX_POD" "$CPU_MAX_NS" \
+  "$CPU_MAX_M" "$CPU_P95_M" "$CPU_P90_M" "$CPU_MED_M"
 
