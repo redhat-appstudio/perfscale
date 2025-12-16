@@ -224,13 +224,42 @@ def check_cluster_connectivity(
 # ---------------------------
 # oc-only namespace workers (no Prometheus here)
 # ---------------------------
+def parse_time_range(time_range_str: str) -> int:
+    """
+    Parse time range string (e.g., '1d', '2h', '30m', '1M') into seconds.
+    Returns seconds from now to look back.
+    """
+    if not time_range_str:
+        return 86400  # Default 1 day
+    time_range_str = time_range_str.strip().lower()
+    match = re.match(r"^(\d+)([smhdM])$", time_range_str)
+    if not match:
+        raise ValueError(f"Invalid time range format: {time_range_str}")
+    value = int(match.group(1))
+    unit = match.group(2)
+    multipliers = {
+        "s": 1,
+        "m": 60,
+        "h": 3600,
+        "d": 86400,
+        "M": 2592000,  # 30 days
+    }
+    return value * multipliers.get(unit, 86400)
+
+
 def get_all_events_oc(
     context: str,
     namespace: str,
     retries: int,
     oc_timeout_seconds: int,
+    time_range_seconds: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
-    """Get all events for a namespace (single API call for efficiency)."""
+    """
+    Get all events for a namespace (single API call for efficiency).
+
+    Args:
+        time_range_seconds: If provided, filter events to this time range
+    """
     subcmd = ["-n", namespace, "get", "events", "--ignore-not-found", "-o", "json"]
     rc, out, err = run_oc_subcommand(
         context, subcmd, retries=retries, oc_timeout_seconds=oc_timeout_seconds
@@ -242,7 +271,34 @@ def get_all_events_oc(
     except json.JSONDecodeError as e:
         logging.warning(f"Failed to parse events JSON for {namespace}: {e}")
         return []
-    return obj.get("items", [])
+    events = obj.get("items", [])
+
+    # Filter by time range if provided
+    if time_range_seconds:
+        cutoff_time = datetime.utcnow().timestamp() - time_range_seconds
+        filtered_events = []
+        for ev in events:
+            ts = (
+                ev.get("eventTime")
+                or ev.get("lastTimestamp")
+                or ev.get("firstTimestamp")
+            )
+            if ts:
+                try:
+                    # Parse timestamp and compare
+                    ts_str = ts.split(".")[0].rstrip("Z")
+                    ev_dt = datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%S")
+                    if ev_dt.timestamp() >= cutoff_time:
+                        filtered_events.append(ev)
+                except (ValueError, AttributeError):
+                    # If we can't parse, include it to be safe
+                    filtered_events.append(ev)
+            else:
+                # No timestamp, include it
+                filtered_events.append(ev)
+        return filtered_events
+
+    return events
 
 
 def find_events_by_reason_oc(
@@ -251,9 +307,12 @@ def find_events_by_reason_oc(
     reason_substring: str,
     retries: int,
     oc_timeout_seconds: int,
+    time_range_seconds: Optional[int] = None,
 ) -> List[Dict[str, str]]:
     """Find events matching a reason substring in a namespace."""
-    events = get_all_events_oc(context, namespace, retries, oc_timeout_seconds)
+    events = get_all_events_oc(
+        context, namespace, retries, oc_timeout_seconds, time_range_seconds
+    )
     res: List[Dict[str, str]] = []
     for ev in events:
         reason = ev.get("reason", "")
@@ -265,6 +324,43 @@ def find_events_by_reason_oc(
             res.append(
                 {"pod": pod, "reason": reason, "timestamp": parse_timestamp_to_iso(ts)}
             )
+    return res
+
+
+def oomkilled_via_pods_oc(
+    context: str, namespace: str, retries: int, oc_timeout_seconds: int
+) -> List[Dict[str, str]]:
+    """Find pods that were OOMKilled by querying pod status."""
+    subcmd = ["-n", namespace, "get", "pods", "-o", "json", "--ignore-not-found"]
+    rc, out, err = run_oc_subcommand(
+        context, subcmd, retries=retries, oc_timeout_seconds=oc_timeout_seconds
+    )
+    if rc != 0 or not out:
+        return []
+    try:
+        obj = json.loads(out)
+    except json.JSONDecodeError as e:
+        logging.warning(f"Failed to parse pods JSON for {namespace}: {e}")
+        return []
+    res: List[Dict[str, str]] = []
+    for item in obj.get("items", []):
+        pod_name = item.get("metadata", {}).get("name")
+        statuses = item.get("status", {}).get("containerStatuses", []) or []
+        for cs in statuses:
+            # Check lastState.terminated.reason for OOMKilled
+            last_state = cs.get("lastState", {})
+            terminated = last_state.get("terminated", {})
+            if terminated and terminated.get("reason") == "OOMKilled":
+                finished_at = terminated.get("finishedAt", "")
+                res.append(
+                    {
+                        "pod": pod_name,
+                        "reason": "OOMKilled",
+                        "timestamp": (
+                            parse_timestamp_to_iso(finished_at) if finished_at else ""
+                        ),
+                    }
+                )
     return res
 
 
@@ -359,7 +455,12 @@ def get_oc_token(context: str, retries: int, oc_timeout_seconds: int) -> Optiona
 
 
 def prom_query_from_prometheus_route(
-    context: str, namespace: str, promql: str, retries: int, oc_timeout_seconds: int
+    context: str,
+    namespace: str,
+    promql: str,
+    retries: int,
+    oc_timeout_seconds: int,
+    query_type: str = "unknown",
 ) -> List[Dict[str, str]]:
     """
     Query Prometheus via HTTP API using route (no exec permissions required).
@@ -367,6 +468,9 @@ def prom_query_from_prometheus_route(
     This method uses the Prometheus route exposed in openshift-monitoring namespace
     and authenticates using the OpenShift token. This is more reliable and doesn't
     require exec permissions on pods.
+
+    Args:
+        query_type: "oom" or "crash" to indicate what type of query this is
     """
     if not HAS_REQUESTS:
         logging.warning(
@@ -436,7 +540,15 @@ def prom_query_from_prometheus_route(
         metric = r.get("metric", {})
         pod = metric.get("pod") or metric.get("instance") or metric.get("container")
         if pod:
-            res.append({"pod": pod, "reason": "Prometheus", "timestamp": ""})
+            # Include query_type so we know if this is OOM or CrashLoop
+            res.append(
+                {
+                    "pod": pod,
+                    "reason": "Prometheus",
+                    "timestamp": "",
+                    "query_type": query_type,
+                }
+            )
     return res
 
 
@@ -592,14 +704,22 @@ def save_pod_artifacts(
 # namespace worker (oc-only)
 # ---------------------------
 def namespace_worker_oc(
-    context: str, namespace: str, retries: int, oc_timeout_seconds: int
+    context: str,
+    namespace: str,
+    retries: int,
+    oc_timeout_seconds: int,
+    time_range_seconds: Optional[int] = None,
 ) -> Optional[Dict[str, Dict[str, Any]]]:
     """Process namespace to find OOMKilled and CrashLoopBackOff pods."""
     pod_map: Dict[str, Dict[str, Any]] = {}
 
     # OPTIMIZATION: Fetch events once instead of 3 separate API calls
     all_events = get_all_events_oc(
-        context, namespace, retries=retries, oc_timeout_seconds=oc_timeout_seconds
+        context,
+        namespace,
+        retries=retries,
+        oc_timeout_seconds=oc_timeout_seconds,
+        time_range_seconds=time_range_seconds,
     )
 
     # Filter events in memory for OOMKilled, CrashLoop, and BackOff
@@ -629,6 +749,10 @@ def namespace_worker_oc(
         elif "backoff" in reason_lower:
             backoff_events.append(event_data)
 
+    # Also check pod status directly for OOMKilled and CrashLoopBackOff
+    oom_pods = oomkilled_via_pods_oc(
+        context, namespace, retries=retries, oc_timeout_seconds=oc_timeout_seconds
+    )
     crash_pods = crashloop_via_pods_oc(
         context, namespace, retries=retries, oc_timeout_seconds=oc_timeout_seconds
     )
@@ -649,6 +773,15 @@ def namespace_worker_oc(
         )
         pod_map[p]["crash_timestamps"].append(e.get("timestamp", ""))
         pod_map[p]["sources"].add("events")
+    # Add OOM pods found via pod status
+    for e in oom_pods:
+        p = e["pod"]
+        pod_map.setdefault(
+            p,
+            {"pod": p, "oom_timestamps": [], "crash_timestamps": [], "sources": set()},
+        )
+        pod_map[p]["oom_timestamps"].append(e.get("timestamp", ""))
+        pod_map[p]["sources"].add("oc_get_pods")
     for e in crash_pods:
         p = e["pod"]
         pod_map.setdefault(
@@ -682,6 +815,7 @@ def query_context(
     ns_workers: int = DEFAULT_NS_WORKERS,
     prom_workers: Optional[int] = None,
     skip_prometheus: bool = False,
+    time_range_seconds: Optional[int] = None,
 ) -> Tuple[str, Dict[str, Any], Optional[str]]:
     cluster = short_cluster_name(context)
     print(color(f"\n→ Processing cluster: {cluster}", BLUE))
@@ -724,7 +858,12 @@ def query_context(
         with ThreadPoolExecutor(max_workers=min(ns_workers, len(ns_batch))) as ex:
             futures = {
                 ex.submit(
-                    namespace_worker_oc, context, ns, retries, oc_timeout_seconds
+                    namespace_worker_oc,
+                    context,
+                    ns,
+                    retries,
+                    oc_timeout_seconds,
+                    time_range_seconds,
                 ): ns
                 for ns in ns_batch
             }
@@ -786,6 +925,7 @@ def query_context(
                         PROMQL_OOM.format(namespace=ns),
                         retries,
                         oc_timeout_seconds,
+                        "oom",
                     )
                     pfutures[f1] = (ns, "oom")
                     f2 = pex.submit(
@@ -795,6 +935,7 @@ def query_context(
                         PROMQL_CRASH.format(namespace=ns),
                         retries,
                         oc_timeout_seconds,
+                        "crash",
                     )
                     pfutures[f2] = (ns, "crash")
                 prom_results_per_ns: Dict[str, Dict[str, Any]] = {}
@@ -807,6 +948,7 @@ def query_context(
                         ns_map = prom_results_per_ns.setdefault(ns, {})
                         for item in res:
                             p = item["pod"]
+                            query_type = item.get("query_type", "unknown")
                             ns_map.setdefault(
                                 p,
                                 {
@@ -817,6 +959,11 @@ def query_context(
                                 },
                             )
                             ns_map[p]["sources"].add("prometheus")
+                            # Track which type was found via Prometheus
+                            if query_type == "oom":
+                                ns_map[p]["prometheus_oom"] = True
+                            elif query_type == "crash":
+                                ns_map[p]["prometheus_crash"] = True
                     except Exception as e:
                         print(
                             color(
@@ -831,10 +978,17 @@ def query_context(
                         desc_file, log_file = save_pod_artifacts(
                             context, cluster, ns, p, retries, oc_timeout_seconds
                         )
+                        # Determine if Prometheus found OOM or CrashLoop
+                        oom_timestamps = []
+                        crash_timestamps = []
+                        if info.get("prometheus_oom"):
+                            oom_timestamps = ["Prometheus-detected"]
+                        if info.get("prometheus_crash"):
+                            crash_timestamps = ["Prometheus-detected"]
                         info2 = {
                             "pod": p,
-                            "oom_timestamps": [],
-                            "crash_timestamps": [],
+                            "oom_timestamps": oom_timestamps,
+                            "crash_timestamps": crash_timestamps,
                             "sources": sorted(list(info.get("sources", []))),
                             "description_file": desc_file,
                             "pod_log_file": log_file,
@@ -870,29 +1024,48 @@ def run_batches(
     ns_workers: int,
     prom_workers: int,
     skip_prometheus: bool,
+    time_range_seconds: Optional[int] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, str]]:
+    """
+    Run cluster processing with constant parallelism.
+
+    Instead of processing in fixed batches, maintains constant parallelism:
+    when one cluster finishes, immediately start the next one.
+    """
     results: Dict[str, Any] = {}
     skipped: Dict[str, str] = {}
     total = len(contexts)
-    for i in range(0, total, batch_size):
-        batch = contexts[i : i + batch_size]
-        print(color(f"\n=== Cluster batch {i//batch_size + 1}: {batch} ===", BLUE))
-        with ThreadPoolExecutor(max_workers=len(batch)) as ex:
-            futures = {
-                ex.submit(
-                    query_context,
-                    ctx,
-                    retries,
-                    oc_timeout_seconds,
-                    ns_batch_size,
-                    ns_workers,
-                    prom_workers,
-                    skip_prometheus,
-                ): ctx
-                for ctx in batch
-            }
-            for fut in as_completed(futures):
-                ctx = futures[fut]
+    context_index = 0
+    active_futures: Dict[Any, str] = {}
+
+    with ThreadPoolExecutor(max_workers=batch_size) as ex:
+        # Start initial batch
+        while context_index < total and len(active_futures) < batch_size:
+            ctx = contexts[context_index]
+            context_index += 1
+            fut = ex.submit(
+                query_context,
+                ctx,
+                retries,
+                oc_timeout_seconds,
+                ns_batch_size,
+                ns_workers,
+                prom_workers,
+                skip_prometheus,
+                time_range_seconds,
+            )
+            active_futures[fut] = ctx
+            print(
+                color(
+                    f"Started processing cluster: {short_cluster_name(ctx)}",
+                    BLUE,
+                )
+            )
+
+        # Process as they complete, starting new ones to maintain parallelism
+        while active_futures:
+            for fut in as_completed(active_futures):
+                ctx = active_futures.pop(fut)
                 try:
                     cluster, data, err = fut.result()
                     if err:
@@ -905,23 +1078,55 @@ def run_batches(
                     cluster_guess = short_cluster_name(ctx)
                     skipped[cluster_guess] = str(e)
                     print(color(f"Error processing {cluster_guess}: {e}", RED))
+
+                # Start next cluster if available
+                if context_index < total:
+                    next_ctx = contexts[context_index]
+                    context_index += 1
+                    next_fut = ex.submit(
+                        query_context,
+                        next_ctx,
+                        retries,
+                        oc_timeout_seconds,
+                        ns_batch_size,
+                        ns_workers,
+                        prom_workers,
+                        skip_prometheus,
+                        time_range_seconds,
+                    )
+                    active_futures[next_fut] = next_ctx
+                    print(
+                        color(
+                            f"Started processing cluster: {short_cluster_name(next_ctx)}",
+                            BLUE,
+                        )
+                    )
+
     return results, skipped
 
 
 # ---------------------------
 # exports & pretty print
 # ---------------------------
-def export_results(results: Dict[str, Any], json_path: Path, csv_path: Path) -> None:
+def export_results(
+    results: Dict[str, Any],
+    json_path: Path,
+    csv_path: Path,
+    time_range_str: str = "1d",
+) -> None:
     """Export results to JSON and CSV files."""
-    # JSON structure: namespace -> pod -> info with description_file and pod_log_file
+    # Add time_range to JSON structure (keep original structure for backward compatibility)
+    # Store time_range at top level for easy access
+    results_with_metadata = results.copy()
+    results_with_metadata["_metadata"] = {"time_range": time_range_str}
     try:
-        json_path.write_text(json.dumps(results, indent=2))
+        json_path.write_text(json.dumps(results_with_metadata, indent=2))
         print(color(f"JSON written → {json_path}", GREEN))
     except (IOError, OSError) as e:
         logging.error(f"Failed to write JSON file {json_path}: {e}")
         print(color(f"ERROR: Failed to write JSON file: {e}", RED))
 
-    # CSV: cluster,namespace,pod,type,timestamps,sources,description_file,pod_log_file
+    # CSV: cluster,namespace,pod,type,timestamps,sources,description_file,pod_log_file,time_range
     try:
         with csv_path.open("w", newline="") as f:
             writer = csv.writer(f)
@@ -935,9 +1140,13 @@ def export_results(results: Dict[str, Any], json_path: Path, csv_path: Path) -> 
                     "sources",
                     "description_file",
                     "pod_log_file",
+                    "time_range",
                 ]
             )
+            # Skip _metadata if present
             for cluster, ns_map in results.items():
+                if cluster == "_metadata":
+                    continue
                 for ns, pods in ns_map.items():
                     for pod_name, info in pods.items():
                         desc = info.get("description_file", "")
@@ -959,6 +1168,7 @@ def export_results(results: Dict[str, Any], json_path: Path, csv_path: Path) -> 
                                     sources,
                                     desc,
                                     plog,
+                                    time_range_str,
                                 ]
                             )
                         # Crash rows
@@ -973,24 +1183,31 @@ def export_results(results: Dict[str, Any], json_path: Path, csv_path: Path) -> 
                                     sources,
                                     desc,
                                     plog,
+                                    time_range_str,
                                 ]
                             )
-                        # If neither timestamps but prom-found, write FoundBy row
+                        # If neither timestamps but prom-found, determine type from sources
+                        # This should not happen if Prometheus properly sets timestamps,
+                        # but keep as fallback
                         if not info.get("oom_timestamps") and not info.get(
                             "crash_timestamps"
                         ):
-                            writer.writerow(
-                                [
-                                    cluster,
-                                    ns,
-                                    pod_name,
-                                    "FoundBy",
-                                    "",
-                                    sources,
-                                    desc,
-                                    plog,
-                                ]
-                            )
+                            # Try to determine type from Prometheus detection
+                            if "prometheus" in sources.lower():
+                                # Default to CrashLoopBackOff if we can't determine
+                                writer.writerow(
+                                    [
+                                        cluster,
+                                        ns,
+                                        pod_name,
+                                        "CrashLoopBackOff",
+                                        "",
+                                        sources,
+                                        desc,
+                                        plog,
+                                        time_range_str,
+                                    ]
+                                )
         print(color(f"CSV written → {csv_path}", GREEN))
     except (IOError, OSError) as e:
         logging.error(f"Failed to write CSV file {csv_path}: {e}")
@@ -1054,12 +1271,14 @@ Usage:
   oc_get_ooms.py [--current] [--contexts ctxA,ctxB] [--batch N]
                  [--ns-batch-size M] [--ns-workers W] [--prom-workers P]
                  [--skip-prometheus] [--include-ns regex1,regex2] [--exclude-ns regex1,regex2]
-                 [--retries R] [--timeout S] [--help]
+                 [--retries R] [--timeout S] [--time-range RANGE] [--help]
 
 Options:
   --current                Run only on current-context
   --contexts ctxA,ctxB     Comma-separated contexts
-  --batch N                Cluster-level batch size (default 2)
+  --batch N                Cluster-level parallelism (default 2)
+                          Maintains constant parallelism: when one cluster finishes,
+                          immediately starts the next one
   --ns-batch-size M        Number of namespaces in each namespace batch (default 10)
   --ns-workers W           Thread pool size for oc checks per namespace batch (default 5)
   --prom-workers P         Thread pool size for Prometheus queries per prom-batch
@@ -1069,6 +1288,10 @@ Options:
   --exclude-ns regex,...   Comma-separated regex patterns to exclude (if match any -> excluded)
   --retries R              Number of retries for oc calls (default 3)
   --timeout S              OC request timeout in seconds used as --request-timeout (default 45)
+  --time-range RANGE       Time range to look back for events (default: 1d)
+                          Format: <number><unit> where unit is:
+                          s=seconds, m=minutes, h=hours, d=days, M=months (30 days)
+                          Examples: 1h, 6h, 1d, 7d, 1M
   --help                   Show this help
 """
     )
@@ -1088,7 +1311,9 @@ def compile_patterns(csv_patterns: Optional[str]) -> Optional[List[Pattern]]:
         sys.exit(1)
 
 
-def parse_args(argv: List[str]) -> Tuple[List[str], int, int, int, int, int, bool, int]:
+def parse_args(
+    argv: List[str],
+) -> Tuple[List[str], int, int, int, int, int, bool, int, Optional[int], str]:
     args = list(argv)
     if "--help" in args:
         print_usage_and_exit()
@@ -1103,6 +1328,7 @@ def parse_args(argv: List[str]) -> Tuple[List[str], int, int, int, int, int, boo
     oc_timeout_seconds = DEFAULT_OC_TIMEOUT
     include_csv = None
     exclude_csv = None
+    time_range_str = "1d"  # Default 1 day
 
     if "--current" in args:
         cur = get_current_context(
@@ -1210,12 +1436,31 @@ def parse_args(argv: List[str]) -> Tuple[List[str], int, int, int, int, int, boo
             print(color(f"ERROR: invalid --timeout value: {e}", RED))
             print_usage_and_exit()
 
+    if "--time-range" in args:
+        i = args.index("--time-range")
+        if i + 1 >= len(args):
+            print(color("ERROR: missing argument for --time-range", RED))
+            print_usage_and_exit()
+        time_range_str = args[i + 1]
+        try:
+            # Validate the format
+            parse_time_range(time_range_str)
+        except ValueError as e:
+            print(color(f"ERROR: invalid --time-range value: {e}", RED))
+            print_usage_and_exit()
+
     global _INCLUDE_PATTERNS, _EXCLUDE_PATTERNS
     _INCLUDE_PATTERNS = compile_patterns(include_csv)
     _EXCLUDE_PATTERNS = compile_patterns(exclude_csv)
 
     if prom_workers is None:
         prom_workers = ns_workers
+
+    # Parse time range to seconds
+    try:
+        time_range_seconds = parse_time_range(time_range_str)
+    except ValueError:
+        time_range_seconds = 86400  # Default to 1 day if parsing fails
 
     return (
         contexts,
@@ -1226,6 +1471,8 @@ def parse_args(argv: List[str]) -> Tuple[List[str], int, int, int, int, int, boo
         skip_prometheus,
         retries,
         oc_timeout_seconds,
+        time_range_seconds,
+        time_range_str,
     )
 
 
@@ -1249,6 +1496,8 @@ def main() -> None:
         skip_prometheus,
         retries,
         oc_timeout_seconds,
+        time_range_seconds,
+        time_range_str,
     ) = parse_args(sys.argv[1:])
 
     if not contexts:
@@ -1258,7 +1507,7 @@ def main() -> None:
     print(color(f"Using contexts: {contexts}", BLUE))
     print(
         color(
-            f"Cluster-batch: {batch_size}  NS-batch-size: {ns_batch_size}  "
+            f"Cluster-parallelism: {batch_size}  NS-batch-size: {ns_batch_size}  "
             f"NS-workers: {ns_workers}  Prom-workers: {prom_workers}",
             BLUE,
         )
@@ -1266,7 +1515,7 @@ def main() -> None:
     print(
         color(
             f"Retries: {retries}  OC timeout(s): {oc_timeout_seconds}s  "
-            f"Skip-prometheus: {skip_prometheus}",
+            f"Time-range: {time_range_str}  Skip-prometheus: {skip_prometheus}",
             BLUE,
         )
     )
@@ -1294,11 +1543,12 @@ def main() -> None:
         ns_workers,
         prom_workers,
         skip_prometheus,
+        time_range_seconds,
     )
 
     json_path = Path("oom_results.json")
     csv_path = Path("oom_results.csv")
-    export_results(results, json_path, csv_path)
+    export_results(results, json_path, csv_path, time_range_str)
 
     pretty_print(results, skipped)
 
