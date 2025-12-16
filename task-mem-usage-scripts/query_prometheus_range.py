@@ -42,4 +42,3 @@ t0 = time.time()
 resp = requests.get(url, headers=headers, params=params, verify=False, timeout=180)
 resp.raise_for_status()
 print(resp.text)
-

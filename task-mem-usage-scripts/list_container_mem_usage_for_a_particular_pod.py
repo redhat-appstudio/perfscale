@@ -24,7 +24,8 @@ headers = {
 params = {
     "query": (
         "container_memory_max_usage_bytes"
-        f'{{namespace=~".*-tenant",container="{step_name}",pod=~"({pod_name})"}}'
+        f'{{namespace=~".*-tenant",container="{step_name}",'
+        f'pod=~"({pod_name})"}}'
     ),
     "step": 15 * last_num_days,
     "start": end_time_in_secs - (last_num_days * 24 * 60 * 60),

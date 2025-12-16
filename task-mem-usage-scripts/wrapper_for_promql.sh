@@ -6,7 +6,8 @@ set -u  # NEVER -e
 TASK="$1"
 STEP="$2"
 DAYS="$3"
-MODE="$4"
+# shellcheck disable=SC2034
+MODE="$4"  # Currently unused, reserved for future output format support
 DEBUG_FLAG="${5:-0}"
 
 DEBUG=0
@@ -26,21 +27,71 @@ query() {
     local qry="$1"
     log "Query: $qry"
     local result
-    result="$(python3 query_prometheus_range.py "$TOKEN" "$PROM" "$qry" "$START" "$END" 2>&1)"
-    local status=$?
-    if [ $status -ne 0 ]; then
-        log "Query failed with status $status: $result"
-        echo '{}'
-        return
-    fi
-    # Check if result contains error
-    if echo "$result" | jq -e '.error // .status' >/dev/null 2>&1; then
-        local error_type="$(echo "$result" | jq -r '.error.type // .status // "unknown"')"
-        if [ "$error_type" != "success" ] && [ -n "$error_type" ]; then
-            log "Query returned error: $result"
+    local retry_count=0
+    local max_retries=2
+    
+    # Retry logic for handling transient interruptions
+    while [ "$retry_count" -le "$max_retries" ]; do
+        # Capture output with error handling for interrupted system calls
+        result="$(python3 query_prometheus_range.py "$TOKEN" "$PROM" "$qry" "$START" "$END" 2>&1)" || {
+            local status=$?
+            if [ "$retry_count" -lt "$max_retries" ]; then
+                log "Query failed (status=$status), retrying ($((retry_count + 1))/$max_retries)..."
+                sleep 1
+                retry_count=$((retry_count + 1))
+                continue
+            else
+                log "Query failed after $max_retries retries"
+                echo '{}'
+                return
+            fi
+        }
+        
+        # Check for empty result
+        if [ -z "$result" ]; then
+            if [ "$retry_count" -lt "$max_retries" ]; then
+                log "Query returned empty result, retrying ($((retry_count + 1))/$max_retries)..."
+                sleep 1
+                retry_count=$((retry_count + 1))
+                continue
+            else
+                log "Query returned empty result after retries"
+                echo '{}'
+                return
+            fi
         fi
-    fi
-    echo "$result"
+        
+        # Validate JSON is complete (check if jq can parse it)
+        if ! echo "$result" | jq empty >/dev/null 2>&1; then
+            if [ "$retry_count" -lt "$max_retries" ]; then
+                log "Query returned incomplete JSON, retrying ($((retry_count + 1))/$max_retries)..."
+                sleep 1
+                retry_count=$((retry_count + 1))
+                continue
+            else
+                log "Query returned invalid JSON after retries"
+                echo '{}'
+                return
+            fi
+        fi
+        
+        # Check if result contains error
+        if echo "$result" | jq -e '.error // .status' >/dev/null 2>&1; then
+            local error_type
+            error_type="$(echo "$result" | jq -r '.error.type // .status // "unknown"')"
+            if [ "$error_type" != "success" ] && [ -n "$error_type" ]; then
+                log "Query returned error: $result"
+            fi
+        fi
+        
+        # Success - output result
+        # Suppress "Interrupted system call" errors from echo (they're usually harmless)
+        echo "$result" 2>/dev/null || echo "$result"
+        return 0
+    done
+    
+    # Fallback if all retries failed
+    echo '{}'
 }
 
 bytes_to_mb() {
@@ -113,9 +164,9 @@ start=0
 
 log "Processing $total pods in batches of $BATCH_SIZE..."
 
-while [ $start -lt $total ]; do
+while [ "$start" -lt "$total" ]; do
     end=$(( start + BATCH_SIZE ))
-    [ $end -gt $total ] && end=$total
+    [ "$end" -gt "$total" ] && end=$total
     
     # Create regex for this batch
     batch_pods=$(printf "%s|" "${pods[@]:$start:$((end-start))}")
