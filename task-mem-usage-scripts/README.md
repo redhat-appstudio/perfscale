@@ -152,18 +152,20 @@ CSV Output Format
 The CSV output includes both memory and CPU metrics with separate pod attribution:
 
 ```
-"cluster","task","step","pod_max_memory","pod_namespace_mem","component","application","mem_max_mb","mem_p95_mb","mem_p90_mb","mem_median_mb","pod_max_cpu","pod_namespace_cpu","cpu_max","cpu_p95","cpu_p90","cpu_median"
+"cluster", "task", "step", "pod_max_mem", "namespace_max_mem", "component_max_mem", "application_max_mem", "mem_max_mb", "mem_p95_mb", "mem_p90_mb", "mem_median_mb", "pod_max_cpu", "namespace_max_cpu", "component_max_cpu", "application_max_cpu", "cpu_max", "cpu_p95", "cpu_p90", "cpu_median"
 ```
 
 **Column Descriptions:**
-- `pod_max_memory` - Pod name with the highest memory usage
-- `pod_namespace_mem` - Namespace of the pod with max memory
-- `component` - Component name for the max memory pod (if available)
-- `application` - Application name for the max memory pod (if available)
+- `pod_max_mem` - Pod name with the highest memory usage
+- `namespace_max_mem` - Namespace of the pod with max memory
+- `component_max_mem` - Component name for the max memory pod (if available)
+- `application_max_mem` - Application name for the max memory pod (if available)
 - `mem_max_mb` - Maximum memory usage in MB
 - `mem_p95_mb`, `mem_p90_mb`, `mem_median_mb` - Memory percentiles in MB
 - `pod_max_cpu` - Pod name with the highest CPU usage
-- `pod_namespace_cpu` - Namespace of the pod with max CPU
+- `namespace_max_cpu` - Namespace of the pod with max CPU
+- `component_max_cpu` - Component name for the max CPU pod (if available)
+- `application_max_cpu` - Application name for the max CPU pod (if available)
 - `cpu_max`, `cpu_p95`, `cpu_p90`, `cpu_median` - CPU metrics in millicores (e.g., "3569m")
 
 CSV Output Example
@@ -196,6 +198,70 @@ CSV Output Example
 "stone-stg-rh01","buildah","step-prepare-sboms","0","","N/A","N/A","N/A","0","0","0"
 "stone-stg-rh01","buildah","step-upload-sbom","0","","N/A","N/A","N/A","0","0","0"
 ```
+Resource Limit Analysis Tool
+===================================
+
+A new script `analyze_resource_limits.py` has been added to analyze resource consumption data and provide recommendations for Kubernetes resource limits.
+
+**Features:**
+- Analyzes CSV data from `wrapper_for_promql_for_all_clusters.sh` to calculate resource recommendations
+- Uses P95 percentile + configurable safety margin (default 10%) for recommendations
+- Automatically rounds memory to standard Kubernetes values:
+  - Values < 1Gi: Rounds to nearest power of 2 (32Mi, 64Mi, 128Mi, 256Mi, 512Mi)
+  - Values >= 1Gi: Rounds to whole Gi values (1Gi, 2Gi, 3Gi, etc.)
+- Always formats CPU values in millicores (e.g., `5100m` for 5.1 cores)
+- Can automatically update YAML files with recommended resource limits
+
+**Usage:**
+
+From piped CSV input:
+```bash
+./wrapper_for_promql_for_all_clusters.sh 7 --csv | ./analyze_resource_limits.py
+```
+
+From YAML file (auto-runs data collection):
+```bash
+./analyze_resource_limits.py --file /path/to/buildah.yaml
+./analyze_resource_limits.py --file https://github.com/.../buildah.yaml
+```
+
+Update YAML file with recommendations:
+```bash
+./analyze_resource_limits.py --file /path/to/buildah.yaml --update
+```
+
+**Options:**
+- `--file FILE` - YAML file path or GitHub URL to analyze (auto-runs data collection)
+- `--update` - Update the YAML file with recommended resource limits
+- `--margin MARGIN` - Safety margin percentage (default: 10)
+- `--days DAYS` - Number of days for data collection (default: 7)
+
+**How it works:**
+1. Extracts task name and step names from Tekton Task YAML
+2. Optionally runs `wrapper_for_promql_for_all_clusters.sh` to collect data
+3. Analyzes data across all clusters for each step
+4. Calculates recommendations using P95 percentile + safety margin
+5. Rounds values to standard Kubernetes resource sizes
+6. Optionally updates the YAML file with the recommendations
+
+**Example Output:**
+```
+================================================================================
+RESOURCE LIMIT RECOMMENDATIONS (P95 + 10% Safety Margin)
+================================================================================
+
+Step: step-build
+--------------------------------------------------------------------------------
+  Memory: 8Gi
+    - Max observed: 8.0Gi
+    - P95 max: 8.0Gi
+    - Coverage: 6/6 clusters
+  CPU: 5100m
+    - Max observed: 4.67 cores
+    - P95 max: 4.67 cores
+    - Coverage: 4/4 clusters
+```
+
 Konflux Cluster Authentication
 ===================================
 
