@@ -28,12 +28,12 @@ STEPS="step-build step-push step-sbom-syft-generate step-prepare-sboms step-uplo
 #STEPS="step-build"
 
 # Get all contexts or use specific one for testing
-#CONTEXTS="$(kubectl config get-contexts -o name 2>/dev/null | xargs || echo 'default/api-stone-prd-rh01-pg1f-p1-openshiftapps-com:6443/smodak')"
-CONTEXTS="default/api-stone-prd-rh01-pg1f-p1-openshiftapps-com:6443/smodak"
+CONTEXTS="$(kubectl config get-contexts -o name 2>/dev/null | xargs || echo 'default/api-stone-prd-rh01-pg1f-p1-openshiftapps-com:6443/smodak')"
+#CONTEXTS="default/api-stone-prd-rh01-pg1f-p1-openshiftapps-com:6443/smodak"
 
 
-# CSV header matching the output format: cluster,task,step,pod_max_memory,pod_namespace_mem,component,application,mem_max_mb,mem_p95_mb,mem_p90_mb,mem_median_mb,pod_max_cpu,pod_namespace_cpu,cpu_max,cpu_p95,cpu_p90,cpu_median
-echo '"cluster","task","step","pod_max_memory","pod_namespace_mem","component","application","mem_max_mb","mem_p95_mb","mem_p90_mb","mem_median_mb","pod_max_cpu","pod_namespace_cpu","cpu_max","cpu_p95","cpu_p90","cpu_median"'
+# CSV header matching the output format: cluster, task, step, pod_max_mem, namespace_max_mem, component_max_mem, application_max_mem, mem_max_mb, mem_p95_mb, mem_p90_mb, mem_median_mb, pod_max_cpu, namespace_max_cpu, component_max_cpu, application_max_cpu, cpu_max, cpu_p95, cpu_p90, cpu_median
+echo '"cluster", "task", "step", "pod_max_mem", "namespace_max_mem", "component_max_mem", "application_max_mem", "mem_max_mb", "mem_p95_mb", "mem_p90_mb", "mem_median_mb", "pod_max_cpu", "namespace_max_cpu", "component_max_cpu", "application_max_cpu", "cpu_max", "cpu_p95", "cpu_p90", "cpu_median"'
 
 for ctx in ${CONTEXTS}; do
     kubectl config use-context "$ctx" >/dev/null 2>&1 || continue
