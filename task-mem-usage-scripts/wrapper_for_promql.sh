@@ -311,24 +311,66 @@ CPU_P90_M="${cpu_p90_overall}m"
 CPU_MED_M="${cpu_median_overall}m"
 
 # Get component and application info for the max memory pod
-if [ -n "$MEM_MAX_POD" ] && [ "$MEM_MAX_POD" != "" ]; then
-    COMP_INFO="$(python3 get_component_for_pod.py "$TOKEN" "$PROM" "$MEM_MAX_POD" 2>/dev/null || echo '{"component":"N/A","application":"N/A"}')"
-    MEM_MAX_COMP="$(echo "$COMP_INFO" | jq -r '.component // "N/A"')"
-    MEM_MAX_APP="$(echo "$COMP_INFO" | jq -r '.application // "N/A"')"
+# Pass END and DAYS to use range query (for deleted pods)
+if [ -n "$MEM_MAX_POD" ] && [ "$MEM_MAX_POD" != "" ] && [ "$MEM_MAX_POD" != "N/A" ]; then
+    log "Looking up component/application for memory pod: $MEM_MAX_POD in namespace: $MEM_MAX_NS"
+    # Enable debug mode for component lookup if DEBUG is enabled
+    [ "$DEBUG" -eq 1 ] && export DEBUG_COMPONENT_LOOKUP=1
+    # Capture stdout (JSON) separately from stderr (debug messages)
+    # Use process substitution to redirect stderr to log while keeping stdout clean
+    COMP_INFO="$(python3 get_component_for_pod.py "$TOKEN" "$PROM" "$MEM_MAX_POD" "$MEM_MAX_NS" "$END" "$DAYS" 2> >(while IFS= read -r line; do log "$line"; done))"
+    [ "$DEBUG" -eq 1 ] && unset DEBUG_COMPONENT_LOOKUP
+    # Extract JSON from output (may have debug messages mixed in)
+    JSON_LINE="$(echo "$COMP_INFO" | grep -E '^\{.*\}$' | head -1)"
+    if [ -n "$JSON_LINE" ] && echo "$JSON_LINE" | jq empty >/dev/null 2>&1; then
+        MEM_MAX_COMP="$(echo "$JSON_LINE" | jq -r '.component // "N/A"')"
+        MEM_MAX_APP="$(echo "$JSON_LINE" | jq -r '.application // "N/A"')"
+        log "Memory pod component: $MEM_MAX_COMP, application: $MEM_MAX_APP"
+    else
+        log "Failed to parse component info for memory pod. Output: $COMP_INFO"
+        MEM_MAX_COMP="N/A"
+        MEM_MAX_APP="N/A"
+    fi
 else
     MEM_MAX_COMP="N/A"
     MEM_MAX_APP="N/A"
 fi
 
+# Get component and application info for the max CPU pod
+# Pass END and DAYS to use range query (for deleted pods)
+if [ -n "$CPU_MAX_POD" ] && [ "$CPU_MAX_POD" != "" ] && [ "$CPU_MAX_POD" != "N/A" ]; then
+    log "Looking up component/application for CPU pod: $CPU_MAX_POD in namespace: $CPU_MAX_NS"
+    # Enable debug mode for component lookup if DEBUG is enabled
+    [ "$DEBUG" -eq 1 ] && export DEBUG_COMPONENT_LOOKUP=1
+    # Capture stdout (JSON) separately from stderr (debug messages)
+    # Use process substitution to redirect stderr to log while keeping stdout clean
+    CPU_COMP_INFO="$(python3 get_component_for_pod.py "$TOKEN" "$PROM" "$CPU_MAX_POD" "$CPU_MAX_NS" "$END" "$DAYS" 2> >(while IFS= read -r line; do log "$line"; done))"
+    [ "$DEBUG" -eq 1 ] && unset DEBUG_COMPONENT_LOOKUP
+    # Extract JSON from output (may have debug messages mixed in)
+    JSON_LINE="$(echo "$CPU_COMP_INFO" | grep -E '^\{.*\}$' | head -1)"
+    if [ -n "$JSON_LINE" ] && echo "$JSON_LINE" | jq empty >/dev/null 2>&1; then
+        CPU_MAX_COMP="$(echo "$JSON_LINE" | jq -r '.component // "N/A"')"
+        CPU_MAX_APP="$(echo "$JSON_LINE" | jq -r '.application // "N/A"')"
+        log "CPU pod component: $CPU_MAX_COMP, application: $CPU_MAX_APP"
+    else
+        log "Failed to parse component info for CPU pod. Output: $CPU_COMP_INFO"
+        CPU_MAX_COMP="N/A"
+        CPU_MAX_APP="N/A"
+    fi
+else
+    CPU_MAX_COMP="N/A"
+    CPU_MAX_APP="N/A"
+fi
+
 # ------------------------------------------------------------
 # OUTPUT (ALWAYS ONE LINE)
 # ------------------------------------------------------------
-# Format: cluster,task,step,pod_max_memory,pod_namespace_mem,component,application,mem_max_mb,mem_p95_mb,mem_p90_mb,mem_median_mb,pod_max_cpu,pod_namespace_cpu,cpu_max,cpu_p95,cpu_p90,cpu_median
+# Format: cluster, task, step, pod_max_mem, namespace_max_mem, component_max_mem, application_max_mem, mem_max_mb, mem_p95_mb, mem_p90_mb, mem_median_mb, pod_max_cpu, namespace_max_cpu, component_max_cpu, application_max_cpu, cpu_max, cpu_p95, cpu_p90, cpu_median
 
-printf '"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"\n' \
+printf '"%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s"\n' \
   "$CLUSTER" "$TASK" "$STEP" \
   "$MEM_MAX_POD" "$MEM_MAX_NS" "$MEM_MAX_COMP" "$MEM_MAX_APP" \
   "$MEM_MAX_MB" "$MEM_P95_MB" "$MEM_P90_MB" "$MEM_MED_MB" \
-  "$CPU_MAX_POD" "$CPU_MAX_NS" \
+  "$CPU_MAX_POD" "$CPU_MAX_NS" "$CPU_MAX_COMP" "$CPU_MAX_APP" \
   "$CPU_MAX_M" "$CPU_P95_M" "$CPU_P90_M" "$CPU_MED_M"
 
