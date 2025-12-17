@@ -3,7 +3,7 @@
 oc_get_ooms.py
 
 Detect OOMKilled and CrashLoopBackOff pods across multiple OpenShift/Kubernetes contexts,
-parallelized at cluster and namespace levels, with Prometheus fallback and artifact collection.
+parallelized at cluster and namespace levels, with artifact collection.
 
 New in this version:
 - When a pod is detected as OOMKilled or CrashLoopBackOff, save:
@@ -15,8 +15,8 @@ New in this version:
     description_file, pod_log_file
 
 All previously requested features retained:
-- cluster batching, namespace batching, Prometheus fallback (parallelized by namespace batches),
-  --skip-prometheus flag, include/exclude regex, retries, timeouts, colorized output, etc.
+- cluster parallelism, namespace batching, include/exclude regex, retries, timeouts,
+  time range filtering, colorized output, etc.
 """
 
 from __future__ import annotations
@@ -33,15 +33,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional, Set, Pattern
 
-# Try to import requests, but make it optional
-try:
-    import requests
-    import urllib3
-
-    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-    HAS_REQUESTS = True
-except ImportError:
-    HAS_REQUESTS = False
 
 # ---------------------------
 # Color output
@@ -71,20 +62,6 @@ TIME_WINDOWS = {
     "last_7d": 168,
 }
 
-# Prometheus queries for OOM and CrashLoopBackOff detection
-# Note: These metrics may not be available in all clusters or may require
-# specific Prometheus configuration. The queries are used as a fallback
-# when oc events don't provide sufficient historical data.
-# If these queries don't work, consider using alternative metrics or
-# querying Prometheus directly to verify metric availability.
-PROMQL_OOM = (
-    "kube_pod_container_status_last_terminated_reason"
-    '{{reason="OOMKilled",namespace="{namespace}"}}'
-)
-PROMQL_CRASH = (
-    "kube_pod_container_status_waiting_reason"
-    '{{reason="CrashLoopBackOff",namespace="{namespace}"}}'
-)
 
 # ---------------------------
 # Defaults
@@ -96,9 +73,6 @@ DEFAULT_NS_BATCH_SIZE = 10
 DEFAULT_NS_WORKERS = 5
 DEFAULT_BATCH_SIZE = 2
 
-# Prometheus constants
-PROMETHEUS_NAMESPACE = "openshift-monitoring"
-PROMETHEUS_ROUTE_NAME = "prometheus-k8s"  # Common route name in OpenShift
 
 
 # ---------------------------
@@ -165,8 +139,74 @@ def get_all_contexts(retries: int, oc_timeout_seconds: int) -> List[str]:
         cmd, retries=retries, timeout=oc_timeout_seconds + 5
     )
     if rc != 0 or not out:
-        return []
+        # Try kubectl as fallback
+        cmd = ["kubectl", "config", "get-contexts", "-o", "name"]
+        rc, out, err = run_cmd_with_retries(
+            cmd, retries=retries, timeout=oc_timeout_seconds + 5
+        )
+        if rc != 0 or not out:
+            return []
     return [line.strip() for line in out.splitlines() if line.strip()]
+
+
+def match_contexts_by_substring(
+    substrings: List[str],
+    available_contexts: List[str],
+) -> List[str]:
+    """
+    Match context substrings against available contexts.
+
+    Args:
+        substrings: List of substrings to match (e.g., ['kflux-prd-rh02'])
+        available_contexts: List of all available context names
+
+    Returns:
+        List of matched full context names
+
+    Raises:
+        SystemExit: If no match or multiple matches found for a substring
+    """
+    matched_contexts = []
+    for substring in substrings:
+        matches = [
+            ctx for ctx in available_contexts if substring.lower() in ctx.lower()
+        ]
+        if not matches:
+            print(
+                color(
+                    f"ERROR: No context found matching substring '{substring}'",
+                    RED,
+                )
+            )
+            print(color(f"Available contexts:", YELLOW))
+            for ctx in available_contexts:
+                print(f"  - {ctx}")
+            sys.exit(1)
+        elif len(matches) > 1:
+            print(
+                color(
+                    f"ERROR: Multiple contexts match substring '{substring}':",
+                    RED,
+                )
+            )
+            for ctx in matches:
+                print(f"  - {ctx}")
+            print(
+                color(
+                    "Please use a more specific substring to uniquely identify the context.",
+                    YELLOW,
+                )
+            )
+            sys.exit(1)
+        else:
+            matched_contexts.append(matches[0])
+            print(
+                color(
+                    f"Matched '{substring}' -> '{matches[0]}'",
+                    GREEN,
+                )
+            )
+    return matched_contexts
 
 
 def get_current_context(retries: int, oc_timeout_seconds: int) -> str:
@@ -222,7 +262,7 @@ def check_cluster_connectivity(
 
 
 # ---------------------------
-# oc-only namespace workers (no Prometheus here)
+# oc namespace workers
 # ---------------------------
 def parse_time_range(time_range_str: str) -> int:
     """
@@ -392,168 +432,6 @@ def crashloop_via_pods_oc(
     return res
 
 
-# ---------------------------
-# Prometheus fallback (can be parallelized in batches)
-# ---------------------------
-def get_prometheus_route_url(
-    context: str, retries: int, oc_timeout_seconds: int
-) -> Optional[str]:
-    """Get Prometheus route URL from openshift-monitoring namespace."""
-    subcmd = [
-        "-n",
-        PROMETHEUS_NAMESPACE,
-        "get",
-        "route",
-        PROMETHEUS_ROUTE_NAME,
-        "-o",
-        "jsonpath={.spec.host}",
-        "--ignore-not-found",
-    ]
-    rc, out, err = run_oc_subcommand(
-        context, subcmd, retries=retries, oc_timeout_seconds=oc_timeout_seconds
-    )
-    if rc != 0 or not out:
-        # Try alternative: get all routes and filter
-        subcmd2 = [
-            "-n",
-            PROMETHEUS_NAMESPACE,
-            "get",
-            "route",
-            "-o",
-            "json",
-        ]
-        rc2, out2, err2 = run_oc_subcommand(
-            context, subcmd2, retries=retries, oc_timeout_seconds=oc_timeout_seconds
-        )
-        if rc2 == 0 and out2:
-            try:
-                routes = json.loads(out2)
-                for route in routes.get("items", []):
-                    name = route.get("metadata", {}).get("name", "")
-                    if PROMETHEUS_ROUTE_NAME in name and "federate" not in name.lower():
-                        host = route.get("spec", {}).get("host", "")
-                        if host:
-                            return f"https://{host}"
-            except json.JSONDecodeError:
-                pass
-        return None
-    host = out.strip()
-    if host:
-        return f"https://{host}"
-    return None
-
-
-def get_oc_token(context: str, retries: int, oc_timeout_seconds: int) -> Optional[str]:
-    """Get OpenShift authentication token for the current context."""
-    subcmd = ["whoami", "--show-token"]
-    rc, out, err = run_oc_subcommand(
-        context, subcmd, retries=retries, oc_timeout_seconds=oc_timeout_seconds
-    )
-    if rc == 0 and out:
-        return out.strip()
-    return None
-
-
-def prom_query_from_prometheus_route(
-    context: str,
-    namespace: str,
-    promql: str,
-    retries: int,
-    oc_timeout_seconds: int,
-    query_type: str = "unknown",
-) -> List[Dict[str, str]]:
-    """
-    Query Prometheus via HTTP API using route (no exec permissions required).
-
-    This method uses the Prometheus route exposed in openshift-monitoring namespace
-    and authenticates using the OpenShift token. This is more reliable and doesn't
-    require exec permissions on pods.
-
-    Args:
-        query_type: "oom" or "crash" to indicate what type of query this is
-    """
-    if not HAS_REQUESTS:
-        logging.warning(
-            "requests library not available. Install with: pip install requests"
-        )
-        return []
-
-    # Get Prometheus route URL
-    prom_url = get_prometheus_route_url(context, retries, oc_timeout_seconds)
-    if not prom_url:
-        logging.debug(
-            f"Could not find Prometheus route in {PROMETHEUS_NAMESPACE} namespace"
-        )
-        return []
-
-    # Get authentication token
-    token = get_oc_token(context, retries, oc_timeout_seconds)
-    if not token:
-        logging.debug("Could not get OpenShift authentication token")
-        return []
-
-    # Build query URL
-    query_url = f"{prom_url}/api/v1/query"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {token}",
-    }
-    params = {"query": promql}
-
-    # Make HTTP request
-    try:
-        response = requests.get(
-            query_url,
-            headers=headers,
-            params=params,
-            verify=False,
-            timeout=oc_timeout_seconds + 10,
-        )
-    except requests.exceptions.RequestException as e:
-        logging.debug(f"Prometheus HTTP request failed for {namespace}: {e}")
-        return []
-
-    if response.status_code != 200:
-        logging.debug(
-            f"Prometheus returned status {response.status_code} for {namespace}: "
-            f"{response.text[:200]}"
-        )
-        return []
-
-    try:
-        resp = response.json()
-    except json.JSONDecodeError as e:
-        logging.warning(f"Failed to parse Prometheus response for {namespace}: {e}")
-        return []
-
-    # Validate response structure
-    if resp.get("status") != "success":
-        error_msg = resp.get("error", {}).get("error", "unknown error")
-        logging.debug(
-            f"Prometheus query returned error for {namespace}: {error_msg}. "
-            f"Query: {promql}"
-        )
-        return []
-
-    res: List[Dict[str, str]] = []
-    for r in resp.get("data", {}).get("result", []):
-        metric = r.get("metric", {})
-        pod = metric.get("pod") or metric.get("instance") or metric.get("container")
-        if pod:
-            # Include query_type so we know if this is OOM or CrashLoop
-            res.append(
-                {
-                    "pod": pod,
-                    "reason": "Prometheus",
-                    "timestamp": "",
-                    "query_type": query_type,
-                }
-            )
-    return res
-
-
-# Alias for backward compatibility (in case it's called elsewhere)
-prom_query_from_prometheus_pod = prom_query_from_prometheus_route
 
 
 # ---------------------------
@@ -813,8 +691,6 @@ def query_context(
     oc_timeout_seconds: int,
     ns_batch_size: int = DEFAULT_NS_BATCH_SIZE,
     ns_workers: int = DEFAULT_NS_WORKERS,
-    prom_workers: Optional[int] = None,
-    skip_prometheus: bool = False,
     time_range_seconds: Optional[int] = None,
 ) -> Tuple[str, Dict[str, Any], Optional[str]]:
     cluster = short_cluster_name(context)
@@ -828,9 +704,6 @@ def query_context(
         print(color(f"  [SKIP] {err_msg}", RED))
         return cluster, {}, err_msg
 
-    if prom_workers is None:
-        prom_workers = ns_workers
-
     # Access global patterns (set in parse_args)
     namespaces = get_namespaces_for_context(
         context,
@@ -843,7 +716,6 @@ def query_context(
         return cluster, {}, None
 
     cluster_result: Dict[str, Any] = {}
-    namespaces_needing_prom: Set[str] = set()
 
     total_ns = len(namespaces)
     for i in range(0, total_ns, ns_batch_size):
@@ -884,123 +756,12 @@ def query_context(
                         cluster_result[ns] = out_ns_with_artifacts
                         print(
                             color(
-                                f"    Namespace {ns}: {len(res)} pod(s) found via oc",
+                                f"    Namespace {ns}: {len(res)} pod(s) found",
                                 YELLOW,
                             )
                         )
-                    else:
-                        namespaces_needing_prom.add(ns)
                 except Exception as e:
                     print(color(f"    Error processing namespace {ns}: {e}", RED))
-                    namespaces_needing_prom.add(ns)
-
-    # Prometheus fallback: run for namespaces_needing_prom in batches and parallelized
-    if not skip_prometheus and namespaces_needing_prom:
-        ns_count = len(namespaces_needing_prom)
-        print(
-            color(
-                f"  Running Prometheus fallback for {ns_count} namespace(s) in batches",
-                BLUE,
-            )
-        )
-        prom_list = sorted(list(namespaces_needing_prom))
-        for i in range(0, len(prom_list), ns_batch_size):
-            prom_batch = prom_list[i : i + ns_batch_size]
-            print(
-                color(
-                    f"    Prom batch {i//ns_batch_size + 1}: {len(prom_batch)} namespaces",
-                    YELLOW,
-                )
-            )
-            with ThreadPoolExecutor(
-                max_workers=min(prom_workers, len(prom_batch))
-            ) as pex:
-                pfutures = {}
-                # schedule oom and crash queries as separate tasks
-                for ns in prom_batch:
-                    f1 = pex.submit(
-                        prom_query_from_prometheus_pod,
-                        context,
-                        ns,
-                        PROMQL_OOM.format(namespace=ns),
-                        retries,
-                        oc_timeout_seconds,
-                        "oom",
-                    )
-                    pfutures[f1] = (ns, "oom")
-                    f2 = pex.submit(
-                        prom_query_from_prometheus_pod,
-                        context,
-                        ns,
-                        PROMQL_CRASH.format(namespace=ns),
-                        retries,
-                        oc_timeout_seconds,
-                        "crash",
-                    )
-                    pfutures[f2] = (ns, "crash")
-                prom_results_per_ns: Dict[str, Dict[str, Any]] = {}
-                for pfut in as_completed(pfutures):
-                    ns, typ = pfutures[pfut]
-                    try:
-                        res = pfut.result()
-                        if not res:
-                            continue
-                        ns_map = prom_results_per_ns.setdefault(ns, {})
-                        for item in res:
-                            p = item["pod"]
-                            query_type = item.get("query_type", "unknown")
-                            ns_map.setdefault(
-                                p,
-                                {
-                                    "pod": p,
-                                    "oom_timestamps": [],
-                                    "crash_timestamps": [],
-                                    "sources": set(),
-                                },
-                            )
-                            ns_map[p]["sources"].add("prometheus")
-                            # Track which type was found via Prometheus
-                            if query_type == "oom":
-                                ns_map[p]["prometheus_oom"] = True
-                            elif query_type == "crash":
-                                ns_map[p]["prometheus_crash"] = True
-                    except Exception as e:
-                        print(
-                            color(
-                                f"      Prometheus query failed for ns={ns}: {e}", RED
-                            )
-                        )
-                # after collecting prom batch, attach and save artifacts
-                for ns, ns_map in prom_results_per_ns.items():
-                    out_ns: Dict[str, Dict[str, Any]] = {}
-                    for p, info in ns_map.items():
-                        # save artifacts for prom-found pod as well
-                        desc_file, log_file = save_pod_artifacts(
-                            context, cluster, ns, p, retries, oc_timeout_seconds
-                        )
-                        # Determine if Prometheus found OOM or CrashLoop
-                        oom_timestamps = []
-                        crash_timestamps = []
-                        if info.get("prometheus_oom"):
-                            oom_timestamps = ["Prometheus-detected"]
-                        if info.get("prometheus_crash"):
-                            crash_timestamps = ["Prometheus-detected"]
-                        info2 = {
-                            "pod": p,
-                            "oom_timestamps": oom_timestamps,
-                            "crash_timestamps": crash_timestamps,
-                            "sources": sorted(list(info.get("sources", []))),
-                            "description_file": desc_file,
-                            "pod_log_file": log_file,
-                        }
-                        out_ns[p] = info2
-                    cluster_result[ns] = out_ns
-                    print(
-                        color(
-                            f"    Prometheus found {len(out_ns)} pod(s) in namespace {ns}",
-                            YELLOW,
-                        )
-                    )
 
     # write per-cluster log
     try:
@@ -1022,8 +783,6 @@ def run_batches(
     oc_timeout_seconds: int,
     ns_batch_size: int,
     ns_workers: int,
-    prom_workers: int,
-    skip_prometheus: bool,
     time_range_seconds: Optional[int] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, str]]:
     """
@@ -1050,8 +809,6 @@ def run_batches(
                 oc_timeout_seconds,
                 ns_batch_size,
                 ns_workers,
-                prom_workers,
-                skip_prometheus,
                 time_range_seconds,
             )
             active_futures[fut] = ctx
@@ -1090,8 +847,6 @@ def run_batches(
                         oc_timeout_seconds,
                         ns_batch_size,
                         ns_workers,
-                        prom_workers,
-                        skip_prometheus,
                         time_range_seconds,
                     )
                     active_futures[next_fut] = next_ctx
@@ -1186,28 +941,6 @@ def export_results(
                                     time_range_str,
                                 ]
                             )
-                        # If neither timestamps but prom-found, determine type from sources
-                        # This should not happen if Prometheus properly sets timestamps,
-                        # but keep as fallback
-                        if not info.get("oom_timestamps") and not info.get(
-                            "crash_timestamps"
-                        ):
-                            # Try to determine type from Prometheus detection
-                            if "prometheus" in sources.lower():
-                                # Default to CrashLoopBackOff if we can't determine
-                                writer.writerow(
-                                    [
-                                        cluster,
-                                        ns,
-                                        pod_name,
-                                        "CrashLoopBackOff",
-                                        "",
-                                        sources,
-                                        desc,
-                                        plog,
-                                        time_range_str,
-                                    ]
-                                )
         print(color(f"CSV written → {csv_path}", GREEN))
     except (IOError, OSError) as e:
         logging.error(f"Failed to write CSV file {csv_path}: {e}")
@@ -1269,21 +1002,18 @@ def print_usage_and_exit() -> None:
         """
 Usage:
   oc_get_ooms.py [--current] [--contexts ctxA,ctxB] [--batch N]
-                 [--ns-batch-size M] [--ns-workers W] [--prom-workers P]
-                 [--skip-prometheus] [--include-ns regex1,regex2] [--exclude-ns regex1,regex2]
+                 [--ns-batch-size M] [--ns-workers W]
+                 [--include-ns regex1,regex2] [--exclude-ns regex1,regex2]
                  [--retries R] [--timeout S] [--time-range RANGE] [--help]
 
 Options:
   --current                Run only on current-context
-  --contexts ctxA,ctxB     Comma-separated contexts
+  --contexts ctxA,ctxB     Comma-separated context substrings (matched against available contexts)
   --batch N                Cluster-level parallelism (default 2)
                           Maintains constant parallelism: when one cluster finishes,
                           immediately starts the next one
   --ns-batch-size M        Number of namespaces in each namespace batch (default 10)
   --ns-workers W           Thread pool size for oc checks per namespace batch (default 5)
-  --prom-workers P         Thread pool size for Prometheus queries per prom-batch
-                          (default = ns-workers)
-  --skip-prometheus        Do not run Prometheus fallback
   --include-ns regex,...   Comma-separated regex patterns to include (namespace must match any)
   --exclude-ns regex,...   Comma-separated regex patterns to exclude (if match any -> excluded)
   --retries R              Number of retries for oc calls (default 3)
@@ -1313,7 +1043,7 @@ def compile_patterns(csv_patterns: Optional[str]) -> Optional[List[Pattern]]:
 
 def parse_args(
     argv: List[str],
-) -> Tuple[List[str], int, int, int, int, int, bool, int, Optional[int], str]:
+) -> Tuple[List[str], int, int, int, int, Optional[int], str]:
     args = list(argv)
     if "--help" in args:
         print_usage_and_exit()
@@ -1322,8 +1052,6 @@ def parse_args(
     batch_size = DEFAULT_BATCH_SIZE
     ns_batch_size = DEFAULT_NS_BATCH_SIZE
     ns_workers = DEFAULT_NS_WORKERS
-    prom_workers = None
-    skip_prometheus = False
     retries = DEFAULT_RETRIES
     oc_timeout_seconds = DEFAULT_OC_TIMEOUT
     include_csv = None
@@ -1341,7 +1069,21 @@ def parse_args(
         if i + 1 >= len(args):
             print(color("ERROR: missing argument for --contexts", RED))
             print_usage_and_exit()
-        contexts = [c.strip() for c in args[i + 1].split(",") if c.strip()]
+        context_substrings = [c.strip() for c in args[i + 1].split(",") if c.strip()]
+        # Get all available contexts and match substrings
+        available_contexts = get_all_contexts(
+            retries=retries, oc_timeout_seconds=oc_timeout_seconds
+        )
+        if not available_contexts:
+            print(
+                color(
+                    "ERROR: Could not retrieve available contexts. "
+                    "Please check your oc/kubectl configuration.",
+                    RED,
+                )
+            )
+            sys.exit(1)
+        contexts = match_contexts_by_substring(context_substrings, available_contexts)
     else:
         contexts = get_all_contexts(
             retries=retries, oc_timeout_seconds=oc_timeout_seconds
@@ -1385,22 +1127,6 @@ def parse_args(
         except (ValueError, IndexError) as e:
             print(color(f"ERROR: invalid --ns-workers value: {e}", RED))
             print_usage_and_exit()
-
-    if "--prom-workers" in args:
-        i = args.index("--prom-workers")
-        if i + 1 >= len(args):
-            print(color("ERROR: missing argument for --prom-workers", RED))
-            print_usage_and_exit()
-        try:
-            prom_workers = int(args[i + 1])
-            if prom_workers < 1:
-                raise ValueError("prom-workers must be >= 1")
-        except (ValueError, IndexError) as e:
-            print(color(f"ERROR: invalid --prom-workers value: {e}", RED))
-            print_usage_and_exit()
-
-    if "--skip-prometheus" in args:
-        skip_prometheus = True
 
     if "--include-ns" in args:
         i = args.index("--include-ns")
@@ -1453,9 +1179,6 @@ def parse_args(
     _INCLUDE_PATTERNS = compile_patterns(include_csv)
     _EXCLUDE_PATTERNS = compile_patterns(exclude_csv)
 
-    if prom_workers is None:
-        prom_workers = ns_workers
-
     # Parse time range to seconds
     try:
         time_range_seconds = parse_time_range(time_range_str)
@@ -1467,8 +1190,6 @@ def parse_args(
         batch_size,
         ns_batch_size,
         ns_workers,
-        prom_workers,
-        skip_prometheus,
         retries,
         oc_timeout_seconds,
         time_range_seconds,
@@ -1492,8 +1213,6 @@ def main() -> None:
         batch_size,
         ns_batch_size,
         ns_workers,
-        prom_workers,
-        skip_prometheus,
         retries,
         oc_timeout_seconds,
         time_range_seconds,
@@ -1508,14 +1227,14 @@ def main() -> None:
     print(
         color(
             f"Cluster-parallelism: {batch_size}  NS-batch-size: {ns_batch_size}  "
-            f"NS-workers: {ns_workers}  Prom-workers: {prom_workers}",
+            f"NS-workers: {ns_workers}",
             BLUE,
         )
     )
     print(
         color(
             f"Retries: {retries}  OC timeout(s): {oc_timeout_seconds}s  "
-            f"Time-range: {time_range_str}  Skip-prometheus: {skip_prometheus}",
+            f"Time-range: {time_range_str}",
             BLUE,
         )
     )
@@ -1541,8 +1260,6 @@ def main() -> None:
         oc_timeout_seconds,
         ns_batch_size,
         ns_workers,
-        prom_workers,
-        skip_prometheus,
         time_range_seconds,
     )
 
