@@ -863,15 +863,164 @@ def run_batches(
 # ---------------------------
 # exports & pretty print
 # ---------------------------
+def collect_rows(
+    results: Dict[str, Any], time_range_str: str = "1d"
+) -> List[Dict[str, str]]:
+    """
+    Collect all rows from results dictionary.
+
+    Returns a list of dictionaries representing rows, sorted by type
+    (OOMKilled first, then CrashLoopBackOff).
+    """
+    rows = []
+    # Skip _metadata if present
+    for cluster, ns_map in results.items():
+        if cluster == "_metadata":
+            continue
+        for ns, pods in ns_map.items():
+            for pod_name, info in pods.items():
+                desc = info.get("description_file", "")
+                plog = info.get("pod_log_file", "")
+                sources = (
+                    ";".join(info.get("sources", []))
+                    if info.get("sources")
+                    else ""
+                )
+                # OOM rows
+                if info.get("oom_timestamps"):
+                    rows.append(
+                        {
+                            "cluster": cluster,
+                            "namespace": ns,
+                            "pod": pod_name,
+                            "type": "OOMKilled",
+                            "timestamps": ";".join(info.get("oom_timestamps")),
+                            "sources": sources,
+                            "description_file": desc,
+                            "pod_log_file": plog,
+                            "time_range": time_range_str,
+                        }
+                    )
+                # Crash rows
+                if info.get("crash_timestamps"):
+                    rows.append(
+                        {
+                            "cluster": cluster,
+                            "namespace": ns,
+                            "pod": pod_name,
+                            "type": "CrashLoopBackOff",
+                            "timestamps": ";".join(
+                                info.get("crash_timestamps")
+                            ),
+                            "sources": sources,
+                            "description_file": desc,
+                            "pod_log_file": plog,
+                            "time_range": time_range_str,
+                        }
+                    )
+
+    # Sort: OOMKilled first, then CrashLoopBackOff
+    def sort_key(row: Dict[str, str]) -> Tuple[int, str, str, str]:
+        type_val = row.get("type", "")
+        if type_val == "OOMKilled":
+            return (
+                0,
+                row.get("cluster", ""),
+                row.get("namespace", ""),
+                row.get("pod", ""),
+            )
+        elif type_val == "CrashLoopBackOff":
+            return (
+                1,
+                row.get("cluster", ""),
+                row.get("namespace", ""),
+                row.get("pod", ""),
+            )
+        else:
+            return (
+                2,
+                row.get("cluster", ""),
+                row.get("namespace", ""),
+                row.get("pod", ""),
+            )
+
+    rows.sort(key=sort_key)
+    return rows
+
+
+def export_table(rows: List[Dict[str, str]], table_path: Path) -> None:
+    """Export rows to a table-formatted file."""
+    if not rows:
+        return
+
+    columns = [
+        "cluster",
+        "namespace",
+        "pod",
+        "type",
+        "timestamps",
+        "sources",
+        "description_file",
+        "pod_log_file",
+        "time_range",
+    ]
+
+    # Calculate column widths
+    widths = {col: len(col) for col in columns}
+    for row in rows:
+        for col in columns:
+            widths[col] = max(widths[col], len(row.get(col, "")))
+
+    # Generate table
+    lines = []
+
+    # Build header row first to calculate exact width
+    header_parts = [f" {col:<{widths[col]}} " for col in columns]
+    header_row = "|" + "|".join(header_parts) + "|"
+    
+    # Calculate total width: length of the header row
+    total_width = len(header_row)
+
+    # Header separator (continuous line of dashes matching table width)
+    header_sep = "-" * total_width
+    lines.append(header_sep)
+
+    # Header row
+    lines.append(header_row)
+
+    # Header separator again
+    lines.append(header_sep)
+
+    # Data rows
+    for row in rows:
+        data_parts = [f" {row.get(col, ''):<{widths[col]}} " for col in columns]
+        data_row = "|" + "|".join(data_parts) + "|"
+        lines.append(data_row)
+
+    # Footer separator
+    lines.append(header_sep)
+
+    # Write to file
+    try:
+        table_path.write_text("\n".join(lines))
+        print(color(f"Table written → {table_path}", GREEN))
+    except (IOError, OSError) as e:
+        logging.error(f"Failed to write table file {table_path}: {e}")
+        print(color(f"ERROR: Failed to write table file: {e}", RED))
+
+
 def export_results(
     results: Dict[str, Any],
     json_path: Path,
     csv_path: Path,
+    table_path: Path,
     time_range_str: str = "1d",
 ) -> None:
-    """Export results to JSON and CSV files."""
-    # Add time_range to JSON structure (keep original structure for backward compatibility)
-    # Store time_range at top level for easy access
+    """Export results to JSON, CSV, and TABLE files."""
+    # Collect and sort rows
+    rows = collect_rows(results, time_range_str)
+
+    # Export JSON
     results_with_metadata = results.copy()
     results_with_metadata["_metadata"] = {"time_range": time_range_str}
     try:
@@ -881,7 +1030,7 @@ def export_results(
         logging.error(f"Failed to write JSON file {json_path}: {e}")
         print(color(f"ERROR: Failed to write JSON file: {e}", RED))
 
-    # CSV: cluster,namespace,pod,type,timestamps,sources,description_file,pod_log_file,time_range
+    # Export CSV
     try:
         with csv_path.open("w", newline="") as f:
             writer = csv.writer(f)
@@ -898,53 +1047,27 @@ def export_results(
                     "time_range",
                 ]
             )
-            # Skip _metadata if present
-            for cluster, ns_map in results.items():
-                if cluster == "_metadata":
-                    continue
-                for ns, pods in ns_map.items():
-                    for pod_name, info in pods.items():
-                        desc = info.get("description_file", "")
-                        plog = info.get("pod_log_file", "")
-                        sources = (
-                            ";".join(info.get("sources", []))
-                            if info.get("sources")
-                            else ""
-                        )
-                        # OOM rows
-                        if info.get("oom_timestamps"):
-                            writer.writerow(
-                                [
-                                    cluster,
-                                    ns,
-                                    pod_name,
-                                    "OOMKilled",
-                                    ";".join(info.get("oom_timestamps")),
-                                    sources,
-                                    desc,
-                                    plog,
-                                    time_range_str,
-                                ]
-                            )
-                        # Crash rows
-                        if info.get("crash_timestamps"):
-                            writer.writerow(
-                                [
-                                    cluster,
-                                    ns,
-                                    pod_name,
-                                    "CrashLoopBackOff",
-                                    ";".join(info.get("crash_timestamps")),
-                                    sources,
-                                    desc,
-                                    plog,
-                                    time_range_str,
-                                ]
-                            )
+            for row in rows:
+                writer.writerow(
+                    [
+                        row["cluster"],
+                        row["namespace"],
+                        row["pod"],
+                        row["type"],
+                        row["timestamps"],
+                        row["sources"],
+                        row["description_file"],
+                        row["pod_log_file"],
+                        row["time_range"],
+                    ]
+                )
         print(color(f"CSV written → {csv_path}", GREEN))
     except (IOError, OSError) as e:
         logging.error(f"Failed to write CSV file {csv_path}: {e}")
         print(color(f"ERROR: Failed to write CSV file: {e}", RED))
+
+    # Export TABLE
+    export_table(rows, table_path)
 
 
 def pretty_print(results: Dict[str, Any], skipped: Dict[str, str]) -> None:
@@ -1265,7 +1388,8 @@ def main() -> None:
 
     json_path = Path("oom_results.json")
     csv_path = Path("oom_results.csv")
-    export_results(results, json_path, csv_path, time_range_str)
+    table_path = Path("oom_results.table")
+    export_results(results, json_path, csv_path, table_path, time_range_str)
 
     pretty_print(results, skipped)
 
