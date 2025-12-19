@@ -36,8 +36,8 @@ Architecture Overview (ASCII Diagram)
           │──────────────────────────────────────────────────────────────────────────│
           │ • Reads task list (task_name + step_name)                                │
           │ • For each <task, step> pair:                                            │
-          │       - Calls Python script to list pods (filtered by task label)       │
-          │       - Processes pods in batches (50 pods per batch) to avoid limits   │
+          │       - Calls Python script to list pods (filtered by task label)        │
+          │       - Processes pods in batches (50 pods per batch) to avoid limits    │
           │       - Queries memory and CPU metrics for each batch                    │
           │       - Aggregates results across all batches                            │
           │ • Passes through OUTPUT_MODE (human, json, csv)                          │
@@ -58,28 +58,28 @@ Architecture Overview (ASCII Diagram)
              │ query_prometheus_range.py (optimized)                               │
              │─────────────────────────────────────────────────────────────────────│
              │ • Accepts PromQL query, start time, end time                        │
-             │ • Uses adaptive step sizing based on time range:                     │
+             │ • Uses adaptive step sizing based on time range:                    │
              │        - ≤1 day: 30s step                                           │
              │        - ≤7 days: 5m step                                           │
              │        - ≤30 days: 15m step                                         │
-             │        - >30 days: 1h step                                           │
+             │        - >30 days: 1h step                                          │
              │ • Sends HTTP requests to Prometheus API                             │
-             │ • Executes queries for:                                              │
-             │        - container_memory_max_usage_bytes (peak memory)              │
+             │ • Executes queries for:                                             │
+             │        - container_memory_max_usage_bytes (peak memory)             │
              │        - container_memory_working_set_bytes (for percentiles)       │
              │        - container_cpu_usage_seconds_total (with rate calculation)  │
-             │ • Returns time series data for aggregation                           │
+             │ • Returns time series data for aggregation                          │
              └──────────────────────────────┬──────────────────────────────────────┘
                                             │
                                             ▼
                      ┌──────────────────────────────────────────────────────────┐
                      │             Aggregators in wrapper_for_promql.sh         │
                      │──────────────────────────────────────────────────────────│
-                     │ • Processes pods in batches (50 per batch)              │
+                     │ • Processes pods in batches (50 per batch)               │
                      │ • For each batch:                                        │
                      │        - Queries memory max, p95, p90, median            │
-                     │        - Queries CPU max, p95, p90, median              │
-                     │        - Validates returned pods belong to task         │
+                     │        - Queries CPU max, p95, p90, median               │
+                     │        - Validates returned pods belong to task          │
                      │ • Aggregates across all batches:                         │
                      │        - Finds global max memory pod and value           │
                      │        - Finds global max CPU pod and value              │
@@ -109,11 +109,32 @@ How to Run
 
 Run for last N days:
 
-    ./wrapper_for_promql_for_all_clusters.sh <num_of_days>
+    ./wrapper_for_promql_for_all_clusters.sh <num_of_days> [--csv] [--table] [--raw] [--debug]
 
-Example:
+**Examples:**
 
-    ./wrapper_for_promql_for_all_clusters.sh 7
+```bash
+# Default: CSV output (pipeable, suitable for scripts)
+./wrapper_for_promql_for_all_clusters.sh 7 --csv
+
+# Table format: Human-readable table (automatically used when outputting to terminal)
+./wrapper_for_promql_for_all_clusters.sh 7 --table
+
+# Raw CSV: Explicitly request raw CSV output (for piping to other tools)
+./wrapper_for_promql_for_all_clusters.sh 7 --raw
+
+# Debug mode: Shows detailed query information
+./wrapper_for_promql_for_all_clusters.sh 7 --csv --debug
+
+# Pipe to analysis tool (uses raw CSV automatically)
+./wrapper_for_promql_for_all_clusters.sh 7 --csv | ./analyze_resource_limits.py
+```
+
+**Output Format Behavior:**
+- **Default (no flags)**: If output is to a terminal, shows table format. If piped, outputs raw CSV.
+- **`--table`**: Explicitly request table format (useful for scripts)
+- **`--raw`**: Explicitly request raw CSV (useful when you want CSV even in terminal)
+- **`--csv`**: Legacy flag, same as default behavior
 
 The PromQL range window and sampling delta adjust automatically based on the time range:
 - **1 day**: 30-second resolution for fine-grained analysis
@@ -134,18 +155,10 @@ It is recommended to create a venv:
 
     python -m venv promql_for_mem_metrics; source promql_for_mem_metrics/bin/activate
 
-Output Modes
-===================================
-
-The wrapper supports:
-
---csv    : Machine-readable CSV output  
---json   : JSON document output  
---color  : Human-friendly colorized output  
-
-Example:
-
-    ./wrapper_for_promql_for_all_clusters.sh 1 --csv
+**Required Python packages:**
+```bash
+pip install requests pyyaml
+```
 
 CSV Output Format
 ===================================
@@ -201,66 +214,158 @@ CSV Output Example
 Resource Limit Analysis Tool
 ===================================
 
-A new script `analyze_resource_limits.py` has been added to analyze resource consumption data and provide recommendations for Kubernetes resource limits.
+The `analyze_resource_limits.py` script analyzes resource consumption data and provides recommendations for Kubernetes resource limits with advanced features like caching, comparison tables, and patch file generation.
 
 **Features:**
-- Analyzes CSV data from `wrapper_for_promql_for_all_clusters.sh` to calculate resource recommendations
-- Uses P95 percentile + configurable safety margin (default 10%) for recommendations
-- Automatically rounds memory to standard Kubernetes values:
-  - Values < 1Gi: Rounds to nearest power of 2 (32Mi, 64Mi, 128Mi, 256Mi, 512Mi)
-  - Values >= 1Gi: Rounds to whole Gi values (1Gi, 2Gi, 3Gi, etc.)
-- Always formats CPU values in millicores (e.g., `5100m` for 5.1 cores)
-- Can automatically update YAML files with recommended resource limits
+- **Automatic Data Collection**: Can extract task/step info from YAML and automatically run data collection
+- **Caching System**: Recommendations are cached, allowing review before applying changes
+- **Comparison Tables**: Shows current vs proposed resource limits side-by-side
+- **Configurable Base Metrics**: Choose calculation base (max, P95, P90, median) with configurable safety margin
+- **Patch File Generation**: For remote GitHub URLs, generates `.patch` files for manual review
+- **Smart Rounding**: 
+  - Memory: Rounds UP to increments of 256Mi (< 1Gi) or whole Gi (>= 1Gi), minimum 256Mi
+  - CPU: Rounds UP to increments of 100m, minimum 100m
+- **Update from Cache**: Apply cached recommendations without re-running analysis
 
-**Usage:**
+**Usage Examples:**
 
-From piped CSV input:
+**1. Analyze from piped CSV input:**
 ```bash
 ./wrapper_for_promql_for_all_clusters.sh 7 --csv | ./analyze_resource_limits.py
 ```
 
-From YAML file (auto-runs data collection):
+**2. Analyze from local YAML file (auto-runs data collection):**
 ```bash
 ./analyze_resource_limits.py --file /path/to/buildah.yaml
-./analyze_resource_limits.py --file https://github.com/.../buildah.yaml
 ```
 
-Update YAML file with recommendations:
+**3. Analyze from GitHub URL (auto-runs data collection):**
+```bash
+./analyze_resource_limits.py --file https://github.com/konflux-ci/build-definitions/blob/main/task/buildah/0.7/buildah.yaml
+```
+
+**4. Analyze with custom margin and base metric:**
+```bash
+./analyze_resource_limits.py --file /path/to/buildah.yaml --margin 5 --base p95 --days 10
+```
+
+**5. Two-step workflow (recommended for review):**
+```bash
+# Step 1: Generate and cache recommendations (shows table format output)
+./analyze_resource_limits.py --file https://github.com/.../buildah.yaml --margin 5 --days 10
+
+# Step 2: Review cached recommendations and apply (shows comparison table)
+./analyze_resource_limits.py --update
+```
+
+**6. Update local YAML file directly:**
 ```bash
 ./analyze_resource_limits.py --file /path/to/buildah.yaml --update
 ```
 
-**Options:**
+**7. Update with specific parameters:**
+```bash
+./analyze_resource_limits.py --file /path/to/buildah.yaml --update --margin 10 --base max
+```
+
+**Command-line Options:**
 - `--file FILE` - YAML file path or GitHub URL to analyze (auto-runs data collection)
-- `--update` - Update the YAML file with recommended resource limits
+- `--update` - Update the YAML file with recommended resource limits. If `--file` is not provided, uses cached recommendations from the last run
 - `--margin MARGIN` - Safety margin percentage (default: 10)
-- `--days DAYS` - Number of days for data collection (default: 7)
+- `--base {max,p95,p90,median}` - Base metric for margin calculation (default: max)
+- `--days DAYS` - Number of days for data collection when using `--file` (default: 7)
 
 **How it works:**
-1. Extracts task name and step names from Tekton Task YAML
-2. Optionally runs `wrapper_for_promql_for_all_clusters.sh` to collect data
-3. Analyzes data across all clusters for each step
-4. Calculates recommendations using P95 percentile + safety margin
-5. Rounds values to standard Kubernetes resource sizes
-6. Optionally updates the YAML file with the recommendations
+
+1. **With `--file` (local or GitHub URL):**
+   - Extracts task name and step names from Tekton Task YAML
+   - Extracts current resource limits for comparison
+   - Automatically runs `wrapper_for_promql_for_all_clusters.sh` to collect data
+   - Shows data collection output in table format
+   - Analyzes data across all clusters for each step
+   - Calculates recommendations using selected base metric + safety margin
+   - Rounds values to standard Kubernetes resource sizes
+   - Saves recommendations to cache
+   - Shows detailed analysis and comparison table
+   - If `--update` is used: Updates local YAML or generates patch file for remote URLs
+
+2. **With piped input:**
+   - Reads CSV data from stdin
+   - Analyzes and provides recommendations
+   - Does not cache (no file reference)
+
+3. **With `--update` only (no `--file`):**
+   - Loads most recent cached recommendations
+   - Shows comparison table
+   - Applies changes to the original file/URL
 
 **Example Output:**
+
+**Analysis Output:**
 ```
 ================================================================================
-RESOURCE LIMIT RECOMMENDATIONS (P95 + 10% Safety Margin)
+RESOURCE LIMIT RECOMMENDATIONS (Max + 10% Safety Margin)
 ================================================================================
 
 Step: step-build
 --------------------------------------------------------------------------------
   Memory: 8Gi
-    - Max observed: 8.0Gi
-    - P95 max: 8.0Gi
+    - Base (Max): 8.0Gi
     - Coverage: 6/6 clusters
+
   CPU: 5100m
-    - Max observed: 4.67 cores
-    - P95 max: 4.67 cores
+    - Base (Max): 4.67 cores
     - Coverage: 4/4 clusters
+
+Step: step-push
+--------------------------------------------------------------------------------
+  Memory: 1Gi
+    - Base (Max): 1024MB
+    - Coverage: 5/6 clusters
+
+  CPU: 400m
+    - Base (Max): 0.385 cores
+    - Coverage: 5/6 clusters
 ```
+
+**Comparison Table Output:**
+```
+========================================================================================================================
+RESOURCE LIMITS COMPARISON: CURRENT vs PROPOSED
+========================================================================================================================
+
+Step                      Current Requests               Proposed Requests              Current Limits                 Proposed Limits               
+------------------------------------------------------------------------------------------------------------------------
+build                     8Gi / 1                        8Gi / 5100m                    8Gi / null                     8Gi / 5100m                   
+push                      4Gi / 1                        1Gi / 400m                     4Gi / null                     1Gi / 400m                    
+sbom-syft-generate        4Gi / 1                        2Gi / 800m                     4Gi / null                     2Gi / 800m                    
+prepare-sboms             512Mi / 100m                   256Mi / 300m                   512Mi / null                   256Mi / 300m                  
+upload-sbom               512Mi / 100m                   256Mi / 100m                   512Mi / null                   256Mi / 100m                  
+```
+
+**Patch File Generation (for remote URLs):**
+When using `--update` with a GitHub URL, a patch file is generated:
+```
+Generated patch file: buildah_20241219_141358.patch
+File path in patch: task/buildah/0.7/buildah.yaml
+Apply with: patch <original_file> < buildah_20241219_141358.patch
+```
+
+**Caching:**
+- Cache files are stored in `.analyze_cache/` directory
+- Each file/URL gets a unique cache file (MD5 hash of path/URL)
+- Cache includes: recommendations, margin, base metric, days, and timestamp
+- Most recent cache is used when running `--update` without `--file`
+
+**Rounding Rules:**
+- **Memory**: 
+  - Minimum: 256Mi
+  - < 1Gi: Rounds UP to next increment of 256Mi (e.g., 300MB → 512Mi, 544MB → 768Mi)
+  - >= 1Gi: Rounds UP to next whole Gi (e.g., 1269MB → 2Gi)
+- **CPU**:
+  - Minimum: 100m
+  - Always rounds UP to next increment of 100m (e.g., 243m → 300m, 385m → 400m)
+  - Always outputs in millicore format (e.g., `5100m` for 5.1 cores)
 
 Konflux Cluster Authentication
 ===================================
