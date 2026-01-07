@@ -263,17 +263,40 @@ The `analyze_resource_limits.py` script analyzes resource consumption data and p
 ./analyze_resource_limits.py --file /path/to/buildah.yaml --update
 ```
 
-**7. Update with specific parameters:**
+**7. Update local file using cache (no re-analysis):**
+```bash
+# Step 1: Generate cache from URL (long operation)
+./analyze_resource_limits.py --file https://github.com/.../buildah.yaml --margin 5 --days 10
+
+# Step 2: Update local file using cache (fast, no re-analysis)
+./analyze_resource_limits.py --update --file /path/to/local/buildah.yaml
+```
+
+**8. Force re-analysis when updating local file:**
+```bash
+# Re-run analysis and update local file
+./analyze_resource_limits.py --update --file /path/to/local/buildah.yaml --analyze-again
+```
+
+**9. Update with specific parameters:**
 ```bash
 ./analyze_resource_limits.py --file /path/to/buildah.yaml --update --margin 10 --base max
 ```
 
+**10. Enable debug output:**
+```bash
+# Show detailed processing information
+./analyze_resource_limits.py --update --file /path/to/buildah.yaml --debug
+```
+
 **Command-line Options:**
 - `--file FILE` - YAML file path or GitHub URL to analyze (auto-runs data collection)
-- `--update` - Update the YAML file with recommended resource limits. If `--file` is not provided, uses cached recommendations from the last run
+- `--update` - Update the YAML file with recommended resource limits. If `--file` is not provided, uses cached recommendations from the last run. If `--file <local_file>` is provided, loads from cache (or runs analysis if no cache exists)
+- `--analyze-again`, `--aa` - Force re-analysis even when cache exists (only used with `--update --file`)
 - `--margin MARGIN` - Safety margin percentage (default: 10)
 - `--base {max,p95,p90,median}` - Base metric for margin calculation (default: max)
 - `--days DAYS` - Number of days for data collection when using `--file` (default: 7)
+- `--debug` - Enable debug output showing detailed processing information (step detection, computeResources updates, etc.)
 
 **How it works:**
 
@@ -298,6 +321,11 @@ The `analyze_resource_limits.py` script analyzes resource consumption data and p
    - Loads most recent cached recommendations
    - Shows comparison table
    - Applies changes to the original file/URL
+
+4. **With `--update --file <local_file>`:**
+   - If cache exists: Loads recommendations from cache (no re-analysis), shows comparison table, and updates the local file directly
+   - If no cache exists: Automatically runs analysis (same as `--file` without `--update`), saves to cache, then updates the local file
+   - If `--analyze-again` is provided: Always runs analysis, saves to cache, then updates the local file
 
 **Example Output:**
 
@@ -356,6 +384,8 @@ Apply with: patch <original_file> < buildah_20241219_141358.patch
 - Each file/URL gets a unique cache file (MD5 hash of path/URL)
 - Cache includes: recommendations, margin, base metric, days, and timestamp
 - Most recent cache is used when running `--update` without `--file`
+- When using `--update --file <local_file>`, the tool automatically uses cache if available (no re-analysis needed)
+- Use `--analyze-again` flag to force re-analysis even when cache exists
 
 **Rounding Rules:**
 - **Memory**: 
