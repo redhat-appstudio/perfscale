@@ -895,8 +895,23 @@ def update_yaml_file(yaml_path, recommendations, original_yaml, file_path_or_url
                     
                     # Track where to insert computeResources if not found (after name: and image:, before other fields)
                     if not compute_resources_found and compute_resources_insert_pos is None:
+                        # Stop if we've left the step (hit next step marker or back to step list level)
+                        if next_indent <= step_indent:
+                            # We've left the step, insert before leaving (at the end of current step)
+                            # Find the last field of current step by going back
+                            for k in range(j - 1, max(current_step_line, j - 20), -1):
+                                if k < len(lines):
+                                    check_line = lines[k]
+                                    check_indent = len(check_line) - len(check_line.lstrip())
+                                    if check_indent == step_content_indent and check_line.strip() and not check_line.strip().startswith('#'):
+                                        compute_resources_insert_pos = k + 1
+                                        break
+                            if compute_resources_insert_pos is None:
+                                # Fallback: insert right before leaving the step
+                                compute_resources_insert_pos = j
+                            break
                         # Insert after name: or image: (whichever comes last)
-                        if 'image:' in next_line or 'name:' in next_line:
+                        elif 'image:' in next_line or 'name:' in next_line:
                             compute_resources_insert_pos = j + 1
                         elif next_stripped and not next_stripped.startswith('#') and next_indent == step_content_indent:
                             # We've hit another field at step content level, insert before it
