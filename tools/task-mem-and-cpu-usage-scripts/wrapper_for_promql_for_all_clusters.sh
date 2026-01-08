@@ -30,13 +30,18 @@ while [ "$#" -gt 0 ]; do
     shift
 done
 
-TASK_NAME="buildah"
-STEPS="step-build step-push step-sbom-syft-generate step-prepare-sboms step-upload-sbom"
+#TASK_NAME="buildah"
+#STEPS="step-build step-push step-prepare-sboms step-upload-sbom"
+#STEPS="step-build step-push step-sbom-syft-generate step-prepare-sboms step-upload-sbom"
 #STEPS="step-build"
+#STEPS="step-build step-push"
 
 # Get all contexts or use specific one for testing
 CONTEXTS="$(kubectl config get-contexts -o name 2>/dev/null | xargs || echo 'default/api-stone-prd-rh01-pg1f-p1-openshiftapps-com:6443/smodak')"
+#CONTEXTS="default/api-stone-prd-rh01-pg1f-p1-openshiftapps-com:6443/smodak default/api-stone-prod-p01-wcfb-p1-openshiftapps-com:6443/smodak default/api-kflux-prd-rh02-0fk9-p1-openshiftapps-com:6443/smodak default/api-kflux-prd-rh03-nnv1-p1-openshiftapps-com:6443/smodak default/api-stone-prod-p02-hjvn-p1-openshiftapps-com:6443/smodak default/api-kflux-stg-es01-21tc-p1-openshiftapps-com:6443/smodak"
 #CONTEXTS="default/api-stone-prd-rh01-pg1f-p1-openshiftapps-com:6443/smodak"
+#CONTEXTS="default/api-stone-prod-p01-wcfb-p1-openshiftapps-com:6443/smodak"
+#CONTEXTS="default/api-stone-prd-rh01-pg1f-p1-openshiftapps-com:6443/smodak default/api-stone-prod-p01-wcfb-p1-openshiftapps-com:6443/smodak default/api-kflux-prd-rh02-0fk9-p1-openshiftapps-com:6443/smodak default/api-kflux-stg-es01-21tc-p1-openshiftapps-com:6443/smodak"
 
 # Create temporary file for CSV output
 TMP_CSV=$(mktemp)
