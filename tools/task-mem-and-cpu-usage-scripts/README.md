@@ -13,6 +13,10 @@ The workflow supports:
 - **CSV / JSON / Colorized text output** - Multiple output formats
 - **Per-pod attribution** - Identifies the specific pod with max memory and max CPU usage
 - **Automatic metadata retrieval** - Namespace, Component, Application (where available)
+- **Parallel cluster processing** - Process multiple clusters concurrently with `--pll-clusters N` flag (NEW)
+- **Progress indicators** - Real-time progress spinner during data collection for both serial and parallel modes (NEW)
+- **Cluster connectivity validation** - Pre-flight check to validate all clusters before data collection (NEW)
+- **Unified execution modes** - Serial and parallel modes now have consistent output formatting and summary reports (NEW)
 
 Architecture Overview (ASCII Diagram)
 ===================================
@@ -217,6 +221,14 @@ Resource Limit Analysis Tool
 The `analyze_resource_limits.py` script analyzes resource consumption data and provides recommendations for Kubernetes resource limits with advanced features like caching, comparison tables, and patch file generation.
 
 **Features:**
+
+**Major Features:**
+- **Parallel Cluster Processing**: Process multiple clusters concurrently with `--pll-clusters N` flag for faster data collection
+- **Dry-Run Mode**: Validate task/steps and check cluster connectivity without running data collection using `--dry-run` flag
+- **Unified Execution Modes**: Serial and parallel execution modes now have consistent progress indicators, summary output, and error reporting
+- **Task/Step Validation**: Automatically validates wrapper-defined steps against YAML file steps before proceeding with analysis
+
+**Core Features:**
 - **Automatic Data Collection**: Can extract task/step info from YAML and automatically run data collection
 - **Caching System**: Recommendations are cached, allowing review before applying changes
 - **Comparison Tables**: Shows current vs proposed resource limits side-by-side
@@ -226,6 +238,12 @@ The `analyze_resource_limits.py` script analyzes resource consumption data and p
   - Memory: Rounds UP to increments of 256Mi (< 1Gi) or whole Gi (>= 1Gi), minimum 256Mi
   - CPU: Rounds UP to increments of 100m, minimum 100m
 - **Update from Cache**: Apply cached recommendations without re-running analysis
+
+**User Experience Improvements:**
+- **Progress Indicators**: Real-time progress spinner during data collection for both serial and parallel execution modes
+- **Cluster Display Names**: Consolidated cluster name extraction shows short, user-friendly names (e.g., "stone-stg-rh01") instead of full context strings throughout the UI
+- **Data Collection Summary**: Comprehensive summary report showing total clusters processed, successful/failed counts, and detailed error information
+- **Cluster Connectivity Check**: Pre-flight validation of all clusters before proceeding with data collection, displayed in a clear connectivity report
 
 **Usage Examples:**
 
@@ -289,6 +307,18 @@ The `analyze_resource_limits.py` script analyzes resource consumption data and p
 ./analyze_resource_limits.py --update --file /path/to/buildah.yaml --debug
 ```
 
+**11. Parallel cluster processing (faster for multiple clusters):**
+```bash
+# Process clusters in parallel with 3 workers
+./analyze_resource_limits.py --file /path/to/buildah.yaml --pll-clusters 3
+```
+
+**12. Dry-run: Validate task/steps and check cluster connectivity:**
+```bash
+# Check connectivity and validate configuration without running data collection
+./analyze_resource_limits.py --file /path/to/buildah.yaml --dry-run
+```
+
 **Command-line Options:**
 - `--file FILE` - YAML file path or GitHub URL to analyze (auto-runs data collection)
 - `--update` - Update the YAML file with recommended resource limits. If `--file` is not provided, uses cached recommendations from the last run. If `--file <local_file>` is provided, loads from cache (or runs analysis if no cache exists)
@@ -297,13 +327,19 @@ The `analyze_resource_limits.py` script analyzes resource consumption data and p
 - `--base {max,p95,p90,median}` - Base metric for margin calculation (default: max)
 - `--days DAYS` - Number of days for data collection when using `--file` (default: 7)
 - `--debug` - Enable debug output showing detailed processing information (step detection, computeResources updates, etc.)
+- `--pll-clusters N` - Enable parallel processing across clusters with N workers (only during analysis, ignored during --update)
+- `--dry-run` - Validate task/steps and check cluster connectivity without running data collection
 
 **How it works:**
 
 1. **With `--file` (local or GitHub URL):**
+   - Validates wrapper-defined steps against YAML file steps before proceeding
+   - Checks cluster connectivity and displays connectivity report with short cluster names (e.g., "stone-stg-rh01")
    - Extracts task name and step names from Tekton Task YAML
    - Extracts current resource limits for comparison
    - Automatically runs `wrapper_for_promql_for_all_clusters.sh` to collect data
+   - Shows progress spinner during data collection (for both serial and parallel modes)
+   - Displays Data Collection Summary with cluster processing statistics and error details
    - Shows data collection output in table format
    - Analyzes data across all clusters for each step
    - Calculates recommendations using selected base metric + safety margin
@@ -311,6 +347,17 @@ The `analyze_resource_limits.py` script analyzes resource consumption data and p
    - Saves recommendations to cache
    - Shows detailed analysis and comparison table
    - If `--update` is used: Updates local YAML or generates patch file for remote URLs
+   
+   **Parallel Processing:**
+   - When `--pll-clusters N` is specified, clusters are processed concurrently with N workers
+   - Each cluster uses a process-specific kubeconfig to avoid conflicts
+   - Progress spinner shows during parallel execution
+   - Results are aggregated and displayed in a unified summary at the end
+   
+   **Serial Processing:**
+   - Default mode processes clusters one by one
+   - Now matches parallel mode behavior with progress indicators and summary output
+   - Consistent output formatting ensures same user experience regardless of execution mode
 
 2. **With piped input:**
    - Reads CSV data from stdin
@@ -327,7 +374,42 @@ The `analyze_resource_limits.py` script analyzes resource consumption data and p
    - If no cache exists: Automatically runs analysis (same as `--file` without `--update`), saves to cache, then updates the local file
    - If `--analyze-again` is provided: Always runs analysis, saves to cache, then updates the local file
 
+5. **With `--dry-run`:**
+   - Validates wrapper-defined steps against YAML file steps
+   - Checks connectivity to all configured clusters
+   - Displays cluster connectivity report with short cluster names
+   - Exits without running data collection or analysis
+   - Useful for troubleshooting configuration issues before running full analysis
+
 **Example Output:**
+
+**Cluster Connectivity Report:**
+```
+================================================================================
+Checking Cluster Connectivity
+================================================================================
+
+Cluster Connectivity Report:
+  ✓ stone-prd-rh01: Connected
+  ✓ kflux-prd-rh02: Connected
+  ✓ kflux-prd-rh03: Connected
+  ✓ stone-prod-p02: Connected
+
+✓ All clusters are accessible
+```
+
+**Data Collection Summary (shown during data collection):**
+```
+================================================================================
+Data Collection Summary
+================================================================================
+Total clusters processed: 4
+Successful: 4
+Failed: 0
+================================================================================
+
+Collected data from 4 cluster(s), total CSV lines: 8
+```
 
 **Analysis Output:**
 ```
