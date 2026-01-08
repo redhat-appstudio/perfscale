@@ -20,13 +20,17 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
 import urllib.parse
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
+from threading import Lock, Event, Thread
+import time
 
 try:
     import requests
@@ -113,12 +117,557 @@ def extract_task_info(yaml_content):
     return task_name, steps, default_resources, current_resources
 
 
-def run_data_collection(task_name, steps, days=7, show_table=True):
-    """Run the wrapper script to collect data."""
+def read_wrapper_config(wrapper_path):
+    """Read TASK_NAME and STEPS from wrapper script.
+    
+    Returns:
+        tuple: (task_name, steps_list, is_defined)
+        - task_name: Task name if defined, None otherwise
+        - steps_list: List of step names (without 'step-' prefix) if defined, None otherwise
+        - is_defined: True if both TASK_NAME and STEPS are defined (not commented, non-empty)
+    """
+    task_name = None
+    steps_list = None
+    is_defined = False
+    
+    try:
+        with open(wrapper_path, 'r') as f:
+            lines = f.readlines()
+        
+        for line in lines:
+            stripped = line.strip()
+            # Skip comments and empty lines
+            if not stripped or stripped.startswith('#'):
+                continue
+            
+            # Check for TASK_NAME
+            if stripped.startswith('TASK_NAME='):
+                # Extract value between quotes
+                match = re.search(r'TASK_NAME="([^"]*)"', line)
+                if match:
+                    task_name = match.group(1).strip()
+            
+            # Check for STEPS
+            elif stripped.startswith('STEPS='):
+                # Extract value between quotes
+                match = re.search(r'STEPS="([^"]*)"', line)
+                if match:
+                    steps_str = match.group(1).strip()
+                    if steps_str:
+                        # Split by space and remove 'step-' prefix
+                        steps_list = [
+                            s.replace('step-', '') if s.startswith('step-') else s
+                            for s in steps_str.split()
+                        ]
+        
+        # Both must be defined and non-empty
+        is_defined = (task_name is not None and task_name != '' and 
+                     steps_list is not None and len(steps_list) > 0)
+        
+    except Exception as e:
+        print(f"Warning: Could not read wrapper script: {e}", file=sys.stderr)
+    
+    return task_name, steps_list, is_defined
+
+
+def validate_wrapper_steps(wrapper_task, wrapper_steps, yaml_task, yaml_steps):
+    """Validate wrapper-defined task and steps against YAML file.
+    
+    Args:
+        wrapper_task: Task name from wrapper script
+        wrapper_steps: List of step names from wrapper (without 'step-' prefix)
+        yaml_task: Task name from YAML file
+        yaml_steps: List of step names from YAML file
+    
+    Returns:
+        tuple: (is_valid, error_messages)
+        - is_valid: True if validation passes
+        - error_messages: List of error messages (empty if valid)
+    """
+    errors = []
+    
+    # Check task name match (case-sensitive)
+    if wrapper_task != yaml_task:
+        errors.append(
+            f"Task name mismatch: wrapper has '{wrapper_task}', "
+            f"YAML file has '{yaml_task}'"
+        )
+    
+    # Convert to sets for comparison (normalize step names)
+    wrapper_steps_set = set(wrapper_steps)
+    yaml_steps_set = set(yaml_steps)
+    
+    # Check if wrapper steps are subset or equal to YAML steps
+    extra_steps = wrapper_steps_set - yaml_steps_set
+    if extra_steps:
+        errors.append(
+            f"Wrapper defines steps not found in YAML file: {sorted(extra_steps)}"
+        )
+    
+    missing_steps = yaml_steps_set - wrapper_steps_set
+    if missing_steps:
+        # This is a warning, not an error (wrapper can be a subset)
+        pass
+    
+    is_valid = len(errors) == 0
+    return is_valid, errors
+
+
+def check_cluster_connectivity(wrapper_path):
+    """Check connectivity to all clusters defined in wrapper script.
+    
+    Returns:
+        tuple: (all_connected, connectivity_report)
+        - all_connected: True if all clusters are accessible
+        - connectivity_report: List of (cluster_display_name, status, error_message) tuples
+                              Note: cluster_display_name is the short name for display purposes
+    """
+    report = []
+    all_connected = True
+    
+    try:
+        with open(wrapper_path, 'r') as f:
+            lines = f.readlines()
+        
+        # Extract CONTEXTS line (only non-commented lines, similar to read_wrapper_config)
+        contexts_str = None
+        for line in lines:
+            stripped = line.strip()
+            # Skip comments and empty lines
+            if not stripped or stripped.startswith('#'):
+                continue
+            # Check for CONTEXTS (not commented)
+            if stripped.startswith('CONTEXTS='):
+                # Extract value between quotes
+                match = re.search(r'CONTEXTS="([^"]*)"', line)
+                if match:
+                    contexts_str = match.group(1).strip()
+                    break
+        
+        if not contexts_str:
+            # No CONTEXTS found in non-commented lines, try to get contexts from kubectl as fallback
+            result = subprocess.run(
+                ['kubectl', 'config', 'get-contexts', '-o', 'name'],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if result.returncode == 0:
+                contexts = [c.strip() for c in result.stdout.strip().split('\n') if c.strip()]
+            else:
+                return False, [("unknown", False, "Could not get cluster contexts")]
+        else:
+            # Handle cases where CONTEXTS uses command substitution
+            if '$(' in contexts_str:
+                # Execute command substitution to get contexts
+                # Extract the command inside $()
+                cmd_match = re.search(r'\$\(([^)]+)\)', contexts_str)
+                if cmd_match:
+                    cmd = cmd_match.group(1).strip()
+                    # Handle the specific case: kubectl config get-contexts -o name 2>/dev/null | xargs
+                    if 'kubectl config get-contexts' in cmd:
+                        result = subprocess.run(
+                            ['kubectl', 'config', 'get-contexts', '-o', 'name'],
+                            capture_output=True,
+                            text=True,
+                            timeout=10
+                        )
+                        if result.returncode == 0:
+                            contexts = [c.strip() for c in result.stdout.strip().split('\n') if c.strip()]
+                        else:
+                            # Fallback to default if command fails (extract from echo)
+                            fallback_match = re.search(r'echo\s+[\'"]([^\'"]+)[\'"]', contexts_str)
+                            if fallback_match:
+                                contexts = [fallback_match.group(1).strip()]
+                            else:
+                                return False, [("unknown", False, "Could not execute CONTEXTS command")]
+                    else:
+                        return False, [("unknown", False, f"Unsupported CONTEXTS command: {cmd}")]
+                else:
+                    return False, [("unknown", False, "Invalid CONTEXTS command substitution")]
+            else:
+                # Simple string value - split by space
+                contexts = [c.strip() for c in contexts_str.split() if c.strip()]
+        
+        # Test connectivity to each cluster
+        for ctx in contexts:
+            if not ctx:
+                continue
+            try:
+                result = subprocess.run(
+                    ['kubectl', 'config', 'use-context', ctx],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                if result.returncode == 0:
+                    # Try a simple kubectl command to verify connectivity
+                    test_result = subprocess.run(
+                        ['kubectl', 'get', 'namespaces', '--request-timeout=5s'],
+                        capture_output=True,
+                        text=True,
+                        timeout=10
+                    )
+                    if test_result.returncode == 0:
+                        # Use display name for report, but ctx (full context) is still used for operations
+                        display_name = get_cluster_display_name(ctx)
+                        report.append((display_name, True, "Connected"))
+                    else:
+                        display_name = get_cluster_display_name(ctx)
+                        report.append((display_name, False, f"Cannot access cluster: {test_result.stderr[:100]}"))
+                        all_connected = False
+                else:
+                    display_name = get_cluster_display_name(ctx)
+                    report.append((display_name, False, f"Cannot switch context: {result.stderr[:100]}"))
+                    all_connected = False
+            except subprocess.TimeoutExpired:
+                display_name = get_cluster_display_name(ctx)
+                report.append((display_name, False, "Connection timeout"))
+                all_connected = False
+            except Exception as e:
+                display_name = get_cluster_display_name(ctx)
+                report.append((display_name, False, f"Error: {str(e)[:100]}"))
+                all_connected = False
+    
+    except Exception as e:
+        return False, [("unknown", False, f"Error reading wrapper script: {str(e)}")]
+    
+    return all_connected, report
+
+
+def prompt_confirmation(task_name, steps, source="extracted from YAML"):
+    """Prompt user for confirmation before proceeding.
+    
+    Args:
+        task_name: Task name to confirm
+        steps: List of step names to confirm
+        source: Source of the values (for display)
+    
+    Returns:
+        bool: True if user confirms, False otherwise
+    """
+    print("\n" + "="*80, file=sys.stderr)
+    print(f"CONFIRMATION: Task and Steps Configuration", file=sys.stderr)
+    print("="*80, file=sys.stderr)
+    print(f"Source: {source}", file=sys.stderr)
+    print(f"Task Name: {task_name}", file=sys.stderr)
+    print(f"Steps ({len(steps)}):", file=sys.stderr)
+    for i, step in enumerate(steps, 1):
+        print(f"  {i}. {step}", file=sys.stderr)
+    print("="*80, file=sys.stderr)
+    
+    while True:
+        # CRITICAL: Flush stderr before prompting to ensure any previous output is visible
+        sys.stderr.flush()
+        sys.stdout.flush()
+        response = input("Proceed with these values? [y/N]: ").strip().lower()
+        if response in ('y', 'yes'):
+            # Print newline after confirmation to ensure clean separation
+            print("", file=sys.stderr)
+            sys.stderr.flush()
+            return True
+        elif response in ('n', 'no', ''):
+            return False
+        else:
+            print("Please enter 'y' or 'n'", file=sys.stderr)
+
+
+def extract_cluster_list(wrapper_path):
+    """Extract list of clusters from wrapper script.
+    
+    Returns:
+        list: List of cluster context names
+    """
+    try:
+        with open(wrapper_path, 'r') as f:
+            lines = f.readlines()
+        
+        # Extract CONTEXTS line (only non-commented lines, same logic as check_cluster_connectivity)
+        contexts_str = None
+        for line in lines:
+            stripped = line.strip()
+            # Skip comments and empty lines
+            if not stripped or stripped.startswith('#'):
+                continue
+            # Check for CONTEXTS (not commented)
+            if stripped.startswith('CONTEXTS='):
+                # Extract value between quotes
+                match = re.search(r'CONTEXTS="([^"]*)"', line)
+                if match:
+                    contexts_str = match.group(1).strip()
+                    break
+        
+        if not contexts_str:
+            # Try to get contexts from kubectl
+            result = subprocess.run(
+                ['kubectl', 'config', 'get-contexts', '-o', 'name'],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if result.returncode == 0:
+                contexts = [c.strip() for c in result.stdout.strip().split('\n') if c.strip()]
+            else:
+                return []
+        else:
+            # Handle cases where CONTEXTS uses command substitution
+            if '$(' in contexts_str:
+                # Execute command substitution
+                cmd_match = re.search(r'\$\(([^)]+)\)', contexts_str)
+                if cmd_match:
+                    cmd = cmd_match.group(1).strip()
+                    if 'kubectl config get-contexts' in cmd:
+                        result = subprocess.run(
+                            ['kubectl', 'config', 'get-contexts', '-o', 'name'],
+                            capture_output=True,
+                            text=True,
+                            timeout=10
+                        )
+                        if result.returncode == 0:
+                            contexts = [c.strip() for c in result.stdout.strip().split('\n') if c.strip()]
+                        else:
+                            # Fallback to default if command fails
+                            fallback_match = re.search(r'echo\s+[\'"]([^\'"]+)[\'"]', contexts_str)
+                            if fallback_match:
+                                contexts = [fallback_match.group(1).strip()]
+                            else:
+                                return []
+                    else:
+                        return []
+                else:
+                    return []
+            else:
+                # Simple string value - split by space
+                contexts = [c.strip() for c in contexts_str.split() if c.strip()]
+        
+        # Remove duplicates while preserving order
+        # CRITICAL: Use dict.fromkeys() for guaranteed deduplication
+        # This is more efficient and ensures no duplicates slip through
+        unique_contexts = list(dict.fromkeys(ctx.strip() for ctx in contexts if ctx and ctx.strip()))
+        
+        return unique_contexts
+    except Exception as e:
+        print(f"Warning: Could not extract cluster list: {e}", file=sys.stderr)
+        return []
+
+
+def get_cluster_display_name(cluster_ctx):
+    """Extract short cluster display name from full context string.
+    
+    This function extracts a user-friendly short name for display purposes only.
+    The full context string should still be used for all cluster operations.
+    
+    Example: 
+        Input:  'default/api-stone-prd-rh01-pg1f-p1-openshiftapps-com:6443/smodak'
+        Output: 'stone-prd-rh01'
+    
+    Uses same regex logic as wrapper_for_promql.sh: s#.*/api-([^-]+-[^-]+-[^-]+).*#\1#
+    
+    Args:
+        cluster_ctx: Full cluster context string (e.g., 'default/api-stone-prd-rh01-...')
+    
+    Returns:
+        str: Short cluster display name (e.g., 'stone-prd-rh01')
+    """
+    # Use same regex as wrapper_for_promql.sh: s#.*/api-([^-]+-[^-]+-[^-]+).*#\1#
+    match = re.search(r'/api-([^-]+-[^-]+-[^-]+)', cluster_ctx)
+    if match:
+        return match.group(1)
+    # Fallback: try to extract from context name
+    if '/' in cluster_ctx:
+        parts = cluster_ctx.split('/')
+        if len(parts) > 1:
+            # Try to extract from parts
+            for part in parts:
+                if 'api-' in part:
+                    match = re.search(r'api-([^-]+-[^-]+-[^-]+)', part)
+                    if match:
+                        return match.group(1)
+    # Last resort: return last part after /
+    return cluster_ctx.split('/')[-1] if '/' in cluster_ctx else cluster_ctx
+
+
+def _spinner_thread(stop_event):
+    """Display a spinning wheel while processing clusters.
+    
+    Args:
+        stop_event: threading.Event to signal when to stop spinning
+    """
+    spinner_chars = ['|', '/', '-', '\\']
+    idx = 0
+    message = "Getting information from all clusters: "
+    
+    while not stop_event.is_set():
+        # Print spinner on the same line, overwriting previous output
+        print(f"\r{message}{spinner_chars[idx % len(spinner_chars)]}", end='', file=sys.stderr)
+        sys.stderr.flush()
+        idx += 1
+        time.sleep(0.2)  # Update spinner every 200ms
+    
+    # Clear the spinner line when done
+    print("\r\033[K", end='', file=sys.stderr)  # Clear the entire line
+    sys.stderr.flush()
+
+
+def process_single_cluster(cluster_ctx, temp_wrapper_path, days, steps_str, task_name):
+    """Process a single cluster and return CSV data.
+    
+    Args:
+        cluster_ctx: Cluster context name
+        temp_wrapper_path: Path to temporary wrapper script
+        days: Number of days
+        steps_str: Space-separated step names (with 'step-' prefix)
+        task_name: Task name being processed
+        progress_lock: Lock for thread-safe progress updates
+        progress_lines: Dict to track progress lines {cluster_index: line_content}
+        cluster_index: Index of this cluster (0-based) for progress line tracking
+        total_clusters: Total number of clusters being processed
+    
+    Returns:
+        tuple: (cluster_ctx, csv_data, error_message)
+    """
+    try:
+        # Extract cluster display name (for user-facing messages only)
+        cluster_name = get_cluster_display_name(cluster_ctx)
+        
+        # Create cluster-specific wrapper that only processes this cluster
+        cluster_wrapper = temp_wrapper_path.parent / f'.temp_wrapper_{cluster_ctx.replace("/", "_").replace(":", "_")}.sh'
+        with open(temp_wrapper_path, 'r') as f:
+            wrapper_content = f.read()
+        
+        # Replace CONTEXTS to only include this cluster
+        wrapper_content = re.sub(
+            r'CONTEXTS="[^"]*"',
+            f'CONTEXTS="{cluster_ctx}"',
+            wrapper_content
+        )
+        
+        # CRITICAL FIX for parallel execution:
+        # When running in parallel, multiple processes calling 'kubectl config use-context'
+        # will interfere with each other because they modify the shared ~/.kube/config file.
+        # Solution: Use a lock file or ensure context is set atomically, OR better:
+        # Set KUBECONFIG to a process-specific location or use --context flag.
+        # Since oc/kubectl commands read from current context, we need to ensure
+        # each parallel process has its own context isolation.
+        # 
+        # For now, we'll add a small delay and ensure context is set right before use
+        # But better: modify to use kubectl --context flag in all commands
+        # Actually, wrapper_for_promql.sh uses 'oc config current-context' which reads
+        # from the shared config, so we need to ensure context is set correctly.
+        #
+        # Best approach: Set context right before the loop and add a lock mechanism
+        # OR use process-specific kubeconfig files
+        #
+        # CRITICAL FIX: When running in parallel, multiple processes calling 'kubectl config use-context'
+        # interfere because they modify the shared ~/.kube/config file.
+        # Solution: Create a process-specific kubeconfig file for this cluster
+        
+        # Create a temporary kubeconfig file for this process
+        original_kubeconfig = os.environ.get('KUBECONFIG', os.path.expanduser('~/.kube/config'))
+        temp_kubeconfig = temp_wrapper_path.parent / f'.kubeconfig_{cluster_ctx.replace("/", "_").replace(":", "_")}'
+        
+        # Copy the original kubeconfig to temp location
+        if os.path.exists(original_kubeconfig):
+            shutil.copy2(original_kubeconfig, temp_kubeconfig)
+        else:
+            # Create empty kubeconfig if it doesn't exist
+            temp_kubeconfig.parent.mkdir(parents=True, exist_ok=True)
+            temp_kubeconfig.touch()
+        
+        # Modify wrapper to use the temp kubeconfig and set context once at start
+        wrapper_content = re.sub(
+            r'for ctx in \$\{CONTEXTS\}; do',
+            f'export KUBECONFIG="{temp_kubeconfig}"\nfor ctx in ${{CONTEXTS}}; do',
+            wrapper_content
+        )
+        
+        # Set context once before the loop (since we only have one cluster)
+        wrapper_content = re.sub(
+            r'kubectl config use-context "\$\{ctx\}" >/dev/null 2>&1 \|\| continue',
+            'kubectl config use-context "${ctx}" >/dev/null 2>&1 || continue',
+            wrapper_content
+        )
+        
+        with open(cluster_wrapper, 'w') as f:
+            f.write(wrapper_content)
+        os.chmod(cluster_wrapper, 0o755)
+        
+        # Run the wrapper for this cluster (it processes all steps internally)
+        # Set KUBECONFIG environment variable to use the process-specific config
+        env = os.environ.copy()
+        env['KUBECONFIG'] = str(temp_kubeconfig)
+        
+        result = subprocess.run(
+            [str(cluster_wrapper), str(days), '--raw'],
+            capture_output=True,
+            text=True,
+            cwd=temp_wrapper_path.parent,
+            env=env,
+            timeout=3600  # 1 hour timeout per cluster
+        )
+        
+        # Clean up temporary kubeconfig
+        if temp_kubeconfig.exists():
+            temp_kubeconfig.unlink()
+        
+        # Clean up cluster-specific wrapper
+        if cluster_wrapper.exists():
+            cluster_wrapper.unlink()
+        
+        if result.returncode != 0:
+            error_msg = result.stderr[:200] if result.stderr else f"Exit code: {result.returncode}"
+            return (cluster_ctx, None, error_msg)
+        
+        # Return CSV data (skip header if present, we'll add it once)
+        csv_lines = result.stdout.strip().split('\n')
+        # Filter out header line and empty lines
+        data_lines = [line for line in csv_lines if line.strip() and not line.strip().startswith('"cluster"')]
+        
+        # Debug: check if we got any data
+        if not data_lines:
+            # Check if stdout has any content at all
+            if result.stdout.strip():
+                # Has content but no data lines - check if it's just the header
+                header_line = '"cluster", "task", "step", "pod_max_mem", "namespace_max_mem", "component_max_mem", "application_max_mem", "mem_max_mb", "mem_p95_mb", "mem_p90_mb", "mem_median_mb", "pod_max_cpu", "namespace_max_cpu", "component_max_cpu", "application_max_cpu", "cpu_max", "cpu_p95", "cpu_p90", "cpu_median"'
+                stdout_clean = result.stdout.strip()
+                if stdout_clean == header_line or stdout_clean == header_line + '\n' or stdout_clean == header_line + '\r\n':
+                    return (cluster_ctx, None, "No data rows (only CSV header - no pods found)")
+                else:
+                    return (cluster_ctx, None, f"No data rows in CSV output")
+            else:
+                return (cluster_ctx, None, "Empty CSV output from wrapper script")
+        
+        return (cluster_ctx, '\n'.join(data_lines), None)
+    
+    except subprocess.TimeoutExpired:
+        return (cluster_ctx, None, "Timeout after 1 hour")
+    except Exception as e:
+        return (cluster_ctx, None, str(e)[:200])
+
+
+def run_data_collection(task_name, steps, days=7, show_table=True, dry_run=False, use_wrapper_values=False, parallel_clusters=None):
+    """Run the wrapper script to collect data.
+    
+    Args:
+        task_name: Task name to use
+        steps: List of step names (without 'step-' prefix)
+        days: Number of days for data collection
+        show_table: Whether to show table output
+        dry_run: If True, don't actually run data collection
+        use_wrapper_values: If True, use wrapper's TASK_NAME/STEPS (don't replace)
+        parallel_clusters: If set to N, process clusters in parallel with N workers
+    """
     script_path = Path(__file__).parent / 'wrapper_for_promql_for_all_clusters.sh'
     if not script_path.exists():
         print(f"Error: wrapper script not found: {script_path}", file=sys.stderr)
         sys.exit(1)
+    
+    if dry_run:
+        print("DRY-RUN: Would collect data for:", file=sys.stderr)
+        print(f"  Task: {task_name}", file=sys.stderr)
+        print(f"  Steps: {', '.join(steps)}", file=sys.stderr)
+        print(f"  Days: {days}", file=sys.stderr)
+        return None
     
     # Create a temporary wrapper that sets TASK_NAME and STEPS
     temp_wrapper = script_path.parent / '.temp_wrapper.sh'
@@ -126,63 +675,345 @@ def run_data_collection(task_name, steps, days=7, show_table=True):
         with open(script_path, 'r') as f:
             wrapper_content = f.read()
         
-        # Replace hardcoded TASK_NAME and STEPS
-        # Steps in CSV are "step-{name}", so ensure we use that format
-        wrapper_content = re.sub(
-            r'TASK_NAME="[^"]*"',
-            f'TASK_NAME="{task_name}"',
-            wrapper_content
-        )
-        # Convert step names to "step-{name}" format for the wrapper
-        steps_str = ' '.join(f'step-{s}' if not s.startswith('step-') else s for s in steps)
-        wrapper_content = re.sub(
-            r'STEPS="[^"]*"',
-            f'STEPS="{steps_str}"',
-            wrapper_content
-        )
+        if not use_wrapper_values:
+            # Replace hardcoded TASK_NAME and STEPS (including commented lines)
+            # Steps in CSV are "step-{name}", so ensure we use that format
+            # Match TASK_NAME="..." even if commented out (we'll uncomment if needed)
+            task_name_pattern = re.compile(
+                r'^(\s*)(#?\s*)TASK_NAME="[^"]*"',
+                flags=re.MULTILINE
+            )
+            if task_name_pattern.search(wrapper_content):
+                wrapper_content = task_name_pattern.sub(
+                    r'\1TASK_NAME="' + task_name + '"',
+                    wrapper_content
+                )
+            else:
+                # TASK_NAME not found, add it after the LAST_DAYS line or at the top
+                wrapper_content = re.sub(
+                    r'^(LAST_DAYS="[^"]*")',
+                    r'\1\nTASK_NAME="' + task_name + '"',
+                    wrapper_content,
+                    flags=re.MULTILINE
+                )
+            
+            # Convert step names to "step-{name}" format for the wrapper
+            steps_str = ' '.join(f'step-{s}' if not s.startswith('step-') else s for s in steps)
+            steps_pattern = re.compile(
+                r'^(\s*)(#?\s*)STEPS="[^"]*"',
+                flags=re.MULTILINE
+            )
+            if steps_pattern.search(wrapper_content):
+                wrapper_content = steps_pattern.sub(
+                    r'\1STEPS="' + steps_str + '"',
+                    wrapper_content
+                )
+            else:
+                # STEPS not found, add it after TASK_NAME
+                wrapper_content = re.sub(
+                    r'^(TASK_NAME="[^"]*")',
+                    r'\1\nSTEPS="' + steps_str + '"',
+                    wrapper_content,
+                    flags=re.MULTILINE
+                )
         
         with open(temp_wrapper, 'w') as f:
             f.write(wrapper_content)
         os.chmod(temp_wrapper, 0o755)
         
-        # Run the wrapper
-        print(f"Collecting data for task '{task_name}' with steps: {', '.join(steps)}", file=sys.stderr)
-        print(f"Running: {temp_wrapper} {days} --csv", file=sys.stderr)
-        print(file=sys.stderr)
+        # Verify the temp wrapper has correct TASK_NAME and STEPS (only in debug mode)
+        # Skip this check in normal mode to avoid garbled output during parallel execution
+        # The warnings can interfere with progress display when running in parallel
         
-        # Run with table format if requested
-        if show_table:
-            result = subprocess.run(
-                [str(temp_wrapper), str(days), '--table'],
-                capture_output=True,
-                text=True,
-                cwd=script_path.parent
-            )
-            # Also capture raw CSV for parsing
-            result_csv = subprocess.run(
-                [str(temp_wrapper), str(days), '--raw'],
-                capture_output=True,
-                text=True,
-                cwd=script_path.parent
-            )
-            # Display table output
-            print(result.stdout)
-            print(file=sys.stderr)
-            return result_csv.stdout
-        else:
-            result = subprocess.run(
-                [str(temp_wrapper), str(days), '--csv'],
-                capture_output=True,
-                text=True,
-                cwd=script_path.parent
-            )
-            
-            if result.returncode != 0:
-                print(f"Error running wrapper script:", file=sys.stderr)
-                print(result.stderr, file=sys.stderr)
-                sys.exit(1)
-            
-            return result.stdout
+        # Check if parallel processing is requested
+        if parallel_clusters and parallel_clusters > 0:
+            # Extract cluster list
+            clusters_raw = extract_cluster_list(script_path)
+            if not clusters_raw:
+                print("Warning: Could not extract cluster list, falling back to serial processing", file=sys.stderr)
+                parallel_clusters = None
+            else:
+                # CRITICAL: Deduplicate IMMEDIATELY after extraction, before any other operations
+                # Use dict.fromkeys() which preserves order and removes duplicates in one pass
+                # Also normalize whitespace and filter empty strings
+                clusters_normalized = [c.strip() for c in clusters_raw if c and c.strip()]
+                clusters = list(dict.fromkeys(clusters_normalized))  # Remove duplicates, preserve order
+                num_clusters = len(clusters)  # Set num_clusters IMMEDIATELY after deduplication
+                
+                # CRITICAL: Final verification - ensure we have exactly num_clusters unique clusters
+                # This is a safety check to catch any edge cases
+                unique_set = set(clusters)
+                if len(unique_set) != num_clusters:
+                    # Force re-deduplication if there's a mismatch
+                    clusters = list(dict.fromkeys(clusters))
+                    num_clusters = len(clusters)
+                
+                # CRITICAL: At this point, clusters MUST have exactly num_clusters unique items
+                # If not, something is seriously wrong - log and fix
+                assert len(clusters) == num_clusters, f"Cluster count mismatch: {len(clusters)} != {num_clusters}"
+                assert len(set(clusters)) == num_clusters, f"Duplicate clusters found: {len(set(clusters))} != {num_clusters}"
+                
+                # Process clusters in parallel with simple spinner
+                steps_str = ' '.join(f'step-{s}' if not s.startswith('step-') else s for s in steps)
+                all_results = []
+                errors = []
+                
+                # Start spinner thread
+                spinner_stop = Event()
+                spinner_thread_obj = Thread(target=_spinner_thread, args=(spinner_stop,), daemon=True)
+                spinner_thread_obj.start()
+                
+                try:
+                    with ThreadPoolExecutor(max_workers=parallel_clusters) as executor:
+                        # Submit all cluster processing tasks
+                        futures = {}
+                        for cluster in clusters:
+                            future = executor.submit(
+                                process_single_cluster,
+                                cluster,
+                                temp_wrapper,
+                                days,
+                                steps_str,
+                                task_name
+                            )
+                            futures[future] = cluster
+                        
+                        # Collect results as they complete
+                        for future in as_completed(futures):
+                            cluster_ctx, csv_data, error = future.result()
+                            cluster_name = get_cluster_display_name(cluster_ctx)
+                            if error:
+                                errors.append((cluster_name, error))
+                            elif csv_data and csv_data.strip():
+                                all_results.append(csv_data)
+                            else:
+                                # No error but also no data
+                                errors.append((cluster_name, "Wrapper completed but returned no CSV data"))
+                finally:
+                    # Stop spinner and wait for it to finish
+                    spinner_stop.set()
+                    spinner_thread_obj.join(timeout=1.0)  # Wait up to 1 second for spinner to stop
+                
+                # Print summary of results on clean lines (no interference from progress lines)
+                print("="*80, file=sys.stderr)
+                print("Data Collection Summary", file=sys.stderr)
+                print("="*80, file=sys.stderr)
+                
+                successful_clusters = len(all_results)
+                failed_clusters = len(errors)
+                total_clusters = num_clusters  # Use num_clusters (after deduplication) instead of len(clusters)
+                
+                print(f"Total clusters processed: {total_clusters}", file=sys.stderr)
+                print(f"Successful: {successful_clusters}", file=sys.stderr)
+                if failed_clusters > 0:
+                    print(f"Failed: {failed_clusters}", file=sys.stderr)
+                print("="*80, file=sys.stderr)
+                
+                # Report any errors with clean formatting
+                if errors:
+                    print(f"\nWarning: {len(errors)} cluster(s) had issues:", file=sys.stderr)
+                    for cluster, error in errors:
+                        # Truncate long error messages for cleaner output
+                        error_display = error[:150] + "..." if len(error) > 150 else error
+                        print(f"  • {cluster}: {error_display}", file=sys.stderr)
+                    print("\nNote: Cluster failures typically occur when:", file=sys.stderr)
+                    print("  - No pods found for the specified task/steps in the given time period", file=sys.stderr)
+                    print("  - Task/step names don't match what's actually running in that cluster", file=sys.stderr)
+                    print("  - Time period is too short (try increasing --days)", file=sys.stderr)
+                    print(file=sys.stderr)
+                
+                # Debug: show what we collected (only if successful)
+                if all_results:
+                    total_lines = sum(len(r.split('\n')) for r in all_results)
+                    print(f"Collected data from {len(all_results)} cluster(s), total CSV lines: {total_lines}", file=sys.stderr)
+                    print(file=sys.stderr)
+                
+                if not all_results:
+                    print("\nError: No data collected from any cluster", file=sys.stderr)
+                    print("\nThis usually means:", file=sys.stderr)
+                    print("  1. No pods found for the specified task/steps in the given time period", file=sys.stderr)
+                    print("  2. Task/step names don't match what's actually running in clusters", file=sys.stderr)
+                    print("  3. Time period too short (try increasing --days)", file=sys.stderr)
+                    print(file=sys.stderr)
+                    sys.exit(1)
+                
+                # Combine all CSV results (add header once)
+                csv_header = '"cluster", "task", "step", "pod_max_mem", "namespace_max_mem", "component_max_mem", "application_max_mem", "mem_max_mb", "mem_p95_mb", "mem_p90_mb", "mem_median_mb", "pod_max_cpu", "namespace_max_cpu", "component_max_cpu", "application_max_cpu", "cpu_max", "cpu_p95", "cpu_p90", "cpu_median"'
+                combined_csv = csv_header + '\n' + '\n'.join(all_results)
+                
+                # If show_table, format and display as CSV (with single space after comma)
+                if show_table:
+                    # Convert CSV to formatted output with single space after comma
+                    # Use csv module to properly parse quoted fields
+                    import io
+                    csv_reader = csv.reader(io.StringIO(combined_csv))
+                    for row in csv_reader:
+                        if row:  # Skip empty rows
+                            # Strip whitespace from each field and join with comma + single space
+                            cleaned_row = [field.strip() for field in row]
+                            formatted_line = ', '.join(cleaned_row)
+                            print(formatted_line)
+                    print(file=sys.stderr)
+                
+                return combined_csv
+        
+        # Serial processing (default or fallback) - now matches parallel mode behavior
+        if not parallel_clusters:
+            # Extract cluster list (same as parallel mode)
+            clusters_raw = extract_cluster_list(script_path)
+            if not clusters_raw:
+                print("Warning: Could not extract cluster list, falling back to simple wrapper execution", file=sys.stderr)
+                # Fallback to old behavior if cluster extraction fails
+                if show_table:
+                    result = subprocess.run(
+                        [str(temp_wrapper), str(days), '--table'],
+                        capture_output=True,
+                        text=True,
+                        cwd=script_path.parent
+                    )
+                    if result.stdout:
+                        print(result.stdout)
+                    if result.stderr:
+                        print(result.stderr, file=sys.stderr)
+                    if result.returncode != 0:
+                        print(f"Warning: Wrapper script exited with code {result.returncode}", file=sys.stderr)
+                    
+                    result_csv = subprocess.run(
+                        [str(temp_wrapper), str(days), '--raw'],
+                        capture_output=True,
+                        text=True,
+                        cwd=script_path.parent
+                    )
+                    
+                    if result_csv.returncode != 0:
+                        print(f"Error running wrapper script (CSV collection):", file=sys.stderr)
+                        print(f"Exit code: {result_csv.returncode}", file=sys.stderr)
+                        if result_csv.stderr:
+                            print("STDERR:", file=sys.stderr)
+                            print(result_csv.stderr, file=sys.stderr)
+                        sys.exit(1)
+                    
+                    if not result_csv.stdout or not result_csv.stdout.strip():
+                        print("Error: Wrapper script produced no CSV output", file=sys.stderr)
+                        sys.exit(1)
+                    
+                    print(file=sys.stderr)
+                    return result_csv.stdout
+                else:
+                    result = subprocess.run(
+                        [str(temp_wrapper), str(days), '--csv'],
+                        capture_output=True,
+                        text=True,
+                        cwd=script_path.parent
+                    )
+                    
+                    if result.returncode != 0:
+                        print(f"Error running wrapper script:", file=sys.stderr)
+                        print(result.stderr, file=sys.stderr)
+                        sys.exit(1)
+                    
+                    return result.stdout
+            else:
+                # Normalize and deduplicate clusters (same as parallel mode)
+                clusters_normalized = [c.strip() for c in clusters_raw if c and c.strip()]
+                clusters = list(dict.fromkeys(clusters_normalized))
+                num_clusters = len(clusters)
+                
+                # Process clusters serially with progress indicator
+                steps_str = ' '.join(f'step-{s}' if not s.startswith('step-') else s for s in steps)
+                all_results = []
+                errors = []
+                
+                # Start spinner thread for progress indication
+                spinner_stop = Event()
+                spinner_thread_obj = Thread(target=_spinner_thread, args=(spinner_stop,), daemon=True)
+                spinner_thread_obj.start()
+                
+                try:
+                    # Process clusters one by one
+                    for cluster in clusters:
+                        cluster_ctx, csv_data, error = process_single_cluster(
+                            cluster,
+                            temp_wrapper,
+                            days,
+                            steps_str,
+                            task_name
+                        )
+                        cluster_name = get_cluster_display_name(cluster_ctx)
+                        if error:
+                            errors.append((cluster_name, error))
+                        elif csv_data and csv_data.strip():
+                            all_results.append(csv_data)
+                        else:
+                            # No error but also no data
+                            errors.append((cluster_name, "Wrapper completed but returned no CSV data"))
+                finally:
+                    # Stop spinner and wait for it to finish
+                    spinner_stop.set()
+                    spinner_thread_obj.join(timeout=1.0)
+                
+                # Print summary of results on clean lines (matching parallel mode)
+                print("="*80, file=sys.stderr)
+                print("Data Collection Summary", file=sys.stderr)
+                print("="*80, file=sys.stderr)
+                
+                successful_clusters = len(all_results)
+                failed_clusters = len(errors)
+                total_clusters = num_clusters
+                
+                print(f"Total clusters processed: {total_clusters}", file=sys.stderr)
+                print(f"Successful: {successful_clusters}", file=sys.stderr)
+                if failed_clusters > 0:
+                    print(f"Failed: {failed_clusters}", file=sys.stderr)
+                print("="*80, file=sys.stderr)
+                
+                # Report any errors with clean formatting (matching parallel mode)
+                if errors:
+                    print(f"\nWarning: {len(errors)} cluster(s) had issues:", file=sys.stderr)
+                    for cluster, error in errors:
+                        # Truncate long error messages for cleaner output
+                        error_display = error[:150] + "..." if len(error) > 150 else error
+                        print(f"  • {cluster}: {error_display}", file=sys.stderr)
+                    print("\nNote: Cluster failures typically occur when:", file=sys.stderr)
+                    print("  - No pods found for the specified task/steps in the given time period", file=sys.stderr)
+                    print("  - Task/step names don't match what's actually running in that cluster", file=sys.stderr)
+                    print("  - Time period is too short (try increasing --days)", file=sys.stderr)
+                    print(file=sys.stderr)
+                
+                # Debug: show what we collected (only if successful)
+                if all_results:
+                    total_lines = sum(len(r.split('\n')) for r in all_results)
+                    print(f"Collected data from {len(all_results)} cluster(s), total CSV lines: {total_lines}", file=sys.stderr)
+                    print(file=sys.stderr)
+                
+                if not all_results:
+                    print("\nError: No data collected from any cluster", file=sys.stderr)
+                    print("\nThis usually means:", file=sys.stderr)
+                    print("  1. No pods found for the specified task/steps in the given time period", file=sys.stderr)
+                    print("  2. Task/step names don't match what's actually running in clusters", file=sys.stderr)
+                    print("  3. Time period too short (try increasing --days)", file=sys.stderr)
+                    print(file=sys.stderr)
+                    sys.exit(1)
+                
+                # Combine all CSV results (add header once)
+                csv_header = '"cluster", "task", "step", "pod_max_mem", "namespace_max_mem", "component_max_mem", "application_max_mem", "mem_max_mb", "mem_p95_mb", "mem_p90_mb", "mem_median_mb", "pod_max_cpu", "namespace_max_cpu", "component_max_cpu", "application_max_cpu", "cpu_max", "cpu_p95", "cpu_p90", "cpu_median"'
+                combined_csv = csv_header + '\n' + '\n'.join(all_results)
+                
+                # If show_table, format and display as CSV (with single space after comma)
+                if show_table:
+                    # Convert CSV to formatted output with single space after comma
+                    # Use csv module to properly parse quoted fields
+                    import io
+                    csv_reader = csv.reader(io.StringIO(combined_csv))
+                    for row in csv_reader:
+                        if row:  # Skip empty rows
+                            # Strip whitespace from each field and join with comma + single space
+                            cleaned_row = [field.strip() for field in row]
+                            formatted_line = ', '.join(cleaned_row)
+                            print(formatted_line)
+                    print(file=sys.stderr)
+                
+                return combined_csv
     finally:
         if temp_wrapper.exists():
             temp_wrapper.unlink()
@@ -193,6 +1024,10 @@ def parse_csv_data(csv_text):
     data = []
     lines = [line for line in csv_text.strip().split('\n') if line.strip()]
     if not lines:
+        return data
+    
+    # Check if we only have header line (no data rows)
+    if len(lines) <= 1:
         return data
     
     reader = csv.DictReader(lines)
@@ -412,17 +1247,17 @@ def print_comparison_table(recommendations, current_resources=None):
     if not recommendations:
         return
     
-    print("=" * 120)
+    print("=" * 100)
     print("RESOURCE LIMITS COMPARISON: CURRENT vs PROPOSED")
-    print("=" * 120)
+    print("=" * 100)
     print()
     
-    # Table header
+    # Table header with reduced spacing
     print(
-        f"{'Step':<25} {'Current Requests':<30} {'Proposed Requests':<30} "
-        f"{'Current Limits':<30} {'Proposed Limits':<30}"
+        f"{'Step':<15} {'Current Requests':<20} {'Proposed Requests':<20} "
+        f"{'Current Limits':<20} {'Proposed Limits':<20}"
     )
-    print("-" * 120)
+    print("-" * 100)
     
     for rec in recommendations:
         if rec is None:
@@ -453,7 +1288,7 @@ def print_comparison_table(recommendations, current_resources=None):
         prop_req = f"{proposed_mem} / {proposed_cpu}"
         prop_lim = f"{proposed_mem} / {proposed_cpu}"
         
-        print(f"{step_name_yaml:<25} {curr_req:<30} {prop_req:<30} {curr_lim:<30} {prop_lim:<30}")
+        print(f"{step_name_yaml:<15} {curr_req:<20} {prop_req:<20} {curr_lim:<20} {prop_lim:<20}")
     
     print()
 
@@ -1116,6 +1951,12 @@ Examples:
   
   # Enable debug output for troubleshooting:
   ./analyze_resource_limits.py --update --file /path/to/local/buildah.yaml --debug
+  
+  # Dry-run: Validate task/steps and check cluster connectivity:
+  ./analyze_resource_limits.py --file /path/to/buildah.yaml --dry-run
+  
+  # Parallel processing across clusters (faster for multiple clusters):
+  ./analyze_resource_limits.py --file /path/to/buildah.yaml --pll-clusters 3
         """
     )
     parser.add_argument(
@@ -1157,6 +1998,17 @@ Examples:
         '--debug',
         action='store_true',
         help='Enable debug output showing detailed processing information'
+    )
+    parser.add_argument(
+        '--dry-run',
+        action='store_true',
+        help='Validate task/steps and check cluster connectivity without running data collection'
+    )
+    parser.add_argument(
+        '--pll-clusters',
+        type=int,
+        metavar='N',
+        help='Enable parallel processing across clusters with N workers (only during analysis, ignored during --update)'
     )
     
     args = parser.parse_args()
@@ -1226,6 +2078,15 @@ Examples:
                     print(f"  Current file: {args.file}", file=sys.stderr)
                     sys.exit(1)
                 
+                # If --dry-run, just show what would be updated and exit
+                if args.dry_run:
+                    print("\n" + "="*80, file=sys.stderr)
+                    print("DRY-RUN: Would update file with cached recommendations", file=sys.stderr)
+                    print("="*80, file=sys.stderr)
+                    print_comparison_table(recommendations, current_resources)
+                    print("\nDRY-RUN completed. No file was updated.", file=sys.stderr)
+                    return
+                
                 # Show comparison table
                 print_comparison_table(recommendations, current_resources)
                 
@@ -1236,12 +2097,12 @@ Examples:
                 return
             else:
                 # No cache exists or user requested re-analysis
-                # Fall through to normal processing to run analysis
+                # Fall through to normal processing to run analysis (with validation)
                 if not cache_exists:
                     print("No cache found. Running analysis...", file=sys.stderr)
                 else:
                     print("Re-running analysis as requested (--analyze-again)...", file=sys.stderr)
-                # Continue to normal processing below
+                # Continue to normal processing below (will go through validation flow)
         else:
             # --update --file <URL> - treat as normal update (will generate patch)
             # Fall through to normal processing below
@@ -1326,18 +2187,119 @@ Examples:
     if args.file:
         # Load YAML and extract task info
         yaml_content, yaml_path = fetch_yaml_content(args.file)
-        task_name, steps, default_resources, current_resources = extract_task_info(yaml_content)
+        yaml_task_name, yaml_steps, default_resources, current_resources = extract_task_info(yaml_content)
         
-        if not task_name:
+        if not yaml_task_name:
             print("Error: Could not extract task name from YAML", file=sys.stderr)
             sys.exit(1)
         
-        if not steps:
+        if not yaml_steps:
             print("Error: Could not extract steps from YAML", file=sys.stderr)
             sys.exit(1)
         
+        # Read wrapper script configuration
+        script_dir = Path(__file__).parent
+        wrapper_path = script_dir / 'wrapper_for_promql_for_all_clusters.sh'
+        wrapper_task, wrapper_steps, wrapper_defined = read_wrapper_config(wrapper_path)
+        
+        # Determine which task/steps to use
+        use_wrapper_values = False
+        final_task_name = yaml_task_name
+        final_steps = yaml_steps
+        source_desc = "extracted from YAML file"
+        
+        if wrapper_defined:
+            # Validate wrapper-defined values against YAML
+            print("\n" + "="*80, file=sys.stderr)
+            print("VALIDATION: Wrapper-defined Task and Steps", file=sys.stderr)
+            print("="*80, file=sys.stderr)
+            print(f"Wrapper Task: {wrapper_task}", file=sys.stderr)
+            print(f"Wrapper Steps: {', '.join(wrapper_steps)}", file=sys.stderr)
+            print(f"YAML Task: {yaml_task_name}", file=sys.stderr)
+            print(f"YAML Steps: {', '.join(yaml_steps)}", file=sys.stderr)
+            print("="*80, file=sys.stderr)
+            
+            is_valid, errors = validate_wrapper_steps(wrapper_task, wrapper_steps, yaml_task_name, yaml_steps)
+            
+            if not is_valid:
+                print("\nERROR: Validation failed:", file=sys.stderr)
+                for error in errors:
+                    print(f"  - {error}", file=sys.stderr)
+                print("\nPlease fix the wrapper script or use a different YAML file.", file=sys.stderr)
+                sys.exit(1)
+            
+            # Show which steps will be used vs available
+            wrapper_steps_set = set(wrapper_steps)
+            yaml_steps_set = set(yaml_steps)
+            missing_steps = yaml_steps_set - wrapper_steps_set
+            
+            if missing_steps:
+                print(f"\nINFO: YAML file has additional steps not in wrapper: {sorted(missing_steps)}", file=sys.stderr)
+                print("  These steps will not be analyzed.", file=sys.stderr)
+            
+            print("\n✓ Validation passed: Wrapper steps are valid subset of YAML steps", file=sys.stderr)
+            
+            # Use wrapper's values
+            use_wrapper_values = True
+            final_task_name = wrapper_task
+            final_steps = wrapper_steps
+            source_desc = "defined in wrapper script (validated against YAML)"
+        else:
+            # Extract from YAML and prefix steps with 'step-'
+            final_steps = [f'step-{s}' if not s.startswith('step-') else s for s in yaml_steps]
+            source_desc = "extracted from YAML file"
+        
+        # Always check cluster connectivity (before proceeding with analysis)
+        print("\n" + "="*80, file=sys.stderr)
+        if args.dry_run:
+            print("DRY-RUN: Checking Cluster Connectivity", file=sys.stderr)
+        else:
+            print("Checking Cluster Connectivity", file=sys.stderr)
+        print("="*80, file=sys.stderr)
+        all_connected, connectivity_report = check_cluster_connectivity(wrapper_path)
+        
+        print("\nCluster Connectivity Report:", file=sys.stderr)
+        for cluster, connected, message in connectivity_report:
+            status = "✓" if connected else "✗"
+            print(f"  {status} {cluster}: {message}", file=sys.stderr)
+        
+        if not all_connected:
+            print("\nWARNING: Some clusters are not accessible.", file=sys.stderr)
+            if args.dry_run:
+                print("  Data collection may fail for these clusters.", file=sys.stderr)
+            else:
+                print("  Data collection may fail for these clusters.", file=sys.stderr)
+                print("  Continuing with accessible clusters only...", file=sys.stderr)
+        else:
+            print("\n✓ All clusters are accessible", file=sys.stderr)
+        
+        # Always prompt for confirmation
+        # For display, ensure steps have 'step-' prefix (for consistency with wrapper script format)
+        steps_for_display = [
+            f'step-{s}' if not s.startswith('step-') else s 
+            for s in final_steps
+        ]
+        if not prompt_confirmation(final_task_name, steps_for_display, source_desc):
+            print("Aborted by user.", file=sys.stderr)
+            sys.exit(0)
+        
+        # If dry-run, exit here
+        if args.dry_run:
+            print("\n" + "="*80, file=sys.stderr)
+            print("DRY-RUN completed successfully. No data collection performed.", file=sys.stderr)
+            print("="*80, file=sys.stderr)
+            sys.exit(0)
+        
+        # Convert final_steps to list without 'step-' prefix for run_data_collection
+        steps_for_collection = [
+            s.replace('step-', '') if s.startswith('step-') else s 
+            for s in final_steps
+        ]
+        
         # Run data collection (show table format)
-        csv_data = run_data_collection(task_name, steps, args.days, show_table=True)
+        # Only use parallel processing during analysis (not during --update)
+        parallel_workers = args.pll_clusters if args.pll_clusters and not args.update else None
+        csv_data = run_data_collection(final_task_name, steps_for_collection, args.days, show_table=True, dry_run=False, use_wrapper_values=use_wrapper_values, parallel_clusters=parallel_workers)
     else:
         # Read from stdin
         if sys.stdin.isatty():
@@ -1354,6 +2316,21 @@ Examples:
     data = parse_csv_data(csv_data)
     if not data:
         print("Error: No data found in CSV input", file=sys.stderr)
+        print("\nPossible reasons:", file=sys.stderr)
+        print("  1. No pods found for the specified task/steps in the given time period", file=sys.stderr)
+        print("  2. Task or step names don't match what's actually running in clusters", file=sys.stderr)
+        print("  3. Cluster connectivity issues (try --dry-run to check)", file=sys.stderr)
+        print("  4. Time period too short (try increasing --days)", file=sys.stderr)
+        if args.file:
+            print(f"\nTask: {task_name}", file=sys.stderr)
+            print(f"Steps: {', '.join(steps)}", file=sys.stderr)
+            print(f"Days: {args.days}", file=sys.stderr)
+        # Show first few lines of CSV to help debug
+        if csv_data:
+            csv_lines = csv_data.strip().split('\n')
+            print(f"\nCSV output (first {min(5, len(csv_lines))} lines):", file=sys.stderr)
+            for i, line in enumerate(csv_lines[:5], 1):
+                print(f"  {i}: {line[:100]}", file=sys.stderr)
         sys.exit(1)
     
     # Group by step
