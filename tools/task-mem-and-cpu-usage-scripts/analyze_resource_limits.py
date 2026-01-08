@@ -1543,8 +1543,8 @@ def update_yaml_file(yaml_path, recommendations, original_yaml, file_path_or_url
                 is_step = False
                 step_name_match = None
                 
-                # Pattern 1: "  - name: stepname"
-                if re.match(r'^\s+-\s+name:\s+', line) and line_indent == 2:
+                # Pattern 1: "    - name: stepname" (4 spaces: 2 for steps:, 2 for list item)
+                if re.match(r'^\s+-\s+name:\s+', line) and line_indent == 4:
                     is_step = True
                     step_name_match = re.search(r'name:\s+(.+)$', line)
                 # Pattern 2: "    name: stepname" (not starting with "-")
@@ -1598,8 +1598,8 @@ def update_yaml_file(yaml_path, recommendations, original_yaml, file_path_or_url
                 if search_idx < len(lines):
                     search_line = lines[search_idx]
                     line_indent = len(search_line) - len(search_line.lstrip())
-                    # Check Pattern 1: "  - name: stepname"
-                    if re.match(r'^\s+-\s+name:\s+', search_line) and line_indent == 2:
+                    # Check Pattern 1: "    - name: stepname" (4 spaces: 2 for steps:, 2 for list item)
+                    if re.match(r'^\s+-\s+name:\s+', search_line) and line_indent == 4:
                         name_match = re.search(r'name:\s+(.+)$', search_line)
                         if name_match and name_match.group(1).strip() == step_name:
                             current_step_line = search_idx
@@ -1642,8 +1642,8 @@ def update_yaml_file(yaml_path, recommendations, original_yaml, file_path_or_url
                             if 'workspaces:' in search_line or 'results:' in search_line or 'volumes:' in search_line:
                                 break
                         
-                        # Check for step name
-                        if re.match(r'^\s+-\s+name:\s+', search_line) and line_indent == 2:
+                        # Check for step name (4 spaces: 2 for steps:, 2 for list item)
+                        if re.match(r'^\s+-\s+name:\s+', search_line) and line_indent == 4:
                             name_match = re.search(r'name:\s+(.+)$', search_line)
                             if name_match and name_match.group(1).strip() == step_name:
                                 current_step_line = search_idx
