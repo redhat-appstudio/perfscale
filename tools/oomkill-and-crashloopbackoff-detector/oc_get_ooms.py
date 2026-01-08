@@ -28,7 +28,7 @@ import re
 import sys
 import time
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional, Set, Pattern
@@ -244,7 +244,7 @@ def parse_timestamp_to_iso(ts: str) -> str:
 
 
 def now_ts_for_filename() -> str:
-    return datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
 # ---------------------------
@@ -315,7 +315,7 @@ def get_all_events_oc(
 
     # Filter by time range if provided
     if time_range_seconds:
-        cutoff_time = datetime.utcnow().timestamp() - time_range_seconds
+        cutoff_time = datetime.now(timezone.utc).timestamp() - time_range_seconds
         filtered_events = []
         for ev in events:
             ts = (
