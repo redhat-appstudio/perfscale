@@ -250,7 +250,7 @@ def check_cluster_connectivity(wrapper_path):
                 ['kubectl', 'config', 'get-contexts', '-o', 'name'],
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=120  # 2 minutes timeout for connectivity check
             )
             if result.returncode == 0:
                 contexts = [c.strip() for c in result.stdout.strip().split('\n') if c.strip()]
@@ -270,7 +270,7 @@ def check_cluster_connectivity(wrapper_path):
                             ['kubectl', 'config', 'get-contexts', '-o', 'name'],
                             capture_output=True,
                             text=True,
-                            timeout=10
+                            timeout=120  # 2 minutes timeout for connectivity check
                         )
                         if result.returncode == 0:
                             contexts = [c.strip() for c in result.stdout.strip().split('\n') if c.strip()]
@@ -298,15 +298,15 @@ def check_cluster_connectivity(wrapper_path):
                     ['kubectl', 'config', 'use-context', ctx],
                     capture_output=True,
                     text=True,
-                    timeout=10
+                    timeout=120  # 2 minutes timeout for connectivity check
                 )
                 if result.returncode == 0:
                     # Try a simple kubectl command to verify connectivity
                     test_result = subprocess.run(
-                        ['kubectl', 'get', 'namespaces', '--request-timeout=5s'],
+                        ['kubectl', 'get', 'namespaces', '--request-timeout=2m'],
                         capture_output=True,
                         text=True,
-                        timeout=10
+                        timeout=120  # 2 minutes timeout for connectivity check
                     )
                     if test_result.returncode == 0:
                         # Use display name for report, but ctx (full context) is still used for operations
@@ -403,7 +403,7 @@ def extract_cluster_list(wrapper_path):
                 ['kubectl', 'config', 'get-contexts', '-o', 'name'],
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=120  # 2 minutes timeout for connectivity check
             )
             if result.returncode == 0:
                 contexts = [c.strip() for c in result.stdout.strip().split('\n') if c.strip()]
@@ -421,7 +421,7 @@ def extract_cluster_list(wrapper_path):
                             ['kubectl', 'config', 'get-contexts', '-o', 'name'],
                             capture_output=True,
                             text=True,
-                            timeout=10
+                            timeout=120  # 2 minutes timeout for connectivity check
                         )
                         if result.returncode == 0:
                             contexts = [c.strip() for c in result.stdout.strip().split('\n') if c.strip()]
@@ -603,7 +603,7 @@ def process_single_cluster(cluster_ctx, temp_wrapper_path, days, steps_str, task
             text=True,
             cwd=temp_wrapper_path.parent,
             env=env,
-            timeout=3600  # 1 hour timeout per cluster
+            timeout=10800  # 3 hours timeout per cluster
         )
         
         # Clean up temporary kubeconfig
@@ -640,7 +640,7 @@ def process_single_cluster(cluster_ctx, temp_wrapper_path, days, steps_str, task
         return (cluster_ctx, '\n'.join(data_lines), None)
     
     except subprocess.TimeoutExpired:
-        return (cluster_ctx, None, "Timeout after 1 hour")
+        return (cluster_ctx, None, "Timeout after 3 hours")
     except Exception as e:
         return (cluster_ctx, None, str(e)[:200])
 
