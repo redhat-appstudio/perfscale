@@ -28,7 +28,7 @@ query() {
     log "Query: $qry"
     local result
     local retry_count=0
-    local max_retries=2
+    local max_retries=10
     
     # Retry logic for handling transient interruptions
     while [ "$retry_count" -le "$max_retries" ]; do
