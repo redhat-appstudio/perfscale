@@ -487,19 +487,37 @@ def get_cluster_display_name(cluster_ctx):
     return cluster_ctx.split('/')[-1] if '/' in cluster_ctx else cluster_ctx
 
 
-def _spinner_thread(stop_event):
-    """Display a spinning wheel while processing clusters.
+def _spinner_thread(stop_event, progress_data=None, progress_lock=None, total_clusters=0):
+    """Display a spinning wheel with percentage progress while processing clusters.
     
     Args:
         stop_event: threading.Event to signal when to stop spinning
+        progress_data: dict with 'completed' list (optional, for percentage calculation)
+        progress_lock: threading.Lock for thread-safe access to progress_data (optional)
+        total_clusters: total number of clusters being processed (for percentage calculation)
     """
     spinner_chars = ['|', '/', '-', '\\']
     idx = 0
-    message = "Getting information from all clusters: "
     
     while not stop_event.is_set():
+        # Calculate percentage if we have progress data
+        percentage = 0
+        if progress_data and total_clusters > 0:
+            if progress_lock:
+                with progress_lock:
+                    completed_count = len(progress_data.get('completed', []))
+            else:
+                completed_count = len(progress_data.get('completed', []))
+            percentage = int((completed_count / total_clusters) * 100)
+        
+        # Build message with percentage and spinner
+        if percentage > 0:
+            message = f"Getting information from all clusters: (Completed No. of clusters: {percentage}%) {spinner_chars[idx % len(spinner_chars)]}"
+        else:
+            message = f"Getting information from all clusters: {spinner_chars[idx % len(spinner_chars)]}"
+        
         # Print spinner on the same line, overwriting previous output
-        print(f"\r{message}{spinner_chars[idx % len(spinner_chars)]}", end='', file=sys.stderr)
+        print(f"\r{message}", end='', file=sys.stderr)
         sys.stderr.flush()
         idx += 1
         time.sleep(0.2)  # Update spinner every 200ms
@@ -753,14 +771,19 @@ def run_data_collection(task_name, steps, days=7, show_table=True, dry_run=False
                 assert len(clusters) == num_clusters, f"Cluster count mismatch: {len(clusters)} != {num_clusters}"
                 assert len(set(clusters)) == num_clusters, f"Duplicate clusters found: {len(set(clusters))} != {num_clusters}"
                 
-                # Process clusters in parallel with simple spinner
+                # Process clusters in parallel with progress spinner
                 steps_str = ' '.join(f'step-{s}' if not s.startswith('step-') else s for s in steps)
                 all_results = []
                 errors = []
                 
-                # Start spinner thread
+                # Track progress for spinner
+                progress_data = {'completed': []}
+                progress_lock = Lock()
+                total_clusters = len(clusters)
+                
+                # Start spinner thread with progress tracking
                 spinner_stop = Event()
-                spinner_thread_obj = Thread(target=_spinner_thread, args=(spinner_stop,), daemon=True)
+                spinner_thread_obj = Thread(target=_spinner_thread, args=(spinner_stop, progress_data, progress_lock, total_clusters), daemon=True)
                 spinner_thread_obj.start()
                 
                 try:
@@ -782,6 +805,12 @@ def run_data_collection(task_name, steps, days=7, show_table=True, dry_run=False
                         for future in as_completed(futures):
                             cluster_ctx, csv_data, error = future.result()
                             cluster_name = get_cluster_display_name(cluster_ctx)
+                            
+                            # Update progress: mark cluster as completed
+                            with progress_lock:
+                                if cluster_name not in progress_data['completed']:
+                                    progress_data['completed'].append(cluster_name)
+                            
                             if error:
                                 errors.append((cluster_name, error))
                             elif csv_data and csv_data.strip():
@@ -794,8 +823,12 @@ def run_data_collection(task_name, steps, days=7, show_table=True, dry_run=False
                     spinner_stop.set()
                     spinner_thread_obj.join(timeout=1.0)  # Wait up to 1 second for spinner to stop
                 
-                # Print summary of results on clean lines (no interference from progress lines)
+                # Print final progress message and separator before summary
                 print("="*80, file=sys.stderr)
+                print("Getting information from all clusters: (Completed No. of clusters: 100%)", file=sys.stderr)
+                print("="*80, file=sys.stderr)
+                
+                # Print summary of results on clean lines (no interference from progress lines)
                 print("Data Collection Summary", file=sys.stderr)
                 print("="*80, file=sys.stderr)
                 
@@ -924,9 +957,14 @@ def run_data_collection(task_name, steps, days=7, show_table=True, dry_run=False
                 all_results = []
                 errors = []
                 
-                # Start spinner thread for progress indication
+                # Track progress for spinner
+                progress_data = {'completed': []}
+                progress_lock = Lock()
+                total_clusters = len(clusters)
+                
+                # Start spinner thread with progress tracking
                 spinner_stop = Event()
-                spinner_thread_obj = Thread(target=_spinner_thread, args=(spinner_stop,), daemon=True)
+                spinner_thread_obj = Thread(target=_spinner_thread, args=(spinner_stop, progress_data, progress_lock, total_clusters), daemon=True)
                 spinner_thread_obj.start()
                 
                 try:
@@ -940,6 +978,12 @@ def run_data_collection(task_name, steps, days=7, show_table=True, dry_run=False
                             task_name
                         )
                         cluster_name = get_cluster_display_name(cluster_ctx)
+                        
+                        # Update progress: mark cluster as completed
+                        with progress_lock:
+                            if cluster_name not in progress_data['completed']:
+                                progress_data['completed'].append(cluster_name)
+                        
                         if error:
                             errors.append((cluster_name, error))
                         elif csv_data and csv_data.strip():
@@ -952,8 +996,12 @@ def run_data_collection(task_name, steps, days=7, show_table=True, dry_run=False
                     spinner_stop.set()
                     spinner_thread_obj.join(timeout=1.0)
                 
-                # Print summary of results on clean lines (matching parallel mode)
+                # Print final progress message and separator before summary
                 print("="*80, file=sys.stderr)
+                print("Getting information from all clusters: (Completed No. of clusters: 100%)", file=sys.stderr)
+                print("="*80, file=sys.stderr)
+                
+                # Print summary of results on clean lines (matching parallel mode)
                 print("Data Collection Summary", file=sys.stderr)
                 print("="*80, file=sys.stderr)
                 
