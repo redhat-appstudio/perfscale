@@ -247,6 +247,8 @@ The `analyze_resource_limits.py` script analyzes resource consumption data and p
 
 **Usage Examples:**
 
+## Basic Usage Patterns
+
 **1. Analyze from piped CSV input:**
 ```bash
 ./wrapper_for_promql_for_all_clusters.sh 7 --csv | ./analyze_resource_limits.py
@@ -262,73 +264,245 @@ The `analyze_resource_limits.py` script analyzes resource consumption data and p
 ./analyze_resource_limits.py --file https://github.com/konflux-ci/build-definitions/blob/main/task/buildah/0.7/buildah.yaml
 ```
 
-**4. Analyze with custom margin and base metric:**
+## Base Metric Options
+
+The tool supports four base metrics for calculating recommendations. The default is `max`, but you can choose based on your risk tolerance:
+
+**4. Using Max (default - most conservative):**
 ```bash
-./analyze_resource_limits.py --file /path/to/buildah.yaml --margin 5 --base p95 --days 10
+# Uses maximum observed usage across all clusters
+./analyze_resource_limits.py --file /path/to/buildah.yaml --base max --margin 10
 ```
 
-**5. Two-step workflow (recommended for review):**
+**5. Using P95 (recommended for production):**
+```bash
+# Uses 95th percentile - covers 95% of usage patterns
+./analyze_resource_limits.py --file /path/to/buildah.yaml --base p95 --margin 10
+```
+
+**6. Using P90 (more aggressive):**
+```bash
+# Uses 90th percentile - covers 90% of usage patterns
+./analyze_resource_limits.py --file /path/to/buildah.yaml --base p90 --margin 10
+```
+
+**7. Using Median (most aggressive):**
+```bash
+# Uses median usage - covers 50% of usage patterns
+./analyze_resource_limits.py --file /path/to/buildah.yaml --base median --margin 10
+```
+
+## Margin Configuration
+
+**8. Custom safety margin (default is 10%):**
+```bash
+# Add 5% safety margin
+./analyze_resource_limits.py --file /path/to/buildah.yaml --margin 5
+
+# Add 20% safety margin
+./analyze_resource_limits.py --file /path/to/buildah.yaml --margin 20
+
+# Combine with base metric
+./analyze_resource_limits.py --file /path/to/buildah.yaml --base p95 --margin 15
+```
+
+## Time Range Configuration
+
+**9. Custom data collection period (default is 7 days):**
+```bash
+# Analyze last 1 day
+./analyze_resource_limits.py --file /path/to/buildah.yaml --days 1
+
+# Analyze last 10 days
+./analyze_resource_limits.py --file /path/to/buildah.yaml --days 10
+
+# Analyze last 30 days
+./analyze_resource_limits.py --file /path/to/buildah.yaml --days 30
+
+# Combine with other options
+./analyze_resource_limits.py --file /path/to/buildah.yaml --days 10 --base p95 --margin 5
+```
+
+## Parallel Processing
+
+**10. Parallel cluster processing (faster for multiple clusters):**
+```bash
+# Process 3 clusters concurrently
+./analyze_resource_limits.py --file /path/to/buildah.yaml --pll-clusters 3
+
+# Process 5 clusters concurrently
+./analyze_resource_limits.py --file /path/to/buildah.yaml --pll-clusters 5
+
+# Combine with other options
+./analyze_resource_limits.py --file /path/to/buildah.yaml --pll-clusters 3 --days 10 --base p95 --margin 5
+```
+
+## Update Workflows
+
+**11. Two-step workflow (recommended for review):**
 ```bash
 # Step 1: Generate and cache recommendations (shows table format output)
-./analyze_resource_limits.py --file https://github.com/.../buildah.yaml --margin 5 --days 10
+./analyze_resource_limits.py --file https://github.com/.../buildah.yaml --margin 5 --days 10 --base p95
 
 # Step 2: Review cached recommendations and apply (shows comparison table)
 ./analyze_resource_limits.py --update
 ```
 
-**6. Update local YAML file directly:**
+**12. Update local YAML file directly:**
 ```bash
+# Analyzes and updates in one step
 ./analyze_resource_limits.py --file /path/to/buildah.yaml --update
 ```
 
-**7. Update local file using cache (no re-analysis):**
+**13. Update local file using cache (no re-analysis):**
 ```bash
 # Step 1: Generate cache from URL (long operation)
-./analyze_resource_limits.py --file https://github.com/.../buildah.yaml --margin 5 --days 10
+./analyze_resource_limits.py --file https://github.com/.../buildah.yaml --margin 5 --days 10 --base p95
 
 # Step 2: Update local file using cache (fast, no re-analysis)
 ./analyze_resource_limits.py --update --file /path/to/local/buildah.yaml
 ```
 
-**8. Force re-analysis when updating local file:**
+**14. Force re-analysis when updating local file:**
 ```bash
 # Re-run analysis and update local file
 ./analyze_resource_limits.py --update --file /path/to/local/buildah.yaml --analyze-again
+
+# With custom parameters
+./analyze_resource_limits.py --update --file /path/to/local/buildah.yaml --analyze-again --margin 10 --base max --days 7
 ```
 
-**9. Update with specific parameters:**
+**15. Update with specific parameters (uses cache if available, otherwise runs analysis):**
 ```bash
-./analyze_resource_limits.py --file /path/to/buildah.yaml --update --margin 10 --base max
+# Parameters are used for analysis if cache doesn't exist
+./analyze_resource_limits.py --file /path/to/buildah.yaml --update --margin 10 --base max --days 7
 ```
 
-**10. Enable debug output:**
+## Debug and Validation
+
+**16. Enable debug output:**
 ```bash
 # Show detailed processing information
+./analyze_resource_limits.py --file /path/to/buildah.yaml --debug
+
+# Debug with update
 ./analyze_resource_limits.py --update --file /path/to/buildah.yaml --debug
+
+# Debug with all options
+./analyze_resource_limits.py --file /path/to/buildah.yaml --pll-clusters 3 --days 10 --base p95 --margin 5 --debug
 ```
 
-**11. Parallel cluster processing (faster for multiple clusters):**
-```bash
-# Process clusters in parallel with 3 workers
-./analyze_resource_limits.py --file /path/to/buildah.yaml --pll-clusters 3
-```
-
-**12. Dry-run: Validate task/steps and check cluster connectivity:**
+**17. Dry-run: Validate task/steps and check cluster connectivity:**
 ```bash
 # Check connectivity and validate configuration without running data collection
+./analyze_resource_limits.py --file /path/to/buildah.yaml --dry-run
+
+# Dry-run with debug for more details
+./analyze_resource_limits.py --file /path/to/buildah.yaml --dry-run --debug
+```
+
+## Complete Examples with All Options
+
+**18. Full-featured analysis:**
+```bash
+# Analyze with P95 base, 15% margin, 10 days data, 4 parallel workers, debug output
+./analyze_resource_limits.py --file /path/to/buildah.yaml --base p95 --margin 15 --days 10 --pll-clusters 4 --debug
+```
+
+**19. Full-featured update workflow:**
+```bash
+# Step 1: Analyze with custom parameters
+./analyze_resource_limits.py --file https://github.com/.../buildah.yaml --base p95 --margin 15 --days 10 --pll-clusters 4
+
+# Step 2: Update local file using cache
+./analyze_resource_limits.py --update --file /path/to/local/buildah.yaml --debug
+```
+
+**20. Piped input with analysis:**
+```bash
+# Collect data and analyze in one command
+./wrapper_for_promql_for_all_clusters.sh 7 --csv | ./analyze_resource_limits.py
+```
+
+## Common Workflow Combinations
+
+**Conservative approach (production-ready):**
+```bash
+./analyze_resource_limits.py --file /path/to/buildah.yaml --base max --margin 20 --days 14
+```
+
+**Balanced approach (recommended):**
+```bash
+./analyze_resource_limits.py --file /path/to/buildah.yaml --base p95 --margin 10 --days 7
+```
+
+**Aggressive optimization (cost-saving):**
+```bash
+./analyze_resource_limits.py --file /path/to/buildah.yaml --base p90 --margin 5 --days 7
+```
+
+**Quick validation:**
+```bash
 ./analyze_resource_limits.py --file /path/to/buildah.yaml --dry-run
 ```
 
 **Command-line Options:**
-- `--file FILE` - YAML file path or GitHub URL to analyze (auto-runs data collection)
-- `--update` - Update the YAML file with recommended resource limits. If `--file` is not provided, uses cached recommendations from the last run. If `--file <local_file>` is provided, loads from cache (or runs analysis if no cache exists)
-- `--analyze-again`, `--aa` - Force re-analysis even when cache exists (only used with `--update --file`)
-- `--margin MARGIN` - Safety margin percentage (default: 10)
-- `--base {max,p95,p90,median}` - Base metric for margin calculation (default: max)
-- `--days DAYS` - Number of days for data collection when using `--file` (default: 7)
-- `--debug` - Enable debug output showing detailed processing information (step detection, computeResources updates, etc.)
-- `--pll-clusters N` - Enable parallel processing across clusters with N workers (only during analysis, ignored during --update)
-- `--dry-run` - Validate task/steps and check cluster connectivity without running data collection
+
+- **`--file FILE`** - YAML file path or GitHub URL to analyze (auto-runs data collection)
+  - Can be a local file path or a GitHub URL
+  - When provided, automatically extracts task/step info and runs data collection
+  - Required for initial analysis, optional when using `--update` with cache
+
+- **`--update`** - Update the YAML file with recommended resource limits
+  - Without `--file`: Uses cached recommendations from the most recent run
+  - With `--file <local_file>`: Loads from cache if available, otherwise runs analysis first
+  - Updates local files directly, generates patch files for GitHub URLs
+  - Shows comparison table before applying changes
+
+- **`--analyze-again`, `--aa`** - Force re-analysis even when cache exists
+  - Only effective when used with `--update --file`
+  - Ignores existing cache and runs fresh analysis before updating
+  - Useful when you want to re-analyze with different parameters
+
+- **`--margin MARGIN`** - Safety margin percentage to add to base metric (default: 10)
+  - Formula: `recommended = base_metric * (1 + margin / 100)`
+  - Common values: 5% (aggressive), 10% (balanced), 20% (conservative)
+  - Applied to both memory and CPU recommendations
+  - Final recommendation is capped at maximum observed value
+
+- **`--base {max,p95,p90,median}`** - Base metric for margin calculation (default: max)
+  - **`max`**: Maximum observed usage across all clusters (most conservative, default)
+  - **`p95`**: 95th percentile usage (recommended for production, covers 95% of cases)
+  - **`p90`**: 90th percentile usage (more aggressive, covers 90% of cases)
+  - **`median`**: Median usage (most aggressive, covers 50% of cases)
+  - Falls back to `max` if selected percentile data is unavailable
+  - The tool finds the maximum of the selected metric across all clusters, then adds margin
+
+- **`--days DAYS`** - Number of days for data collection when using `--file` (default: 7)
+  - Range: Typically 1-30+ days
+  - Longer periods provide more data but take longer to collect
+  - Shorter periods are faster but may miss periodic spikes
+  - Only used when `--file` is provided (not with piped input)
+
+- **`--debug`** - Enable debug output showing detailed processing information
+  - Shows step detection logic, YAML parsing details
+  - Displays computeResources update operations
+  - Useful for troubleshooting YAML update issues
+  - Can be combined with any other option
+
+- **`--pll-clusters N`** - Enable parallel processing across clusters with N workers
+  - Only active during analysis phase (ignored during `--update`)
+  - Processes N clusters concurrently for faster data collection
+  - Each cluster uses a process-specific kubeconfig to avoid conflicts
+  - Recommended for environments with many clusters (e.g., `--pll-clusters 3` or `--pll-clusters 5`)
+  - Serial mode (default) processes clusters one by one
+
+- **`--dry-run`** - Validate task/steps and check cluster connectivity without running data collection
+  - Validates wrapper-defined steps against YAML file steps
+  - Checks connectivity to all configured clusters
+  - Displays cluster connectivity report
+  - Exits without running data collection or analysis
+  - Useful for troubleshooting configuration issues before full analysis
 
 **How it works:**
 
@@ -380,6 +554,32 @@ The `analyze_resource_limits.py` script analyzes resource consumption data and p
    - Displays cluster connectivity report with short cluster names
    - Exits without running data collection or analysis
    - Useful for troubleshooting configuration issues before running full analysis
+
+**Understanding Base Metrics:**
+
+The tool calculates recommendations using a two-step process:
+
+1. **Collect metrics per cluster**: For each step, the tool collects Max, P95, P90, and Median values from each cluster
+2. **Find maximum across clusters**: For the selected base metric, it finds the maximum value across all clusters
+3. **Add safety margin**: Applies the margin percentage to this maximum value
+4. **Cap at observed maximum**: Final recommendation never exceeds the maximum observed value
+
+**Example calculation with `--base p95 --margin 10`:**
+- Cluster A: P95 memory = 2Gi
+- Cluster B: P95 memory = 3Gi  
+- Cluster C: P95 memory = 2.5Gi
+- Maximum P95 across clusters = 3Gi
+- Base for calculation = 3Gi
+- Recommended = 3Gi × (1 + 10/100) = 3.3Gi
+- If max observed memory was 3.5Gi, recommendation is capped at 3.5Gi
+- Final recommendation (after rounding) = 4Gi
+
+**Choosing the Right Base Metric:**
+
+- **`max`** (default): Safest choice, ensures all observed usage patterns are covered. Use for production workloads where reliability is critical.
+- **`p95`**: Recommended for most production workloads. Covers 95% of usage patterns, provides good balance between safety and resource efficiency.
+- **`p90`**: More aggressive, suitable for cost optimization when occasional OOM kills are acceptable. Covers 90% of usage patterns.
+- **`median`**: Most aggressive, only covers 50% of usage patterns. Use only for non-critical workloads or when cost is the primary concern.
 
 **Example Output:**
 

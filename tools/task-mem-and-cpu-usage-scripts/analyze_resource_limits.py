@@ -1978,33 +1978,80 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # From piped input:
-  ./wrapper_for_promql_for_all_clusters.sh 7 --csv | ./analyze_resource_limits.py
+  Basic Usage:
+    # From piped input:
+    ./wrapper_for_promql_for_all_clusters.sh 7 --csv | ./analyze_resource_limits.py
 
-  # From YAML file (auto-runs data collection):
-  ./analyze_resource_limits.py --file /path/to/buildah.yaml
-  ./analyze_resource_limits.py --file https://github.com/.../buildah.yaml
+    # From YAML file (auto-runs data collection):
+    ./analyze_resource_limits.py --file /path/to/buildah.yaml
+    ./analyze_resource_limits.py --file https://github.com/.../buildah.yaml
 
-  # Update YAML file with recommendations:
-  ./analyze_resource_limits.py --file /path/to/buildah.yaml --update
-  
-  # Update using cached recommendations (from previous run):
-  ./analyze_resource_limits.py --update
-  
-  # Update local file using cache (no re-analysis):
-  ./analyze_resource_limits.py --update --file /path/to/local/buildah.yaml
-  
-  # Force re-analysis and update local file:
-  ./analyze_resource_limits.py --update --file /path/to/local/buildah.yaml --analyze-again
-  
-  # Enable debug output for troubleshooting:
-  ./analyze_resource_limits.py --update --file /path/to/local/buildah.yaml --debug
-  
-  # Dry-run: Validate task/steps and check cluster connectivity:
-  ./analyze_resource_limits.py --file /path/to/buildah.yaml --dry-run
-  
-  # Parallel processing across clusters (faster for multiple clusters):
-  ./analyze_resource_limits.py --file /path/to/buildah.yaml --pll-clusters 3
+  Base Metric Options (default: max):
+    # Using Max (most conservative):
+    ./analyze_resource_limits.py --file /path/to/buildah.yaml --base max
+
+    # Using P95 (recommended for production):
+    ./analyze_resource_limits.py --file /path/to/buildah.yaml --base p95
+
+    # Using P90 (more aggressive):
+    ./analyze_resource_limits.py --file /path/to/buildah.yaml --base p90
+
+    # Using Median (most aggressive):
+    ./analyze_resource_limits.py --file /path/to/buildah.yaml --base median
+
+  Margin and Time Range:
+    # Custom safety margin (default: 10%):
+    ./analyze_resource_limits.py --file /path/to/buildah.yaml --margin 5
+    ./analyze_resource_limits.py --file /path/to/buildah.yaml --margin 20
+
+    # Custom data collection period (default: 7 days):
+    ./analyze_resource_limits.py --file /path/to/buildah.yaml --days 1
+    ./analyze_resource_limits.py --file /path/to/buildah.yaml --days 10
+    ./analyze_resource_limits.py --file /path/to/buildah.yaml --days 30
+
+    # Combine options:
+    ./analyze_resource_limits.py --file /path/to/buildah.yaml --base p95 --margin 15 --days 10
+
+  Parallel Processing:
+    # Process multiple clusters concurrently:
+    ./analyze_resource_limits.py --file /path/to/buildah.yaml --pll-clusters 3
+    ./analyze_resource_limits.py --file /path/to/buildah.yaml --pll-clusters 5
+
+    # Combine with other options:
+    ./analyze_resource_limits.py --file /path/to/buildah.yaml --pll-clusters 3 --days 10 --base p95 --margin 5
+
+  Update Workflows:
+    # Update YAML file with recommendations:
+    ./analyze_resource_limits.py --file /path/to/buildah.yaml --update
+
+    # Update using cached recommendations (from previous run):
+    ./analyze_resource_limits.py --update
+
+    # Update local file using cache (no re-analysis):
+    ./analyze_resource_limits.py --update --file /path/to/local/buildah.yaml
+
+    # Force re-analysis and update local file:
+    ./analyze_resource_limits.py --update --file /path/to/local/buildah.yaml --analyze-again
+
+    # Update with specific parameters:
+    ./analyze_resource_limits.py --file /path/to/buildah.yaml --update --margin 10 --base max --days 7
+
+  Debug and Validation:
+    # Enable debug output:
+    ./analyze_resource_limits.py --file /path/to/buildah.yaml --debug
+    ./analyze_resource_limits.py --update --file /path/to/buildah.yaml --debug
+
+    # Dry-run: Validate task/steps and check cluster connectivity:
+    ./analyze_resource_limits.py --file /path/to/buildah.yaml --dry-run
+    ./analyze_resource_limits.py --file /path/to/buildah.yaml --dry-run --debug
+
+  Complete Examples:
+    # Full-featured analysis:
+    ./analyze_resource_limits.py --file /path/to/buildah.yaml --base p95 --margin 15 --days 10 --pll-clusters 4 --debug
+
+    # Two-step workflow (recommended):
+    ./analyze_resource_limits.py --file https://github.com/.../buildah.yaml --base p95 --margin 10 --days 7
+    ./analyze_resource_limits.py --update
         """
     )
     parser.add_argument(
