@@ -1382,22 +1382,24 @@ def print_analysis(recommendations, margin_pct, base='max', current_resources=No
         print_comparison_table(recommendations, current_resources)
 
 
-def get_cache_file_path(file_path_or_url):
-    """Generate cache file path based on file path or URL."""
+def get_cache_file_path(task_name):
+    """Generate cache file path based on task name."""
     script_dir = Path(__file__).parent
     cache_dir = script_dir / '.analyze_cache'
     cache_dir.mkdir(exist_ok=True)
     
-    # Create a hash of the file path/URL for cache filename
-    cache_key = hashlib.md5(file_path_or_url.encode()).hexdigest()
-    return cache_dir / f"{cache_key}.json"
+    # Use task name as cache filename (sanitize for filesystem)
+    # Replace any characters that might be problematic in filenames
+    safe_task_name = re.sub(r'[^a-zA-Z0-9_-]', '_', task_name)
+    return cache_dir / f"{safe_task_name}.json"
 
 
-def save_recommendations_cache(file_path_or_url, recommendations, margin_pct, base, days):
-    """Save recommendations to cache file."""
-    cache_file = get_cache_file_path(file_path_or_url)
+def save_recommendations_cache(task_name, file_path_or_url, recommendations, margin_pct, base, days):
+    """Save recommendations to cache file based on task name."""
+    cache_file = get_cache_file_path(task_name)
     
     cache_data = {
+        'task_name': task_name,
         'file_path_or_url': file_path_or_url,
         'timestamp': datetime.now().isoformat(),
         'margin_pct': margin_pct,
@@ -1409,12 +1411,12 @@ def save_recommendations_cache(file_path_or_url, recommendations, margin_pct, ba
     with open(cache_file, 'w') as f:
         json.dump(cache_data, f, indent=2)
     
-    print(f"Cached recommendations to: {cache_file}", file=sys.stderr)
+    print(f"Cached recommendations for task '{task_name}' to: {cache_file}", file=sys.stderr)
 
 
-def load_recommendations_cache(file_path_or_url):
-    """Load recommendations from cache file."""
-    cache_file = get_cache_file_path(file_path_or_url)
+def load_recommendations_cache(task_name):
+    """Load recommendations from cache file based on task name."""
+    cache_file = get_cache_file_path(task_name)
     
     if not cache_file.exists():
         return None
@@ -1423,11 +1425,12 @@ def load_recommendations_cache(file_path_or_url):
         with open(cache_file, 'r') as f:
             cache_data = json.load(f)
         
-        # Verify it matches the requested file
-        if cache_data.get('file_path_or_url') == file_path_or_url:
+        # Verify it matches the requested task
+        cached_task_name = cache_data.get('task_name')
+        if cached_task_name == task_name:
             return cache_data
         else:
-            print(f"Warning: Cache file exists but for different file/URL. Ignoring cache.", file=sys.stderr)
+            print(f"Warning: Cache file exists but for different task '{cached_task_name}'. Ignoring cache.", file=sys.stderr)
             return None
     except (json.JSONDecodeError, KeyError) as e:
         print(f"Warning: Failed to load cache file: {e}", file=sys.stderr)
@@ -2112,35 +2115,28 @@ Examples:
     if args.update and args.file:
         # Check if it's a local file (not a URL)
         if not (args.file.startswith('http://') or args.file.startswith('https://')):
-            script_dir = Path(__file__).parent
-            cache_dir = script_dir / '.analyze_cache'
+            # Load the local file YAML to get task_name
+            yaml_content, yaml_path = fetch_yaml_content(args.file)
+            task_name, file_steps, _, current_resources = extract_task_info(yaml_content)
             
-            # Check if cache exists
-            cache_exists = cache_dir.exists() and list(cache_dir.glob('*.json'))
+            if not task_name:
+                print("Error: Could not extract task name from YAML file", file=sys.stderr)
+                sys.exit(1)
             
-            # If cache exists and user didn't request re-analysis, load from cache
-            if cache_exists and not args.analyze_again:
-                # Get most recent cache file
-                cache_files = list(cache_dir.glob('*.json'))
-                cache_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
-                latest_cache = cache_files[0]
-                
-                print(f"Loading recommendations from cache: {latest_cache}", file=sys.stderr)
-                with open(latest_cache, 'r') as f:
-                    cache_data = json.load(f)
-                
-                original_file_path_or_url = cache_data['file_path_or_url']
+            # Load cache for this task_name
+            cache_data = load_recommendations_cache(task_name)
+            
+            # If cache exists and user didn't request re-analysis, use cache
+            if cache_data and not args.analyze_again:
+                original_file_path_or_url = cache_data.get('file_path_or_url', 'unknown')
                 recommendations = cache_data['recommendations']
                 margin_pct = cache_data.get('margin_pct', 10)
                 base = cache_data.get('base', 'max')
                 
+                print(f"Loading recommendations from cache for task '{task_name}'", file=sys.stderr)
                 print(f"Cache info: original_file={original_file_path_or_url}, margin={margin_pct}%, base={base}", file=sys.stderr)
                 print(f"Updating local file: {args.file}", file=sys.stderr)
                 print()
-                
-                # Load the local file YAML to update
-                yaml_content, yaml_path = fetch_yaml_content(args.file)
-                task_name, file_steps, _, current_resources = extract_task_info(yaml_content)
                 
                 # Validate that cached recommendations match the file being updated
                 cache_step_names = set()
@@ -2193,10 +2189,10 @@ Examples:
             else:
                 # No cache exists or user requested re-analysis
                 # Fall through to normal processing to run analysis (with validation)
-                if not cache_exists:
-                    print("No cache found. Running analysis...", file=sys.stderr)
+                if not cache_data:
+                    print(f"No cache found for task '{task_name}'. Running analysis...", file=sys.stderr)
                 else:
-                    print("Re-running analysis as requested (--analyze-again)...", file=sys.stderr)
+                    print(f"Re-running analysis for task '{task_name}' as requested (--analyze-again)...", file=sys.stderr)
                 # Continue to normal processing below (will go through validation flow)
         else:
             # --update --file <URL> - treat as normal update (will generate patch)
@@ -2218,25 +2214,56 @@ Examples:
             print("Error: No cache found. Please run with --file first to generate recommendations.", file=sys.stderr)
             sys.exit(1)
         
-        # Get most recent cache file
-        cache_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
-        latest_cache = cache_files[0]
+        # Load all cache files to show available tasks
+        available_tasks = []
+        for cache_file in cache_files:
+            try:
+                with open(cache_file, 'r') as f:
+                    cache_data = json.load(f)
+                    task_name = cache_data.get('task_name', 'unknown')
+                    file_path = cache_data.get('file_path_or_url', 'unknown')
+                    timestamp = cache_data.get('timestamp', 'unknown')
+                    available_tasks.append((task_name, file_path, timestamp, cache_file))
+            except Exception as e:
+                print(f"Warning: Could not read cache file {cache_file}: {e}", file=sys.stderr)
         
-        print(f"Loading recommendations from cache: {latest_cache}", file=sys.stderr)
+        if not available_tasks:
+            print("Error: No valid cache files found.", file=sys.stderr)
+            sys.exit(1)
+        
+        # Sort by timestamp (most recent first)
+        available_tasks.sort(key=lambda x: x[2], reverse=True)
+        
+        # Show available tasks
+        print("Available cached tasks:", file=sys.stderr)
+        for i, (task_name, file_path, timestamp, _) in enumerate(available_tasks[:5], 1):
+            print(f"  {i}. {task_name} (from {file_path}) - {timestamp}", file=sys.stderr)
+        if len(available_tasks) > 5:
+            print(f"  ... and {len(available_tasks) - 5} more", file=sys.stderr)
+        print()
+        
+        # Use most recent cache
+        task_name, file_path_or_url, timestamp, latest_cache = available_tasks[0]
+        
+        print(f"Using most recent cache for task '{task_name}': {latest_cache}", file=sys.stderr)
         with open(latest_cache, 'r') as f:
             cache_data = json.load(f)
         
-        file_path_or_url = cache_data['file_path_or_url']
         recommendations = cache_data['recommendations']
         margin_pct = cache_data.get('margin_pct', 10)
         base = cache_data.get('base', 'max')
         
-        print(f"Cache info: file={file_path_or_url}, margin={margin_pct}%, base={base}", file=sys.stderr)
+        print(f"Cache info: task={task_name}, file={file_path_or_url}, margin={margin_pct}%, base={base}", file=sys.stderr)
         print()
         
         # Load YAML to update
         yaml_content, yaml_path = fetch_yaml_content(file_path_or_url)
-        task_name, file_steps, _, current_resources = extract_task_info(yaml_content)
+        yaml_task_name, file_steps, _, current_resources = extract_task_info(yaml_content)
+        
+        # Verify task name matches
+        if yaml_task_name != task_name:
+            print(f"Warning: Cache is for task '{task_name}' but file contains task '{yaml_task_name}'", file=sys.stderr)
+            print(f"  Proceeding with update, but steps may not match.", file=sys.stderr)
         
         # Validate that cached recommendations match the file being updated
         cache_step_names = set()
@@ -2395,6 +2422,9 @@ Examples:
         # Only use parallel processing during analysis (not during --update)
         parallel_workers = args.pll_clusters if args.pll_clusters and not args.update else None
         csv_data = run_data_collection(final_task_name, steps_for_collection, args.days, show_table=True, dry_run=False, use_wrapper_values=use_wrapper_values, parallel_clusters=parallel_workers)
+        # Track task_name for caching
+        task_name = final_task_name
+        steps = steps_for_collection
     else:
         # Read from stdin
         if sys.stdin.isatty():
@@ -2445,11 +2475,11 @@ Examples:
     # Print analysis
     print_analysis(recommendations, args.margin, args.base, current_resources)
     
-    # Save to cache if using --file (even without --update)
-    if file_path_or_url:
-        save_recommendations_cache(file_path_or_url, recommendations, args.margin, args.base, args.days)
+    # Save to cache if using --file and we have task_name (even without --update)
+    if file_path_or_url and task_name:
+        save_recommendations_cache(task_name, file_path_or_url, recommendations, args.margin, args.base, args.days)
         if not args.update:
-            print(f"\nRecommendations cached. Run with --update to apply changes.", file=sys.stderr)
+            print(f"\nRecommendations cached for task '{task_name}'. Run with --update to apply changes.", file=sys.stderr)
     
     # Update YAML if requested
     if args.update and file_path_or_url:

@@ -424,6 +424,21 @@ The tool supports four base metrics for calculating recommendations. The default
 ./wrapper_for_promql_for_all_clusters.sh 7 --csv | ./analyze_resource_limits.py
 ```
 
+**21. Multiple independent task analyses (task-based caching):**
+```bash
+# Analyze task1 - saves to task1.json cache
+./analyze_resource_limits.py --file /path/to/task1.yaml --margin 5 --days 10
+
+# Analyze task2 - saves to task2.json cache (independent, doesn't overwrite task1 cache)
+./analyze_resource_limits.py --file /path/to/task2.yaml --margin 10 --days 7
+
+# Update task1 using its cache
+./analyze_resource_limits.py --update --file /path/to/task1.yaml
+
+# Update task2 using its cache
+./analyze_resource_limits.py --update --file /path/to/task2.yaml
+```
+
 ## Common Workflow Combinations
 
 **Conservative approach (production-ready):**
@@ -454,10 +469,11 @@ The tool supports four base metrics for calculating recommendations. The default
   - Required for initial analysis, optional when using `--update` with cache
 
 - **`--update`** - Update the YAML file with recommended resource limits
-  - Without `--file`: Uses cached recommendations from the most recent run
-  - With `--file <local_file>`: Loads from cache if available, otherwise runs analysis first
+  - Without `--file`: Shows all available cached tasks and uses the most recent one to update its original file/URL
+  - With `--file <local_file>`: Extracts task name from the file and loads cache for that specific task (if available), otherwise runs analysis first
   - Updates local files directly, generates patch files for GitHub URLs
   - Shows comparison table before applying changes
+  - **Task-based**: Each task has its own independent cache, allowing multiple tasks to be analyzed and updated separately
 
 - **`--analyze-again`, `--aa`** - Force re-analysis even when cache exists
   - Only effective when used with `--update --file`
@@ -518,7 +534,7 @@ The tool supports four base metrics for calculating recommendations. The default
    - Analyzes data across all clusters for each step
    - Calculates recommendations using selected base metric + safety margin
    - Rounds values to standard Kubernetes resource sizes
-   - Saves recommendations to cache
+   - Saves recommendations to cache (task-based: each task gets its own cache file)
    - Shows detailed analysis and comparison table
    - If `--update` is used: Updates local YAML or generates patch file for remote URLs
    
@@ -539,14 +555,17 @@ The tool supports four base metrics for calculating recommendations. The default
    - Does not cache (no file reference)
 
 3. **With `--update` only (no `--file`):**
-   - Loads most recent cached recommendations
+   - Shows all available cached tasks
+   - Uses the most recent cache for its task
    - Shows comparison table
-   - Applies changes to the original file/URL
+   - Applies changes to the original file/URL for that task
 
 4. **With `--update --file <local_file>`:**
-   - If cache exists: Loads recommendations from cache (no re-analysis), shows comparison table, and updates the local file directly
-   - If no cache exists: Automatically runs analysis (same as `--file` without `--update`), saves to cache, then updates the local file
-   - If `--analyze-again` is provided: Always runs analysis, saves to cache, then updates the local file
+   - Extracts task name from the local file
+   - If cache exists for that task: Loads recommendations from cache (no re-analysis), shows comparison table, and updates the local file directly
+   - If no cache exists for that task: Automatically runs analysis (same as `--file` without `--update`), saves to cache for that task, then updates the local file
+   - If `--analyze-again` is provided: Always runs analysis, saves to cache for that task, then updates the local file
+   - **Task-based**: Each task has its own cache, so updating one task doesn't affect others
 
 5. **With `--dry-run`:**
    - Validates wrapper-defined steps against YAML file steps
@@ -663,11 +682,15 @@ Apply with: patch <original_file> < buildah_20241219_141358.patch
 
 **Caching:**
 - Cache files are stored in `.analyze_cache/` directory
-- Each file/URL gets a unique cache file (MD5 hash of path/URL)
-- Cache includes: recommendations, margin, base metric, days, and timestamp
-- Most recent cache is used when running `--update` without `--file`
-- When using `--update --file <local_file>`, the tool automatically uses cache if available (no re-analysis needed)
-- Use `--analyze-again` flag to force re-analysis even when cache exists
+- **Task-based caching**: Each task gets its own cache file based on task name (e.g., `clair-scan.json`, `buildah.json`)
+- This allows multiple independent analyses and updates:
+  - Run analysis on multiple tasks sequentially without overwriting caches
+  - Each task's cache is independent and can be updated separately
+  - Example: Analyze `task1.yaml` → saves to `task1.json`, then analyze `task2.yaml` → saves to `task2.json` (independent)
+- Cache includes: task name, file path/URL, recommendations, margin, base metric, days, and timestamp
+- When using `--update --file <local_file>`: Extracts task name from the file and loads cache for that specific task
+- When using `--update` without `--file`: Shows all available cached tasks and uses the most recent one
+- Use `--analyze-again` flag to force re-analysis even when cache exists for that task
 
 **Rounding Rules:**
 - **Memory**: 
