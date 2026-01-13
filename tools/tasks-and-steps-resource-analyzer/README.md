@@ -232,6 +232,11 @@ The `analyze_resource_limits.py` script analyzes resource consumption data and p
 - **Automatic Data Collection**: Can extract task/step info from YAML and automatically run data collection
 - **Caching System**: Recommendations are cached, allowing review before applying changes
 - **Comparison Tables**: Shows current vs proposed resource limits side-by-side
+- **HTML Output for Trend Analysis**: Automatically generates HTML files with timestamped filenames:
+  - **CSV Data HTML**: Sortable table of all collected resource usage data (`{task_name}_analyzed_data_{timestamp}.html`)
+  - **Comparison HTML**: Non-sortable table showing current vs proposed resource limits (`{task_name}_comparison_data_{timestamp}.html`)
+  - Files saved in `.analyze_cache/` directory with timestamps for trend analysis
+  - HTML files are browser-compatible with no external dependencies
 - **Configurable Base Metrics**: Choose calculation base (max, P95, P90, median) with configurable safety margin
 - **Patch File Generation**: For remote GitHub URLs, generates `.patch` files for manual review
 - **Smart Rounding**: 
@@ -535,6 +540,9 @@ The tool supports four base metrics for calculating recommendations. The default
    - Calculates recommendations using selected base metric + safety margin
    - Rounds values to standard Kubernetes resource sizes
    - Saves recommendations to cache (task-based: each task gets its own cache file)
+   - Generates HTML files for trend analysis:
+     - CSV data HTML with sortable columns (`{task_name}_analyzed_data_{timestamp}.html`)
+     - Comparison table HTML (`{task_name}_comparison_data_{timestamp}.html`)
    - Shows detailed analysis and comparison table
    - If `--update` is used: Updates local YAML or generates patch file for remote URLs
    
@@ -691,6 +699,23 @@ Apply with: patch <original_file> < buildah_20241219_141358.patch
 - When using `--update --file <local_file>`: Extracts task name from the file and loads cache for that specific task
 - When using `--update` without `--file`: Shows all available cached tasks and uses the most recent one
 - Use `--analyze-again` flag to force re-analysis even when cache exists for that task
+
+**HTML Output Files:**
+- **Automatic Generation**: HTML files are automatically generated during analysis and update operations
+- **CSV Data HTML** (`{task_name}_analyzed_data_{timestamp}.html`):
+  - Contains all collected resource usage data in a sortable HTML table
+  - Click column headers to sort (ascending/descending)
+  - Includes all CSV columns: cluster, task, step, pod info, memory metrics (max, P95, P90, median), CPU metrics (max, P95, P90, median)
+  - Saved when cache is created during analysis
+- **Comparison HTML** (`{task_name}_comparison_data_{timestamp}.html`):
+  - Contains the comparison table showing current vs proposed resource limits
+  - Non-sortable table format
+  - Saved when comparison table is displayed (during analysis and update)
+- **Timestamp Format**: `YYYYMMDD_HHMMSS` (e.g., `20250113_143022`)
+- **File Location**: All HTML files saved in `.analyze_cache/` directory alongside cache files
+- **Trend Analysis**: Timestamped filenames allow tracking changes over time
+- **Browser Compatibility**: HTML files work in any modern browser with no external dependencies
+- **Notification**: Tool prints HTML file locations to stderr when files are saved
 
 **Rounding Rules:**
 - **Memory**: 

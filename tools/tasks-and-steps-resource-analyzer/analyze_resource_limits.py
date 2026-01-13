@@ -1290,10 +1290,21 @@ def analyze_step_data(step_name, step_rows, margin_pct=10, base='max'):
     }
 
 
-def print_comparison_table(recommendations, current_resources=None):
-    """Print comparison table of current vs proposed resource limits."""
+def print_comparison_table(recommendations, current_resources=None, task_name=None):
+    """Print comparison table of current vs proposed resource limits.
+    
+    Also saves the comparison table as HTML if task_name is provided.
+    
+    Args:
+        recommendations: List of recommendation dictionaries
+        current_resources: Dictionary of current resources by step name
+        task_name: Optional task name for HTML file generation
+    
+    Returns:
+        Path to saved HTML file if task_name provided, None otherwise
+    """
     if not recommendations:
-        return
+        return None
     
     print("=" * 100)
     print("RESOURCE LIMITS COMPARISON: CURRENT vs PROPOSED")
@@ -1339,10 +1350,31 @@ def print_comparison_table(recommendations, current_resources=None):
         print(f"{step_name_yaml:<15} {curr_req:<20} {prop_req:<20} {curr_lim:<20} {prop_lim:<20}")
     
     print()
+    
+    # Save as HTML if task_name provided
+    comparison_html_path = None
+    if task_name:
+        timestamp_str = datetime.now().strftime('%Y%m%d_%H%M%S')
+        comparison_html_path = save_comparison_table_to_html(recommendations, current_resources, task_name, timestamp_str)
+        if comparison_html_path:
+            print(f"Saved comparison table as HTML: {comparison_html_path}", file=sys.stderr)
+    
+    return comparison_html_path
 
 
-def print_analysis(recommendations, margin_pct, base='max', current_resources=None):
-    """Print analysis results."""
+def print_analysis(recommendations, margin_pct, base='max', current_resources=None, task_name=None):
+    """Print analysis results.
+    
+    Args:
+        recommendations: List of recommendation dictionaries
+        margin_pct: Margin percentage used
+        base: Base metric used
+        current_resources: Optional dictionary of current resources
+        task_name: Optional task name for HTML file generation
+    
+    Returns:
+        Path to comparison HTML file if saved, None otherwise
+    """
     base_label = recommendations[0]['base_label'] if recommendations and recommendations[0] else base.upper()
     print("=" * 80)
     print(f"RESOURCE LIMIT RECOMMENDATIONS ({base_label} + {margin_pct}% Safety Margin)")
@@ -1377,9 +1409,12 @@ def print_analysis(recommendations, margin_pct, base='max', current_resources=No
         print()
     
     # Print comparison table if current resources are available
+    comparison_html_path = None
     if current_resources:
         print()
-        print_comparison_table(recommendations, current_resources)
+        comparison_html_path = print_comparison_table(recommendations, current_resources, task_name)
+    
+    return comparison_html_path
 
 
 def get_cache_file_path(task_name):
@@ -1394,14 +1429,31 @@ def get_cache_file_path(task_name):
     return cache_dir / f"{safe_task_name}.json"
 
 
-def save_recommendations_cache(task_name, file_path_or_url, recommendations, margin_pct, base, days):
-    """Save recommendations to cache file based on task name."""
+def save_recommendations_cache(task_name, file_path_or_url, recommendations, margin_pct, base, days, csv_data=None):
+    """Save recommendations to cache file based on task name.
+    
+    Also saves CSV data and HTML files with timestamp for trend analysis.
+    
+    Args:
+        task_name: Task name
+        file_path_or_url: Original file path or URL
+        recommendations: List of recommendation dictionaries
+        margin_pct: Margin percentage used
+        base: Base metric used
+        days: Number of days analyzed
+        csv_data: Optional CSV data string to save as HTML
+    
+    Returns:
+        tuple: (cache_file_path, csv_html_path) - paths to saved files
+    """
     cache_file = get_cache_file_path(task_name)
+    timestamp = datetime.now()
+    timestamp_str = timestamp.strftime('%Y%m%d_%H%M%S')
     
     cache_data = {
         'task_name': task_name,
         'file_path_or_url': file_path_or_url,
-        'timestamp': datetime.now().isoformat(),
+        'timestamp': timestamp.isoformat(),
         'margin_pct': margin_pct,
         'base': base,
         'days': days,
@@ -1412,6 +1464,15 @@ def save_recommendations_cache(task_name, file_path_or_url, recommendations, mar
         json.dump(cache_data, f, indent=2)
     
     print(f"Cached recommendations for task '{task_name}' to: {cache_file}", file=sys.stderr)
+    
+    # Save CSV as HTML if provided
+    csv_html_path = None
+    if csv_data:
+        csv_html_path = save_csv_to_html(csv_data, task_name, timestamp_str)
+        if csv_html_path:
+            print(f"Saved CSV data as HTML: {csv_html_path}", file=sys.stderr)
+    
+    return cache_file, csv_html_path
 
 
 def load_recommendations_cache(task_name):
@@ -1435,6 +1496,318 @@ def load_recommendations_cache(task_name):
     except (json.JSONDecodeError, KeyError) as e:
         print(f"Warning: Failed to load cache file: {e}", file=sys.stderr)
         return None
+
+
+def save_csv_to_html(csv_data, task_name, timestamp_str):
+    """Save CSV data as HTML table with sortable columns.
+    
+    Args:
+        csv_data: CSV string with header and data rows
+        task_name: Task name for filename
+        timestamp_str: Timestamp string for filename (format: YYYYMMDD_HHMMSS)
+    
+    Returns:
+        Path to saved HTML file
+    """
+    script_dir = Path(__file__).parent
+    cache_dir = script_dir / '.analyze_cache'
+    cache_dir.mkdir(exist_ok=True)
+    
+    # Sanitize task name for filename
+    safe_task_name = re.sub(r'[^a-zA-Z0-9_-]', '_', task_name)
+    html_filename = f"{safe_task_name}_analyzed_data_{timestamp_str}.html"
+    html_path = cache_dir / html_filename
+    
+    # Parse CSV using csv module for proper handling of quoted fields
+    import io
+    lines = [line.strip() for line in csv_data.strip().split('\n') if line.strip()]
+    if not lines:
+        return None
+    
+    # Parse CSV properly
+    csv_reader = csv.reader(io.StringIO(csv_data))
+    rows = list(csv_reader)
+    
+    if not rows:
+        return None
+    
+    # First row is header
+    headers = [h.strip().strip('"') for h in rows[0]]
+    
+    # Remaining rows are data
+    data_rows = rows[1:] if len(rows) > 1 else []
+    
+    # Generate HTML
+    html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resource Usage Data - {task_name}</title>
+    <style>
+        body {{
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }}
+        h1 {{
+            color: #333;
+            margin-bottom: 20px;
+        }}
+        .info {{
+            margin-bottom: 20px;
+            color: #666;
+        }}
+        table {{
+            border-collapse: collapse;
+            width: 100%;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }}
+        th {{
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+        }}
+        th:hover {{
+            background-color: #45a049;
+        }}
+        th::after {{
+            content: ' ↕';
+            opacity: 0.5;
+            margin-left: 5px;
+        }}
+        th.sorted-asc::after {{
+            content: ' ↑';
+            opacity: 1;
+        }}
+        th.sorted-desc::after {{
+            content: ' ↓';
+            opacity: 1;
+        }}
+        td {{
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }}
+        tr:hover {{
+            background-color: #f5f5f5;
+        }}
+        tr:nth-child(even) {{
+            background-color: #f9f9f9;
+        }}
+    </style>
+    <script>
+        function sortTable(columnIndex) {{
+            const table = document.getElementById('dataTable');
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            const header = table.querySelectorAll('th')[columnIndex];
+            const isAscending = header.classList.contains('sorted-asc');
+            
+            // Remove sort classes from all headers
+            table.querySelectorAll('th').forEach(th => {{
+                th.classList.remove('sorted-asc', 'sorted-desc');
+            }});
+            
+            // Sort rows
+            rows.sort((a, b) => {{
+                const aText = a.cells[columnIndex].textContent.trim();
+                const bText = b.cells[columnIndex].textContent.trim();
+                
+                // Try numeric comparison first
+                const aNum = parseFloat(aText);
+                const bNum = parseFloat(bText);
+                if (!isNaN(aNum) && !isNaN(bNum)) {{
+                    return isAscending ? bNum - aNum : aNum - bNum;
+                }}
+                
+                // String comparison
+                return isAscending ? bText.localeCompare(aText) : aText.localeCompare(bText);
+            }});
+            
+            // Reorder rows
+            rows.forEach(row => tbody.appendChild(row));
+            
+            // Add sort class to header
+            header.classList.add(isAscending ? 'sorted-desc' : 'sorted-asc');
+        }}
+    </script>
+</head>
+<body>
+    <h1>Resource Usage Data - {task_name}</h1>
+    <div class="info">Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
+    <table id="dataTable">
+        <thead>
+            <tr>
+"""
+    
+    # Add headers with click handlers
+    for i, header in enumerate(headers):
+        html_content += f'                <th onclick="sortTable({i})">{header}</th>\n'
+    
+    html_content += """            </tr>
+        </thead>
+        <tbody>
+"""
+    
+    # Add data rows
+    for row in data_rows:
+        html_content += "            <tr>\n"
+        for cell in row:
+            # Escape HTML special characters
+            cell_escaped = str(cell).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
+            html_content += f"                <td>{cell_escaped}</td>\n"
+        html_content += "            </tr>\n"
+    
+    html_content += """        </tbody>
+    </table>
+</body>
+</html>
+"""
+    
+    # Save file
+    with open(html_path, 'w', encoding='utf-8') as f:
+        f.write(html_content)
+    
+    return html_path
+
+
+def save_comparison_table_to_html(recommendations, current_resources, task_name, timestamp_str):
+    """Save comparison table as HTML (non-sortable).
+    
+    Args:
+        recommendations: List of recommendation dictionaries
+        current_resources: Dictionary of current resources by step name
+        task_name: Task name for filename
+        timestamp_str: Timestamp string for filename (format: YYYYMMDD_HHMMSS)
+    
+    Returns:
+        Path to saved HTML file
+    """
+    script_dir = Path(__file__).parent
+    cache_dir = script_dir / '.analyze_cache'
+    cache_dir.mkdir(exist_ok=True)
+    
+    # Sanitize task name for filename
+    safe_task_name = re.sub(r'[^a-zA-Z0-9_-]', '_', task_name)
+    html_filename = f"{safe_task_name}_comparison_data_{timestamp_str}.html"
+    html_path = cache_dir / html_filename
+    
+    # Generate HTML
+    html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resource Limits Comparison - {task_name}</title>
+    <style>
+        body {{
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }}
+        h1 {{
+            color: #333;
+            margin-bottom: 20px;
+        }}
+        .info {{
+            margin-bottom: 20px;
+            color: #666;
+        }}
+        table {{
+            border-collapse: collapse;
+            width: 100%;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }}
+        th {{
+            background-color: #2196F3;
+            color: white;
+            padding: 12px;
+            text-align: left;
+        }}
+        td {{
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }}
+        tr:hover {{
+            background-color: #f5f5f5;
+        }}
+        tr:nth-child(even) {{
+            background-color: #f9f9f9;
+        }}
+    </style>
+</head>
+<body>
+    <h1>Resource Limits Comparison: Current vs Proposed</h1>
+    <div class="info">Task: {task_name}</div>
+    <div class="info">Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
+    <table>
+        <thead>
+            <tr>
+                <th>Step</th>
+                <th>Current Requests</th>
+                <th>Proposed Requests</th>
+                <th>Current Limits</th>
+                <th>Proposed Limits</th>
+            </tr>
+        </thead>
+        <tbody>
+"""
+    
+    # Add data rows
+    for rec in recommendations:
+        if rec is None:
+            continue
+        
+        step_name = rec['step_name']
+        step_name_yaml = step_name.replace('step-', '') if step_name.startswith('step-') else step_name
+        proposed_mem = rec['mem_recommended_k8s']
+        proposed_cpu = rec['cpu_recommended_k8s']
+        
+        # Get current values
+        if current_resources and step_name_yaml in current_resources:
+            curr = current_resources[step_name_yaml]
+            curr_mem_req = curr['requests'].get('memory') or 'null'
+            curr_cpu_req = curr['requests'].get('cpu') or 'null'
+            curr_mem_lim = curr['limits'].get('memory') or 'null'
+            curr_cpu_lim = curr['limits'].get('cpu') or 'null'
+        else:
+            curr_mem_req = 'N/A'
+            curr_cpu_req = 'N/A'
+            curr_mem_lim = 'N/A'
+            curr_cpu_lim = 'N/A'
+        
+        # Format values
+        curr_req = f"{curr_mem_req} / {curr_cpu_req}"
+        curr_lim = f"{curr_mem_lim} / {curr_cpu_lim}"
+        prop_req = f"{proposed_mem} / {proposed_cpu}"
+        prop_lim = f"{proposed_mem} / {proposed_cpu}"
+        
+        html_content += f"""            <tr>
+                <td>{step_name_yaml}</td>
+                <td>{curr_req}</td>
+                <td>{prop_req}</td>
+                <td>{curr_lim}</td>
+                <td>{prop_lim}</td>
+            </tr>
+"""
+    
+    html_content += """        </tbody>
+    </table>
+</body>
+</html>
+"""
+    
+    # Save file
+    with open(html_path, 'w', encoding='utf-8') as f:
+        f.write(html_content)
+    
+    return html_path
 
 
 def generate_diff_patch(original_yaml, updated_yaml, file_path_or_url):
@@ -2174,12 +2547,12 @@ Examples:
                     print("\n" + "="*80, file=sys.stderr)
                     print("DRY-RUN: Would update file with cached recommendations", file=sys.stderr)
                     print("="*80, file=sys.stderr)
-                    print_comparison_table(recommendations, current_resources)
+                    print_comparison_table(recommendations, current_resources, task_name)
                     print("\nDRY-RUN completed. No file was updated.", file=sys.stderr)
                     return
                 
                 # Show comparison table
-                print_comparison_table(recommendations, current_resources)
+                comparison_html_path = print_comparison_table(recommendations, current_resources, task_name)
                 
                 # Update the local file directly (not generate patch)
                 updated = update_yaml_file(yaml_path, recommendations, yaml_content, None, debug=args.debug)
@@ -2296,10 +2669,16 @@ Examples:
             sys.exit(1)
         
         # Show comparison table
-        print_comparison_table(recommendations, current_resources)
+        comparison_html_path = print_comparison_table(recommendations, current_resources, task_name)
         
         # Update YAML
         update_yaml_file(yaml_path, recommendations, yaml_content, file_path_or_url, debug=args.debug)
+        
+        # Print summary of HTML files
+        if comparison_html_path:
+            print(file=sys.stderr)
+            print("HTML file saved for trend analysis:", file=sys.stderr)
+            print(f"  - {comparison_html_path}", file=sys.stderr)
         return
     
     # Determine input source
@@ -2472,17 +2851,22 @@ Examples:
         if rec:
             recommendations.append(rec)
     
-    # Print analysis
-    print_analysis(recommendations, args.margin, args.base, current_resources)
+    # Print analysis (this also saves comparison HTML if current_resources available)
+    comparison_html_path = print_analysis(recommendations, args.margin, args.base, current_resources, task_name)
     
     # Save to cache if using --file and we have task_name (even without --update)
+    csv_html_path = None
     if file_path_or_url and task_name:
-        save_recommendations_cache(task_name, file_path_or_url, recommendations, args.margin, args.base, args.days)
+        # Save cache and CSV HTML (csv_data is available from run_data_collection)
+        cache_file, csv_html_path = save_recommendations_cache(
+            task_name, file_path_or_url, recommendations, args.margin, args.base, args.days, csv_data
+        )
         if not args.update:
             print(f"\nRecommendations cached for task '{task_name}'. Run with --update to apply changes.", file=sys.stderr)
     
     # Update YAML if requested
     if args.update and file_path_or_url:
+        
         if yaml_path and not yaml_path.startswith('http'):
             # Local file - update directly
             updated = update_yaml_file(yaml_path, recommendations, yaml_content, file_path_or_url, debug=args.debug)
@@ -2491,6 +2875,19 @@ Examples:
         elif file_path_or_url.startswith('http'):
             # Remote URL - generate patch file
             update_yaml_file(None, recommendations, yaml_content, file_path_or_url, debug=args.debug)
+    
+    # Print summary of HTML files saved
+    html_files = []
+    if csv_html_path:
+        html_files.append(str(csv_html_path))
+    if comparison_html_path:
+        html_files.append(str(comparison_html_path))
+    
+    if html_files:
+        print(file=sys.stderr)
+        print("HTML files saved for trend analysis:", file=sys.stderr)
+        for html_file in html_files:
+            print(f"  - {html_file}", file=sys.stderr)
 
 
 if __name__ == '__main__':
