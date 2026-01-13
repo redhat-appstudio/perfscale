@@ -389,6 +389,8 @@ open oom_results.html
 cat oom_results.table
 ```
 
+**Note:** If you ran the tool previously, your old files are automatically backed up with timestamps (e.g., `oom_results_13-Jan-2026_12-10-22-EDT.csv`). You can access historical data by opening the timestamped backup files.
+
 The **HTML report** (`oom_results.html`) is particularly useful for:
 - Quick visual overview
 - Sharing with team members
@@ -439,6 +441,37 @@ The **HTML report** (`oom_results.html`) is particularly useful for:
 | `/tmp/<cluster>/*.txt` | Pod forensic artifacts | Text files |
 
 **Note:** All output files are generated automatically in the current directory. The HTML file is fully self-contained and can be opened directly in any web browser by double-clicking it.
+
+### Automatic File Backup
+
+The tool automatically backs up existing output files before generating new ones. If any of the output files (`oom_results.csv`, `oom_results.json`, `oom_results.html`, `oom_results.table`) already exist, they are automatically renamed with a timestamp before new files are created.
+
+**Backup Format:**
+```
+oom_results_<DD-MMM-YYYY_HH-MM-SS-TZ>.csv
+oom_results_<DD-MMM-YYYY_HH-MM-SS-TZ>.json
+oom_results_<DD-MMM-YYYY_HH-MM-SS-TZ>.html
+oom_results_<DD-MMM-YYYY_HH-MM-SS-TZ>.table
+```
+
+**Example:**
+- Existing file: `oom_results.csv`
+- Backed up as: `oom_results_13-Jan-2026_12-10-22-EDT.csv`
+- New file created: `oom_results.csv`
+
+This ensures you can:
+- Keep historical data from previous runs
+- Always have the latest results in standard filenames
+- Compare results across different time periods
+
+The tool will display which files were backed up when you run it:
+```
+Backed up 4 existing file(s):
+  → oom_results_13-Jan-2026_12-10-22-EDT.csv
+  → oom_results_13-Jan-2026_12-10-22-EDT.json
+  → oom_results_13-Jan-2026_12-10-22-EDT.html
+  → oom_results_13-Jan-2026_12-10-22-EDT.table
+```
 
 ---
 

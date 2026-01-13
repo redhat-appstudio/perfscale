@@ -254,6 +254,32 @@ def now_ts_for_filename() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
+def timestamp_for_backup() -> str:
+    """Generate a readable timestamp string for backup filenames.
+    
+    Returns format like: '12-Jan-2026_12-05-57-EST'
+    """
+    now = datetime.now()
+    # Get timezone abbreviation (EST, PST, etc.)
+    tz_abbr = "UTC"
+    try:
+        # Try strftime first
+        tz_str = now.strftime("%Z")
+        if tz_str and tz_str.strip():
+            tz_abbr = tz_str
+        else:
+            # Fallback: use time.tzname
+            import time
+            if time.tzname and len(time.tzname) > 0:
+                tz_abbr = time.tzname[0] if time.daylight == 0 else time.tzname[1]
+    except Exception:
+        # If all else fails, use UTC
+        tz_abbr = "UTC"
+    
+    # Format: DD-MMM-YYYY_HH-MM-SS-TZ
+    return now.strftime(f"%d-%b-%Y_%H-%M-%S-{tz_abbr}")
+
+
 # ---------------------------
 # connectivity
 # ---------------------------
@@ -868,6 +894,57 @@ def run_batches(
 
 
 # ---------------------------
+# file backup utilities
+# ---------------------------
+def backup_existing_file(file_path: Path) -> Optional[Path]:
+    """Backup an existing file by renaming it with a timestamp.
+    
+    Args:
+        file_path: Path to the file to backup
+        
+    Returns:
+        Path to the backup file if backup was successful, None otherwise
+    """
+    if not file_path.exists():
+        return None
+    
+    try:
+        timestamp = timestamp_for_backup()
+        # Get file extension
+        suffix = file_path.suffix
+        stem = file_path.stem
+        backup_name = f"{stem}_{timestamp}{suffix}"
+        backup_path = file_path.parent / backup_name
+        
+        # Rename the file
+        file_path.rename(backup_path)
+        return backup_path
+    except Exception as e:
+        logging.warning(f"Failed to backup {file_path}: {e}")
+        return None
+
+
+def backup_output_files(
+    json_path: Path,
+    csv_path: Path,
+    table_path: Path,
+    html_path: Path,
+) -> None:
+    """Backup existing output files before generating new ones."""
+    backups = []
+    
+    for file_path in [json_path, csv_path, table_path, html_path]:
+        backup_path = backup_existing_file(file_path)
+        if backup_path:
+            backups.append(backup_path)
+    
+    if backups:
+        print(color(f"\nBacked up {len(backups)} existing file(s):", YELLOW))
+        for backup_path in backups:
+            print(color(f"  → {backup_path.name}", YELLOW))
+
+
+# ---------------------------
 # exports & pretty print
 # ---------------------------
 def collect_rows(
@@ -1449,6 +1526,10 @@ def main() -> None:
     csv_path = Path("oom_results.csv")
     table_path = Path("oom_results.table")
     html_path = Path("oom_results.html")
+    
+    # Backup existing files before generating new ones
+    backup_output_files(json_path, csv_path, table_path, html_path)
+    
     export_results(results, json_path, csv_path, table_path, html_path, time_range_str)
 
     pretty_print(results, skipped)
