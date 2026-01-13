@@ -22,7 +22,11 @@ A high-performance, parallel OOMKilled / CrashLoopBackOff detector for OpenShift
 - Saves **forensic artifacts**:
   - `oc describe pod`
   - `oc logs` (or `--previous`)
-- Exports **CSV + JSON** with absolute paths to artifacts and time range metadata
+- Exports **multiple formats** with absolute paths to artifacts and time range metadata:
+  - **CSV** - Spreadsheet-friendly format
+  - **JSON** - Structured automation input
+  - **HTML** - Standalone visual report (open in browser)
+  - **TABLE** - Human-readable text table
 - Colorized terminal output
 
 ---
@@ -72,8 +76,9 @@ A high-performance, parallel OOMKilled / CrashLoopBackOff detector for OpenShift
  - pod logs / previous                                        - pod logs / previous
           │                                                         │
 ┌─────────▼─────────┐                                     ┌─────────▼─────────┐
-│ CSV / JSON Export │                                     │ CSV / JSON Export │
-│ (with time_range) │                                     │ (with time_range) │
+│ Multi-Format Export│                                     │ Multi-Format Export│
+│ CSV/JSON/HTML/TABLE│                                     │ CSV/JSON/HTML/TABLE│
+│ (with time_range)  │                                     │ (with time_range)  │
 └───────────────────┘                                     └───────────────────┘
 ```
 
@@ -122,8 +127,13 @@ oc logs --previous
 
 ## 📤 Output Formats
 
-### CSV Columns
+The tool automatically generates **four output formats** for maximum flexibility:
 
+### 1. CSV (`oom_results.csv`)
+
+Spreadsheet-friendly format with all findings in tabular form.
+
+**Columns:**
 ```
 cluster,
 namespace,
@@ -147,7 +157,9 @@ time_range
 **Time Range:**
 - Shows the time range used for detection (e.g., `1d`, `6h`, `1M`)
 
-### JSON Structure
+### 2. JSON (`oom_results.json`)
+
+Structured format perfect for automation, scripting, and integration with other tools.
 
 ```json
 {
@@ -178,23 +190,50 @@ time_range
 - `crash_timestamps` - Array of CrashLoopBackOff event timestamps
 - `sources` - Array of detection methods used
 
+### 3. HTML (`oom_results.html`)
+
+**Standalone visual report** that can be opened directly in any web browser. Perfect for:
+- Sharing findings with team members
+- Quick visual overview
+- Presentation-ready reports
+- Clickable links to artifact files
+
+**Features:**
+- **Summary statistics** - Total findings, OOM vs CrashLoopBackOff counts
+- **Cluster-level grouping** - Organized by cluster for easy navigation
+- **Namespace drilldown** - Expandable namespace sections
+- **Color-coded badges** - Visual indicators for issue types
+- **Clickable artifact links** - Direct links to description and log files
+- **Responsive design** - Works on desktop and mobile devices
+- **No external dependencies** - Fully self-contained HTML file
+
+Simply **double-click** `oom_results.html` in Finder (macOS) or File Explorer (Windows/Linux) to open it in your default browser.
+
+### 4. TABLE (`oom_results.table`)
+
+Human-readable text table format, perfect for terminal viewing or plain text reports.
+
 ---
 
 ## 🧪 Example Runs
 
-### Run on current context only
+### Basic Usage
 
+#### Run on current context only
 ```bash
 ./oc_get_ooms.py --current
 ```
 
-### Run on specific contexts
+#### Run on all contexts (default)
+```bash
+./oc_get_ooms.py
+```
 
+#### Run on specific contexts using substrings
 You can use **substrings** to match contexts (the script will automatically find the full context names):
 
 ```bash
-./oc_get_ooms.py \
-  --contexts kflux-prd-rh02,stone-prd-rh01
+./oc_get_ooms.py --contexts kflux-prd-rh02,stone-prd-rh01
 ```
 
 The script will:
@@ -205,14 +244,9 @@ The script will:
 
 **Note:** You can still use full context strings if preferred, but substrings are much more convenient.
 
-### Run on all contexts (default)
+### Performance Tuning
 
-```bash
-./oc_get_ooms.py
-```
-
-### High-performance mode for very large clusters
-
+#### High-performance mode for very large clusters
 ```bash
 ./oc_get_ooms.py \
   --batch 4 \
@@ -223,16 +257,31 @@ The script will:
 
 **Note:** `--batch` maintains constant parallelism. With `--batch 4`, the tool always processes 4 clusters simultaneously. When one finishes, the next one starts immediately.
 
-### Time range filtering
+#### Moderate parallelism for medium clusters
+```bash
+./oc_get_ooms.py \
+  --batch 2 \
+  --ns-batch-size 50 \
+  --ns-workers 20 \
+  --timeout 60
+```
+
+### Time Range Filtering
 
 Filter events by time range (default: 1 day):
 
 ```bash
+# Last 30 seconds (for testing)
+./oc_get_ooms.py --time-range 30s
+
 # Last 1 hour
 ./oc_get_ooms.py --time-range 1h
 
 # Last 6 hours
 ./oc_get_ooms.py --time-range 6h
+
+# Last 1 day (default)
+./oc_get_ooms.py --time-range 1d
 
 # Last 7 days
 ./oc_get_ooms.py --time-range 7d
@@ -242,29 +291,109 @@ Filter events by time range (default: 1 day):
 ```
 
 **Time range formats:**
-- `s` = seconds
-- `m` = minutes
-- `h` = hours
-- `d` = days
-- `M` = months (30 days)
+- `s` = seconds (e.g., `30s`, `120s`)
+- `m` = minutes (e.g., `15m`, `30m`)
+- `h` = hours (e.g., `1h`, `6h`, `24h`)
+- `d` = days (e.g., `1d`, `7d`, `30d`)
+- `M` = months (30 days, e.g., `1M`, `2M`)
 
-### Namespace filtering (regex)
+### Namespace Filtering
 
-Only namespaces containing `tenant`, exclude `test`:
-
+#### Include only specific namespaces
 ```bash
+# Only namespaces containing "tenant"
+./oc_get_ooms.py --include-ns tenant
+
+# Multiple patterns (OR logic)
+./oc_get_ooms.py --include-ns "tenant|prod"
+```
+
+#### Exclude specific namespaces
+```bash
+# Exclude test namespaces
+./oc_get_ooms.py --exclude-ns test
+
+# Exclude multiple patterns
+./oc_get_ooms.py --exclude-ns "debug|sandbox|test"
+```
+
+#### Combine include and exclude
+```bash
+# Include tenant namespaces, but exclude test ones
 ./oc_get_ooms.py \
   --include-ns tenant \
   --exclude-ns test
-```
 
-Multiple regex patterns:
-
-```bash
+# Complex filtering
 ./oc_get_ooms.py \
   --include-ns "tenant|prod" \
-  --exclude-ns "debug|sandbox"
+  --exclude-ns "debug|sandbox|test"
 ```
+
+### Combining Options
+
+#### Production cluster scan with custom settings
+```bash
+./oc_get_ooms.py \
+  --contexts prod-cluster \
+  --time-range 1d \
+  --include-ns "tenant|prod" \
+  --exclude-ns "test|debug" \
+  --batch 4 \
+  --ns-batch-size 100 \
+  --ns-workers 50 \
+  --timeout 120 \
+  --retries 5
+```
+
+#### Quick scan of current context (last 6 hours)
+```bash
+./oc_get_ooms.py \
+  --current \
+  --time-range 6h
+```
+
+#### Comprehensive multi-cluster scan (last 7 days)
+```bash
+./oc_get_ooms.py \
+  --contexts "prod,staging" \
+  --time-range 7d \
+  --batch 8 \
+  --ns-batch-size 200 \
+  --ns-workers 100
+```
+
+#### High-reliability scan with increased retries
+```bash
+./oc_get_ooms.py \
+  --retries 5 \
+  --timeout 300 \
+  --time-range 1d
+```
+
+### Viewing Results
+
+After running the tool, you'll find four output files:
+
+```bash
+# View CSV in spreadsheet
+open oom_results.csv
+
+# View JSON (pretty-printed)
+cat oom_results.json | python -m json.tool
+
+# View HTML report (double-click in Finder/File Explorer)
+open oom_results.html
+
+# View table format
+cat oom_results.table
+```
+
+The **HTML report** (`oom_results.html`) is particularly useful for:
+- Quick visual overview
+- Sharing with team members
+- Presentation-ready reports
+- Clickable links to artifact files
 
 ---
 
@@ -301,11 +430,15 @@ Multiple regex patterns:
 
 ## 📄 Files Generated
 
-| File | Purpose |
-|------|---------|
-| `oom_results.csv` | Spreadsheet-friendly output |
-| `oom_results.json` | Structured automation input |
-| `/tmp/<cluster>/*.txt` | Pod forensic artifacts |
+| File | Purpose | Format |
+|------|---------|--------|
+| `oom_results.csv` | Spreadsheet-friendly output | CSV |
+| `oom_results.json` | Structured automation input | JSON |
+| `oom_results.html` | Visual report (open in browser) | HTML |
+| `oom_results.table` | Human-readable text table | Plain text |
+| `/tmp/<cluster>/*.txt` | Pod forensic artifacts | Text files |
+
+**Note:** All output files are generated automatically in the current directory. The HTML file is fully self-contained and can be opened directly in any web browser by double-clicking it.
 
 ---
 
@@ -318,7 +451,9 @@ Multiple regex patterns:
 - **Performance Optimized**: Single event API call per namespace (3x faster)
 - **Comprehensive Detection**: Events + pod status checks ensure no OOM/CrashLoop pods are missed
 - **Time Range Filtering**: Focus on recent events with configurable lookback window
-- **Consistent Output**: CSV and JSON formats are synchronized and include metadata
+- **Multi-Format Output**: CSV, JSON, HTML, and TABLE formats for maximum flexibility
+- **HTML Reports**: Standalone visual reports with clickable artifact links
+- **Consistent Output**: All formats are synchronized and include metadata
 
 ---
 
@@ -437,18 +572,20 @@ Use cases:
 
 ---
 
-### 📊 6. HTML / Web Report Generation
+### 📊 6. Enhanced HTML Reports (✅ Implemented)
 
-Generate:
-- Static HTML reports
-- Per-cluster dashboards
-- Per-namespace drilldowns
+HTML report generation is now available! The tool automatically generates `oom_results.html` with:
+- Summary statistics
+- Cluster-level grouping
+- Namespace drilldowns
+- Clickable artifact links
+- Responsive design
 
-Example command:
-
-```bash
-./oc_get_ooms.py --html-report out.html
-```
+Future enhancements could include:
+- Interactive charts and graphs
+- Trend visualization
+- Export to PDF
+- Customizable themes
 
 ---
 
