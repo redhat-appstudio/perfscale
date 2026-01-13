@@ -33,6 +33,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional, Set, Pattern
 
+# Import HTML export module
+try:
+    from html_export import generate_html_report
+except ImportError:
+    # Fallback if module not found
+    generate_html_report = None
+
 
 # ---------------------------
 # Color output
@@ -1014,9 +1021,10 @@ def export_results(
     json_path: Path,
     csv_path: Path,
     table_path: Path,
+    html_path: Optional[Path] = None,
     time_range_str: str = "1d",
 ) -> None:
-    """Export results to JSON, CSV, and TABLE files."""
+    """Export results to JSON, CSV, TABLE, and HTML files."""
     # Collect and sort rows
     rows = collect_rows(results, time_range_str)
 
@@ -1068,6 +1076,18 @@ def export_results(
 
     # Export TABLE
     export_table(rows, table_path)
+
+    # Export HTML
+    if html_path and generate_html_report:
+        try:
+            generate_html_report(rows, time_range_str, html_path)
+            print(color(f"HTML written → {html_path}", GREEN))
+        except Exception as e:
+            logging.error(f"Failed to write HTML file {html_path}: {e}")
+            print(color(f"ERROR: Failed to write HTML file: {e}", RED))
+    elif html_path and not generate_html_report:
+        logging.warning("HTML export module not available, skipping HTML generation")
+        print(color("WARNING: HTML export module not available, skipping HTML generation", YELLOW))
 
 
 def pretty_print(results: Dict[str, Any], skipped: Dict[str, str]) -> None:
@@ -1124,28 +1144,67 @@ def print_usage_and_exit() -> None:
     print(
         """
 Usage:
-  oc_get_ooms.py [--current] [--contexts ctxA,ctxB] [--batch N]
-                 [--ns-batch-size M] [--ns-workers W]
-                 [--include-ns regex1,regex2] [--exclude-ns regex1,regex2]
-                 [--retries R] [--timeout S] [--time-range RANGE] [--help]
+  oc_get_ooms.py [OPTIONS]
 
-Options:
+Context Selection (choose one):
   --current                Run only on current-context
   --contexts ctxA,ctxB     Comma-separated context substrings (matched against available contexts)
-  --batch N                Cluster-level parallelism (default 2)
-                          Maintains constant parallelism: when one cluster finishes,
-                          immediately starts the next one
-  --ns-batch-size M        Number of namespaces in each namespace batch (default 10)
-  --ns-workers W           Thread pool size for oc checks per namespace batch (default 5)
+                           If neither specified, runs on all available contexts
+
+Parallelism & Performance:
+  --batch N                Cluster-level parallelism (default: 2)
+                           Maintains constant parallelism: when one cluster finishes,
+                           immediately starts the next one
+  --ns-batch-size M        Number of namespaces in each namespace batch (default: 10)
+  --ns-workers W           Thread pool size for oc checks per namespace batch (default: 5)
+
+Namespace Filtering:
   --include-ns regex,...   Comma-separated regex patterns to include (namespace must match any)
+                           Examples: --include-ns "tenant|prod"
   --exclude-ns regex,...   Comma-separated regex patterns to exclude (if match any -> excluded)
-  --retries R              Number of retries for oc calls (default 3)
-  --timeout S              OC request timeout in seconds used as --request-timeout (default 45)
+                           Examples: --exclude-ns "test|debug"
+
+Time Range Filtering:
   --time-range RANGE       Time range to look back for events (default: 1d)
-                          Format: <number><unit> where unit is:
-                          s=seconds, m=minutes, h=hours, d=days, M=months (30 days)
-                          Examples: 1h, 6h, 1d, 7d, 1M
-  --help                   Show this help
+                           Format: <number><unit> where unit is:
+                           s=seconds, m=minutes, h=hours, d=days, M=months (30 days)
+                           Examples: 30s, 1h, 6h, 1d, 7d, 1M
+
+Resilience & Timeouts:
+  --retries R              Number of retries for oc calls (default: 3)
+  --timeout S              OC request timeout in seconds used as --request-timeout (default: 45)
+
+Output:
+  All output formats are generated automatically:
+  - oom_results.json       Structured JSON with metadata
+  - oom_results.csv        Spreadsheet-friendly CSV format
+  - oom_results.table      Human-readable table format
+  - oom_results.html       Standalone HTML report (open in browser)
+
+Other:
+  --help                   Show this help message
+
+Examples:
+  # Run on current context only
+  ./oc_get_ooms.py --current
+
+  # Run on specific contexts using substrings
+  ./oc_get_ooms.py --contexts kflux-prd-rh02,stone-prd-rh01
+
+  # High-performance mode for large clusters
+  ./oc_get_ooms.py --batch 4 --ns-batch-size 250 --ns-workers 250 --timeout 200
+
+  # Filter by time range (last 6 hours)
+  ./oc_get_ooms.py --time-range 6h
+
+  # Include only tenant namespaces, exclude test namespaces
+  ./oc_get_ooms.py --include-ns tenant --exclude-ns test
+
+  # Combine multiple options
+  ./oc_get_ooms.py --contexts prod-cluster --time-range 1d --include-ns "tenant|prod" --batch 4
+
+  # All contexts, last 7 days, with custom parallelism
+  ./oc_get_ooms.py --time-range 7d --batch 8 --ns-batch-size 100 --ns-workers 50
 """
     )
     sys.exit(1)
@@ -1389,7 +1448,8 @@ def main() -> None:
     json_path = Path("oom_results.json")
     csv_path = Path("oom_results.csv")
     table_path = Path("oom_results.table")
-    export_results(results, json_path, csv_path, table_path, time_range_str)
+    html_path = Path("oom_results.html")
+    export_results(results, json_path, csv_path, table_path, html_path, time_range_str)
 
     pretty_print(results, skipped)
 
