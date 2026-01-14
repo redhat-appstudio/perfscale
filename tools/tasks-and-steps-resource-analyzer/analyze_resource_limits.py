@@ -1647,7 +1647,9 @@ def save_csv_to_html(csv_data, task_name, timestamp_str):
     
     # Add headers with click handlers
     for i, header in enumerate(headers):
-        html_content += f'                <th onclick="sortTable({i})">{header}</th>\n'
+        # Strip quotes from header names for cleaner display
+        header_cleaned = header.strip().strip('"').strip("'")
+        html_content += f'                <th onclick="sortTable({i})">{header_cleaned}</th>\n'
     
     html_content += """            </tr>
         </thead>
@@ -1658,8 +1660,11 @@ def save_csv_to_html(csv_data, task_name, timestamp_str):
     for row in data_rows:
         html_content += "            <tr>\n"
         for cell in row:
+            # Strip quotes from cell value for proper numeric sorting
+            # CSV data has quotes around values, but HTML should display without quotes
+            cell_cleaned = str(cell).strip().strip('"').strip("'")
             # Escape HTML special characters
-            cell_escaped = str(cell).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
+            cell_escaped = cell_cleaned.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
             html_content += f"                <td>{cell_escaped}</td>\n"
         html_content += "            </tr>\n"
     
