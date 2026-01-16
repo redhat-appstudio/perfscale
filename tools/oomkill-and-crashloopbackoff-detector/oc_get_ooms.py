@@ -9,7 +9,7 @@ New in this version:
 - When a pod is detected as OOMKilled or CrashLoopBackOff, save:
     - `oc describe pod <pod>` output
     - `oc logs <pod>` (or `oc logs --previous <pod>` if no current logs)
-  into per-cluster directories under /tmp/<cluster>/
+  into per-cluster directories under /private/tmp/<cluster>/
   Filenames include namespace, pod name, and timestamp to avoid collisions.
 - CSV and JSON now include the absolute paths to the description and pod log files:
     description_file, pod_log_file
@@ -294,6 +294,79 @@ def check_cluster_connectivity(
     return False, err or out or "unknown error"
 
 
+def check_all_clusters_connectivity(
+    contexts: List[str], retries: int, oc_timeout_seconds: int
+) -> Tuple[bool, List[Tuple[str, bool, str]]]:
+    """
+    Check connectivity to all clusters.
+    
+    Returns:
+        tuple: (all_connected, connectivity_report)
+        - all_connected: True if all clusters are accessible
+        - connectivity_report: List of (cluster_name, connected, error_message) tuples
+    """
+    report = []
+    all_connected = True
+    
+    print(color("\n" + "="*80, BLUE))
+    print(color("Checking Cluster Connectivity", BLUE))
+    print(color("="*80, BLUE))
+    
+    for ctx in contexts:
+        cluster = short_cluster_name(ctx)
+        connected, error_msg = check_cluster_connectivity(
+            ctx, retries=retries, oc_timeout_seconds=oc_timeout_seconds
+        )
+        if connected:
+            report.append((cluster, True, "Connected"))
+            print(color(f"  ✓ {cluster}: Connected", GREEN))
+        else:
+            report.append((cluster, False, error_msg))
+            print(color(f"  ✗ {cluster}: {error_msg}", RED))
+            all_connected = False
+    
+    print(color("="*80, BLUE))
+    
+    return all_connected, report
+
+
+def prompt_user_confirmation(connectivity_report: List[Tuple[str, bool, str]]) -> bool:
+    """
+    Prompt user for confirmation after showing connectivity report.
+    
+    Returns:
+        bool: True if user confirms, False otherwise
+    """
+    print(color("\nCluster Connectivity Report:", BLUE))
+    for cluster, connected, message in connectivity_report:
+        if connected:
+            print(color(f"  ✓ {cluster}: {message}", GREEN))
+        else:
+            print(color(f"  ✗ {cluster}: {message}", RED))
+    
+    all_connected = all(connected for _, connected, _ in connectivity_report)
+    if not all_connected:
+        print(color("\nWARNING: Some clusters are not accessible.", YELLOW))
+        print(color("  Data collection may fail for these clusters.", YELLOW))
+        print(color("  Continuing with accessible clusters only...", YELLOW))
+    else:
+        print(color("\n✓ All clusters are accessible", GREEN))
+    
+    print(color("="*80, BLUE))
+    
+    while True:
+        sys.stdout.flush()
+        sys.stderr.flush()
+        response = input("\nProceed with data collection? [y/N]: ").strip().lower()
+        if response in ('y', 'yes'):
+            print()
+            return True
+        elif response in ('n', 'no', ''):
+            return False
+        else:
+            print(color("Please enter 'y' or 'n'", YELLOW))
+
+
 # ---------------------------
 # oc namespace workers
 # ---------------------------
@@ -508,7 +581,7 @@ def get_namespaces_for_context(
 
 
 # ---------------------------
-# Save pod artifacts (describe + logs) into per-cluster directory under /tmp/<cluster>/
+# Save pod artifacts (describe + logs) into per-cluster directory under /private/tmp/<cluster>/
 # Returns (description_path, log_path)
 # ---------------------------
 def save_pod_artifacts(
@@ -520,12 +593,12 @@ def save_pod_artifacts(
     oc_timeout_seconds: int,
 ) -> Tuple[str, str]:
     """
-    Save 'oc describe pod' and 'oc logs pod' (or --previous) into files under /tmp/<cluster>/
+    Save 'oc describe pod' and 'oc logs pod' (or --previous) into files under /private/tmp/<cluster>/
     Filenames include namespace, pod name and timestamp to avoid collisions.
     Returns absolute file paths (description_file, pod_log_file)
     """
     ts = now_ts_for_filename()
-    cluster_dir = Path("/tmp") / cluster
+    cluster_dir = Path("/private/tmp") / cluster
     cluster_dir.mkdir(parents=True, exist_ok=True)
 
     # safe filename parts
@@ -798,7 +871,7 @@ def query_context(
 
     # write per-cluster log
     try:
-        outfile = Path("/tmp") / f"{cluster}.log"
+        outfile = Path("/private/tmp") / f"{cluster}.log"
         outfile.write_text(json.dumps(cluster_result, indent=2))
     except Exception:
         pass
@@ -1512,6 +1585,15 @@ def main() -> None:
             )
         )
 
+    # Check cluster connectivity and prompt user for confirmation
+    all_connected, connectivity_report = check_all_clusters_connectivity(
+        contexts, retries=retries, oc_timeout_seconds=oc_timeout_seconds
+    )
+    
+    if not prompt_user_confirmation(connectivity_report):
+        print(color("Aborted by user.", YELLOW))
+        sys.exit(0)
+
     results, skipped = run_batches(
         contexts,
         batch_size,
@@ -1544,7 +1626,7 @@ def main() -> None:
 
     print(
         color(
-            "\nPer-cluster logs written to /tmp/<cluster>/ (if any findings were found)",
+            "\nPer-cluster logs written to /private/tmp/<cluster>/ (if any findings were found)",
             GREEN,
         )
     )
