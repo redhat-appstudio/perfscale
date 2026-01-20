@@ -217,6 +217,16 @@ Human-readable text table format, perfect for terminal viewing or plain text rep
 
 ## 🧪 Example Runs
 
+### Getting Help
+
+To see all available options and usage information:
+
+```bash
+./oc_get_ooms.py --help
+# or
+./oc_get_ooms.py -h
+```
+
 ### Basic Usage
 
 #### Run on current context only
