@@ -1,0 +1,172 @@
+#!/opt/homebrew/bin/bash
+
+set -e  # Exit on error
+
+# Default values
+POD_NAME=""
+TYPE=""
+CSV_FILE="oom_results.csv"
+
+# Function to print help
+print_help() {
+    cat << EOF
+Usage: $0 -p POD_NAME -t TYPE [OPTIONS]
+   or: $0 --pod-name POD_NAME --type TYPE [OPTIONS]
+
+Required Arguments:
+  -p, --pod-name POD_NAME    Name of the pod to bundle (must exist in oom_results.csv)
+  -t, --type TYPE            Type of issue: OOMKilled or CrashLoopBackOff (case-insensitive)
+
+Options:
+  -c, --csv-file FILE        Path to oom_results.csv (default: oom_results.csv)
+  -h, --help                 Show this help message
+
+Examples:
+  $0 -p loki-querier-7646bc8ddc-bvcpd -t OOMKilled
+  $0 --pod-name audit-exporter-2fzlc --type OOMKilled
+  $0 -p rbac-permissions-operator-7cb6d7bdb4-8jkfq -t CrashLoopBackOff
+
+EOF
+}
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -p|--pod-name)
+            POD_NAME="$2"
+            shift 2
+            ;;
+        -t|--type)
+            TYPE="$2"
+            shift 2
+            ;;
+        -c|--csv-file)
+            CSV_FILE="$2"
+            shift 2
+            ;;
+        -h|--help)
+            print_help
+            exit 0
+            ;;
+        *)
+            echo "ERROR: Unknown option: $1" >&2
+            echo "" >&2
+            print_help
+            exit 1
+            ;;
+    esac
+done
+
+# Validation: Check if required arguments are provided
+if [[ -z "$POD_NAME" ]]; then
+    echo "ERROR: -p/--pod-name is required" >&2
+    echo "" >&2
+    print_help
+    exit 1
+fi
+
+if [[ -z "$TYPE" ]]; then
+    echo "ERROR: -t/--type is required" >&2
+    echo "" >&2
+    print_help
+    exit 1
+fi
+
+# Validation: Check if CSV file exists
+if [[ ! -f "$CSV_FILE" ]]; then
+    echo "ERROR: CSV file not found: $CSV_FILE" >&2
+    echo "" >&2
+    print_help
+    exit 1
+fi
+
+# Validation: Check if TYPE is valid (case-insensitive) and normalize to correct case
+TYPE_LOWER=$(echo "$TYPE" | tr '[:upper:]' '[:lower:]')
+case "$TYPE_LOWER" in
+    oomkilled)
+        TYPE="OOMKilled"
+        ;;
+    crashloopbackoff)
+        TYPE="CrashLoopBackOff"
+        ;;
+    *)
+        echo "ERROR: Invalid TYPE: '$TYPE'" >&2
+        echo "       TYPE must be either 'OOMKilled' or 'CrashLoopBackOff' (case-insensitive)" >&2
+        echo "" >&2
+        print_help
+        exit 1
+        ;;
+esac
+
+# Validation: Check if POD_NAME exists in CSV
+if ! grep -q "$POD_NAME" "$CSV_FILE"; then
+    echo "ERROR: POD_NAME '$POD_NAME' not found in $CSV_FILE" >&2
+    echo "" >&2
+    print_help
+    exit 1
+fi
+
+# Validation: Check if POD_NAME matches the specified TYPE
+# Extract the type column (4th column, index 3) for the pod
+POD_TYPES=$(grep "$POD_NAME" "$CSV_FILE" | cut -d',' -f4 | sort -u)
+
+if [[ -z "$POD_TYPES" ]]; then
+    echo "ERROR: Could not extract type information for POD_NAME '$POD_NAME'" >&2
+    echo "" >&2
+    print_help
+    exit 1
+fi
+
+# Check if the specified TYPE exists for this pod
+if ! echo "$POD_TYPES" | grep -q "^${TYPE}$"; then
+    echo "ERROR: POD_NAME '$POD_NAME' does not match TYPE '$TYPE'" >&2
+    echo "       Found type(s) for this pod: $(echo $POD_TYPES | tr '\n' ' ')" >&2
+    echo "" >&2
+    print_help
+    exit 1
+fi
+
+# All validations passed - proceed with the script
+set -x
+
+DATE="`date +%Y-%m-%d`"
+TYPE1="OOMKilled"
+TYPE2="CrashLoopBackOff"
+
+mkdir -p /private/tmp/${DATE} /private/tmp/${DATE}/${TYPE1} /private/tmp/${DATE}/${TYPE2}
+
+echo "Processing: TYPE=${TYPE}, POD_NAME=${POD_NAME}"
+
+# Show matching entries
+cat ${CSV_FILE} | grep ${TYPE} | grep ${POD_NAME}
+
+# Count matching entries
+MATCH_COUNT=$(cat ${CSV_FILE} | grep ${TYPE} | grep ${POD_NAME} | wc -l | tr -d ' ')
+echo "Found ${MATCH_COUNT} matching entry/entries"
+
+# Extract file paths (columns 7-8: description_file and pod_log_file)
+cat ${CSV_FILE} | grep ${TYPE} | grep ${POD_NAME} | cut -d',' -f7-8 | tr ',' ' '
+
+rm -rf /private/tmp/${DATE}/${TYPE}/* 
+
+ls -l /private/tmp/${DATE}/${TYPE}/
+
+# Copy files to bundle directory
+cp -r `cat ${CSV_FILE} | grep ${TYPE} | grep ${POD_NAME} | cut -d',' -f7-8 | tr ',' ' ' | xargs` /private/tmp/${DATE}/${TYPE}/
+
+ls -l /private/tmp/${DATE}/${TYPE}/
+
+# Create tarball
+(cd /private/tmp/${DATE}/; tar -czf ${TYPE}.tgz ${TYPE})
+
+ls -l /private/tmp/${DATE}/
+
+du -sh /private/tmp/${DATE}/${TYPE}.tgz
+
+# Copy to current directory with descriptive name
+cp /private/tmp/${DATE}/${TYPE}.tgz .
+cp ${TYPE}.tgz ${TYPE}-${POD_NAME}.tgz
+
+ls -ltr 
+
+set +x
