@@ -476,7 +476,13 @@ def find_events_by_reason_oc(
 def oomkilled_via_pods_oc(
     context: str, namespace: str, retries: int, oc_timeout_seconds: int
 ) -> List[Dict[str, str]]:
-    """Find pods that were OOMKilled by querying pod status."""
+    """Find pods that were OOMKilled by querying pod status.
+    
+    Enhanced detection checks multiple states:
+    - lastState.terminated.reason == "OOMKilled" (previous OOM kill)
+    - state.terminated.reason == "OOMKilled" (current/just OOM killed)
+    - Also checks initContainerStatuses for init container OOM kills
+    """
     subcmd = ["-n", namespace, "get", "pods", "-o", "json", "--ignore-not-found"]
     rc, out, err = run_oc_subcommand(
         context, subcmd, retries=retries, oc_timeout_seconds=oc_timeout_seconds
@@ -489,31 +495,70 @@ def oomkilled_via_pods_oc(
         logging.warning(f"Failed to parse pods JSON for {namespace}: {e}")
         return []
     res: List[Dict[str, str]] = []
+    seen_pods: Set[str] = set()  # Avoid duplicates with timestamps
+    
     for item in obj.get("items", []):
         pod_name = item.get("metadata", {}).get("name")
-        statuses = item.get("status", {}).get("containerStatuses", []) or []
-        for cs in statuses:
-            # Check lastState.terminated.reason for OOMKilled
-            last_state = cs.get("lastState", {})
-            terminated = last_state.get("terminated", {})
+        if not pod_name:
+            continue
+            
+        # Check both regular containers and init containers
+        container_statuses = item.get("status", {}).get("containerStatuses", []) or []
+        init_container_statuses = item.get("status", {}).get("initContainerStatuses", []) or []
+        all_statuses = container_statuses + init_container_statuses
+        
+        for cs in all_statuses:
+            # Check current state.terminated (just OOM killed)
+            terminated = cs.get("state", {}).get("terminated", {})
             if terminated and terminated.get("reason") == "OOMKilled":
                 finished_at = terminated.get("finishedAt", "")
-                res.append(
-                    {
-                        "pod": pod_name,
-                        "reason": "OOMKilled",
-                        "timestamp": (
-                            parse_timestamp_to_iso(finished_at) if finished_at else ""
-                        ),
-                    }
-                )
+                key = f"{pod_name}:current"
+                if key not in seen_pods:
+                    res.append(
+                        {
+                            "pod": pod_name,
+                            "reason": "OOMKilled",
+                            "timestamp": (
+                                parse_timestamp_to_iso(finished_at) if finished_at else ""
+                            ),
+                        }
+                    )
+                    seen_pods.add(key)
+                continue
+            
+            # Check lastState.terminated.reason for OOMKilled (previous OOM kill)
+            last_state = cs.get("lastState", {})
+            last_terminated = last_state.get("terminated", {})
+            if last_terminated and last_terminated.get("reason") == "OOMKilled":
+                finished_at = last_terminated.get("finishedAt", "")
+                key = f"{pod_name}:last:{finished_at}"
+                if key not in seen_pods:
+                    res.append(
+                        {
+                            "pod": pod_name,
+                            "reason": "OOMKilled",
+                            "timestamp": (
+                                parse_timestamp_to_iso(finished_at) if finished_at else ""
+                            ),
+                        }
+                    )
+                    seen_pods.add(key)
+    
     return res
 
 
 def crashloop_via_pods_oc(
     context: str, namespace: str, retries: int, oc_timeout_seconds: int
 ) -> List[Dict[str, str]]:
-    """Find pods in CrashLoopBackOff state by querying pod status."""
+    """Find pods in CrashLoopBackOff state by querying pod status.
+    
+    Enhanced detection checks multiple states:
+    - state.waiting.reason == "CrashLoopBackOff" (current waiting state)
+    - state.terminated.reason == "CrashLoopBackOff" (just crashed)
+    - lastState.terminated.reason == "CrashLoopBackOff" (previous crash)
+    - High restart count (restartCount > 0) as indicator of crash loops
+    - Also checks initContainerStatuses for init container failures
+    """
     subcmd = ["-n", namespace, "get", "pods", "-o", "json", "--ignore-not-found"]
     rc, out, err = run_oc_subcommand(
         context, subcmd, retries=retries, oc_timeout_seconds=oc_timeout_seconds
@@ -526,15 +571,84 @@ def crashloop_via_pods_oc(
         logging.warning(f"Failed to parse pods JSON for {namespace}: {e}")
         return []
     res: List[Dict[str, str]] = []
+    seen_pods: Set[str] = set()  # Avoid duplicates
+    
     for item in obj.get("items", []):
         pod_name = item.get("metadata", {}).get("name")
-        statuses = item.get("status", {}).get("containerStatuses", []) or []
-        for cs in statuses:
+        if not pod_name:
+            continue
+            
+        # Check both regular containers and init containers
+        container_statuses = item.get("status", {}).get("containerStatuses", []) or []
+        init_container_statuses = item.get("status", {}).get("initContainerStatuses", []) or []
+        all_statuses = container_statuses + init_container_statuses
+        
+        for cs in all_statuses:
+            # Check current state.waiting
             waiting = cs.get("state", {}).get("waiting")
             if waiting and waiting.get("reason") == "CrashLoopBackOff":
-                res.append(
-                    {"pod": pod_name, "reason": "CrashLoopBackOff", "timestamp": ""}
+                if pod_name not in seen_pods:
+                    res.append(
+                        {"pod": pod_name, "reason": "CrashLoopBackOff", "timestamp": ""}
+                    )
+                    seen_pods.add(pod_name)
+                continue
+            
+            # Check current state.terminated (container just crashed)
+            terminated = cs.get("state", {}).get("terminated")
+            if terminated and terminated.get("reason") == "CrashLoopBackOff":
+                if pod_name not in seen_pods:
+                    res.append(
+                        {"pod": pod_name, "reason": "CrashLoopBackOff", "timestamp": ""}
+                    )
+                    seen_pods.add(pod_name)
+                continue
+            
+            # Check lastState.terminated (previous crash)
+            last_state = cs.get("lastState", {})
+            last_terminated = last_state.get("terminated", {})
+            if last_terminated and last_terminated.get("reason") == "CrashLoopBackOff":
+                if pod_name not in seen_pods:
+                    res.append(
+                        {"pod": pod_name, "reason": "CrashLoopBackOff", "timestamp": ""}
+                    )
+                    seen_pods.add(pod_name)
+                continue
+            
+            # Check restart count as indicator of crash loops
+            # Only flag if restart count is high (>= 3) AND there's evidence of crashes
+            restart_count = cs.get("restartCount", 0)
+            if restart_count >= 3:
+                # High restart count suggests crash loop
+                # Additional check: look for evidence of crashes (terminated states)
+                has_terminated_state = (
+                    cs.get("state", {}).get("terminated") is not None
+                    or cs.get("lastState", {}).get("terminated") is not None
                 )
+                # If high restart count and has terminated states, likely crash loop
+                if has_terminated_state and pod_name not in seen_pods:
+                    res.append(
+                        {"pod": pod_name, "reason": "CrashLoopBackOff", "timestamp": ""}
+                    )
+                    seen_pods.add(pod_name)
+                    continue
+        
+        # Also check pod phase - Failed or Pending might indicate issues
+        pod_phase = item.get("status", {}).get("phase", "")
+        if pod_phase == "Failed":
+            # Pod in Failed phase might be due to crash loops
+            if pod_name not in seen_pods:
+                # Double-check: only add if we have evidence of restarts or crashes
+                has_restarts = any(
+                    cs.get("restartCount", 0) > 0
+                    for cs in all_statuses
+                )
+                if has_restarts:
+                    res.append(
+                        {"pod": pod_name, "reason": "CrashLoopBackOff", "timestamp": ""}
+                    )
+                    seen_pods.add(pod_name)
+    
     return res
 
 
@@ -1332,7 +1446,7 @@ Output:
   - oom_results.html       Standalone HTML report (open in browser)
 
 Other:
-  --help                   Show this help message
+  -h, --help               Show this help message
 
 Examples:
   # Run on current context only
@@ -1377,7 +1491,7 @@ def parse_args(
     argv: List[str],
 ) -> Tuple[List[str], int, int, int, int, Optional[int], str]:
     args = list(argv)
-    if "--help" in args:
+    if "--help" in args or "-h" in args:
         print_usage_and_exit()
 
     contexts: List[str] = []
