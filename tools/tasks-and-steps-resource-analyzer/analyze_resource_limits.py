@@ -1972,12 +1972,12 @@ def update_yaml_file(yaml_path, recommendations, original_yaml, file_path_or_url
                 is_step = False
                 step_name_match = None
                 
-                # Pattern 1: "    - name: stepname" (4 spaces: 2 for steps:, 2 for list item)
-                if re.match(r'^\s+-\s+name:\s+', line) and line_indent == 4:
+                # Pattern 1: "    - name: stepname" or "  - name: stepname" (2 or 4 spaces: 2 for steps:, 0-2 for list item)
+                if re.match(r'^\s+-\s+name:\s+', line) and line_indent in (2, 4):
                     is_step = True
                     step_name_match = re.search(r'name:\s+(.+)$', line)
                 # Pattern 2: "    name: stepname" (not starting with "-")
-                elif re.match(r'^\s+name:\s+', line) and line_indent == 4 and not line.strip().startswith('-'):
+                elif re.match(r'^\s+name:\s+', line) and line_indent in (2, 4) and not line.strip().startswith('-'):
                     for lookback in range(1, min(11, i + 1)):
                         prev_line = lines[i - lookback]
                         prev_stripped = prev_line.lstrip()
@@ -2027,14 +2027,14 @@ def update_yaml_file(yaml_path, recommendations, original_yaml, file_path_or_url
                 if search_idx < len(lines):
                     search_line = lines[search_idx]
                     line_indent = len(search_line) - len(search_line.lstrip())
-                    # Check Pattern 1: "    - name: stepname" (4 spaces: 2 for steps:, 2 for list item)
-                    if re.match(r'^\s+-\s+name:\s+', search_line) and line_indent == 4:
+                    # Check Pattern 1: "    - name: stepname" or "  - name: stepname" (2 or 4 spaces: 2 for steps:, 0-2 for list item)
+                    if re.match(r'^\s+-\s+name:\s+', search_line) and line_indent in (2, 4):
                         name_match = re.search(r'name:\s+(.+)$', search_line)
                         if name_match and name_match.group(1).strip() == step_name:
                             current_step_line = search_idx
                             break
                     # Check Pattern 2: "    name: stepname" (not starting with "-")
-                    elif re.match(r'^\s+name:\s+', search_line) and line_indent == 4 and not search_line.strip().startswith('-'):
+                    elif re.match(r'^\s+name:\s+', search_line) and line_indent in (2, 4) and not search_line.strip().startswith('-'):
                         # Verify it's a step name by checking previous lines
                         is_step_name = False
                         for lookback in range(1, min(6, search_idx + 1)):
@@ -2071,13 +2071,13 @@ def update_yaml_file(yaml_path, recommendations, original_yaml, file_path_or_url
                             if 'workspaces:' in search_line or 'results:' in search_line or 'volumes:' in search_line:
                                 break
                         
-                        # Check for step name (4 spaces: 2 for steps:, 2 for list item)
-                        if re.match(r'^\s+-\s+name:\s+', search_line) and line_indent == 4:
+                        # Check for step name (2 or 4 spaces: 2 for steps:, 0-2 for list item)
+                        if re.match(r'^\s+-\s+name:\s+', search_line) and line_indent in (2, 4):
                             name_match = re.search(r'name:\s+(.+)$', search_line)
                             if name_match and name_match.group(1).strip() == step_name:
                                 current_step_line = search_idx
                                 break
-                        elif re.match(r'^\s+name:\s+', search_line) and line_indent == 4 and not search_line.strip().startswith('-'):
+                        elif re.match(r'^\s+name:\s+', search_line) and line_indent in (2, 4) and not search_line.strip().startswith('-'):
                             name_match = re.search(r'name:\s+(.+)$', search_line)
                             if name_match and name_match.group(1).strip() == step_name:
                                 # Verify it's a step
