@@ -27,6 +27,10 @@ A high-performance, parallel OOMKilled / CrashLoopBackOff detector for OpenShift
   - **JSON** - Structured automation input
   - **HTML** - Standalone visual report (open in browser)
   - **TABLE** - Human-readable text table
+- **Automatic ephemeral namespace exclusion** on EaaS clusters
+  - Excludes ephemeral test and cluster namespaces by default to avoid false positives
+  - Ephemeral cluster namespaces: `clusters-<uuid>` pattern
+  - Ephemeral test namespaces: `test-*`, `e2e-*`, `ephemeral-*`, `ci-*`, etc.
 - Colorized terminal output
 
 ---
@@ -308,6 +312,23 @@ Filter events by time range (default: 1 day):
 - `M` = months (30 days, e.g., `1M`, `2M`)
 
 ### Namespace Filtering
+
+#### Ephemeral Namespace Exclusion (Default on EaaS Clusters)
+
+By default, the tool automatically excludes ephemeral test and cluster namespaces
+to avoid false positives from temporary test environments on EaaS clusters.
+
+**Ephemeral namespaces that are excluded by default:**
+- **Ephemeral cluster namespaces**: `clusters-<uuid>` pattern
+  - Example: `clusters-4e52ba17-c17b-4f35-b7e0-0215e63678a0`
+- **Ephemeral test namespaces**: Common test patterns
+  - `test-*`, `e2e-*`, `ephemeral-*`, `ci-*`, `pr-*`, `temp-*`, `tmp-*`
+  - Namespaces ending with `-test`, `-e2e`, `-ephemeral`
+
+To include ephemeral namespaces in the scan:
+```bash
+./oc_get_ooms.py --include-ephemeral
+```
 
 #### Include only specific namespaces
 ```bash

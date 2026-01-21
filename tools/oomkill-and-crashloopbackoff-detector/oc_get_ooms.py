@@ -655,6 +655,51 @@ def crashloop_via_pods_oc(
 
 
 # ---------------------------
+# Ephemeral namespace detection
+# ---------------------------
+def is_ephemeral_namespace(namespace: str) -> bool:
+    """
+    Detect if a namespace is an ephemeral test or cluster namespace.
+
+    Ephemeral cluster namespaces on EaaS clusters follow the pattern:
+    - clusters-<uuid> (e.g., clusters-4e52ba17-c17b-4f35-b7e0-0215e63678a0)
+
+    Ephemeral test namespaces commonly follow patterns:
+    - test-*, e2e-*, ephemeral-*, ci-*, pr-*, temp-*
+    - Namespaces with timestamps or random suffixes
+
+    Returns True if the namespace matches ephemeral patterns.
+    """
+    if not namespace:
+        return False
+
+    # Ephemeral cluster namespaces: clusters-<uuid> pattern
+    # UUID format: 8-4-4-4-12 hex digits (e.g., clusters-4e52ba17-c17b-4f35-b7e0-0215e63678a0)
+    if re.match(r'^clusters-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', namespace, re.IGNORECASE):
+        return True
+
+    # Ephemeral test namespaces: common test/e2e/ephemeral patterns
+    ephemeral_test_patterns = [
+        r'^test-',
+        r'^e2e-',
+        r'^ephemeral-',
+        r'^ci-',
+        r'^pr-',
+        r'^temp-',
+        r'^tmp-',
+        r'-test$',
+        r'-e2e$',
+        r'-ephemeral$',
+    ]
+
+    for pattern in ephemeral_test_patterns:
+        if re.search(pattern, namespace, re.IGNORECASE):
+            return True
+
+    return False
+
+
+# ---------------------------
 # get namespaces and apply include/exclude regex lists
 # ---------------------------
 def get_namespaces_for_context(
@@ -663,8 +708,15 @@ def get_namespaces_for_context(
     oc_timeout_seconds: int,
     include_patterns: Optional[List[Pattern]] = None,
     exclude_patterns: Optional[List[Pattern]] = None,
+    exclude_ephemeral: bool = True,
 ) -> List[str]:
-    """Get namespaces for a context, optionally filtered by include/exclude patterns."""
+    """
+    Get namespaces for a context, optionally filtered by include/exclude patterns.
+
+    Args:
+        exclude_ephemeral: If True, automatically exclude ephemeral test and cluster namespaces
+                          (default: True for EaaS clusters)
+    """
     subcmd = ["get", "ns", "-o", "json"]
     rc, out, err = run_oc_subcommand(
         context, subcmd, retries=retries, oc_timeout_seconds=oc_timeout_seconds
@@ -683,6 +735,10 @@ def get_namespaces_for_context(
     ]
     filtered: List[str] = []
     for ns in all_ns:
+        # Exclude ephemeral namespaces if enabled
+        if exclude_ephemeral and is_ephemeral_namespace(ns):
+            continue
+
         include = True
         if include_patterns:
             include = any(p.search(ns) for p in include_patterns)
@@ -912,6 +968,7 @@ def query_context(
     ns_batch_size: int = DEFAULT_NS_BATCH_SIZE,
     ns_workers: int = DEFAULT_NS_WORKERS,
     time_range_seconds: Optional[int] = None,
+    exclude_ephemeral: bool = True,
 ) -> Tuple[str, Dict[str, Any], Optional[str]]:
     cluster = short_cluster_name(context)
     print(color(f"\n→ Processing cluster: {cluster}", BLUE))
@@ -931,6 +988,7 @@ def query_context(
         oc_timeout_seconds=oc_timeout_seconds,
         include_patterns=_INCLUDE_PATTERNS,
         exclude_patterns=_EXCLUDE_PATTERNS,
+        exclude_ephemeral=exclude_ephemeral,
     )
     if not namespaces:
         return cluster, {}, None
@@ -1004,6 +1062,7 @@ def run_batches(
     ns_batch_size: int,
     ns_workers: int,
     time_range_seconds: Optional[int] = None,
+    exclude_ephemeral: bool = True,
 ) -> Tuple[Dict[str, Any], Dict[str, str]]:
     """
     Run cluster processing with constant parallelism.
@@ -1030,6 +1089,7 @@ def run_batches(
                 ns_batch_size,
                 ns_workers,
                 time_range_seconds,
+                exclude_ephemeral,
             )
             active_futures[fut] = ctx
             print(
@@ -1068,6 +1128,7 @@ def run_batches(
                         ns_batch_size,
                         ns_workers,
                         time_range_seconds,
+                        exclude_ephemeral,
                     )
                     active_futures[next_fut] = next_ctx
                     print(
@@ -1427,6 +1488,12 @@ Namespace Filtering:
                            Examples: --include-ns "tenant|prod"
   --exclude-ns regex,...   Comma-separated regex patterns to exclude (if match any -> excluded)
                            Examples: --exclude-ns "test|debug"
+  --include-ephemeral      Include ephemeral test and cluster namespaces (default: excluded)
+                           Ephemeral namespaces include:
+                           - Ephemeral cluster namespaces: clusters-<uuid> pattern
+                           - Ephemeral test namespaces: test-*, e2e-*, ephemeral-*, ci-*, etc.
+                           On EaaS clusters, ephemeral namespaces are excluded by default
+                           to avoid false positives from temporary test environments.
 
 Time Range Filtering:
   --time-range RANGE       Time range to look back for events (default: 1d)
@@ -1489,7 +1556,7 @@ def compile_patterns(csv_patterns: Optional[str]) -> Optional[List[Pattern]]:
 
 def parse_args(
     argv: List[str],
-) -> Tuple[List[str], int, int, int, int, Optional[int], str]:
+) -> Tuple[List[str], int, int, int, int, Optional[int], str, bool]:
     args = list(argv)
     if "--help" in args or "-h" in args:
         print_usage_and_exit()
@@ -1503,6 +1570,7 @@ def parse_args(
     include_csv = None
     exclude_csv = None
     time_range_str = "1d"  # Default 1 day
+    exclude_ephemeral = True  # Default: exclude ephemeral namespaces
 
     if "--current" in args:
         cur = get_current_context(
@@ -1582,6 +1650,9 @@ def parse_args(
         i = args.index("--exclude-ns")
         exclude_csv = args[i + 1] if i + 1 < len(args) else None
 
+    if "--include-ephemeral" in args:
+        exclude_ephemeral = False  # User wants to include ephemeral namespaces
+
     if "--retries" in args:
         i = args.index("--retries")
         if i + 1 >= len(args):
@@ -1640,6 +1711,7 @@ def parse_args(
         oc_timeout_seconds,
         time_range_seconds,
         time_range_str,
+        exclude_ephemeral,
     )
 
 
@@ -1663,6 +1735,7 @@ def main() -> None:
         oc_timeout_seconds,
         time_range_seconds,
         time_range_str,
+        exclude_ephemeral,
     ) = parse_args(sys.argv[1:])
 
     if not contexts:
@@ -1684,6 +1757,20 @@ def main() -> None:
             BLUE,
         )
     )
+    if exclude_ephemeral:
+        print(
+            color(
+                "Ephemeral namespaces: EXCLUDED (ephemeral test/cluster namespaces will be skipped)",
+                BLUE,
+            )
+        )
+    else:
+        print(
+            color(
+                "Ephemeral namespaces: INCLUDED (all namespaces will be scanned)",
+                YELLOW,
+            )
+        )
     if _INCLUDE_PATTERNS:
         print(
             color(
@@ -1716,6 +1803,7 @@ def main() -> None:
         ns_batch_size,
         ns_workers,
         time_range_seconds,
+        exclude_ephemeral,
     )
 
     json_path = Path("oom_results.json")
