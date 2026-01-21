@@ -717,25 +717,59 @@ def crashloop_via_pods_oc(
 # ---------------------------
 # Ephemeral namespace detection
 # ---------------------------
-def is_ephemeral_namespace(namespace: str) -> bool:
+def is_ephemeral_namespace(namespace_name: str, namespace_metadata: Optional[Dict[str, Any]] = None) -> bool:
     """
     Detect if a namespace is an ephemeral test or cluster namespace.
 
-    Ephemeral cluster namespaces on EaaS clusters follow the pattern:
-    - clusters-<uuid> (e.g., clusters-4e52ba17-c17b-4f35-b7e0-0215e63678a0)
+    Detection methods (in order of reliability):
+    1. Label-based detection (most reliable):
+       - konflux-ci.dev/namespace-type: eaas (EaaS ephemeral namespaces)
+       - Other ephemeral namespace labels
+    2. Name pattern matching:
+       - Ephemeral cluster namespaces: clusters-<uuid> pattern
+       - Ephemeral test namespaces: test-*, e2e-*, ephemeral-*, ci-*, pr-*, temp-*
 
-    Ephemeral test namespaces commonly follow patterns:
-    - test-*, e2e-*, ephemeral-*, ci-*, pr-*, temp-*
-    - Namespaces with timestamps or random suffixes
+    Args:
+        namespace_name: Name of the namespace
+        namespace_metadata: Optional namespace metadata dict (from Kubernetes API)
+                          If provided, labels will be checked for more reliable detection
 
-    Returns True if the namespace matches ephemeral patterns.
+    Returns True if the namespace matches ephemeral patterns or labels.
     """
-    if not namespace:
+    if not namespace_name:
         return False
 
+    # Method 1: Check labels (most reliable - works even if namespace name is modified)
+    if namespace_metadata:
+        labels = namespace_metadata.get("labels", {})
+        if labels:
+            # Primary check: EaaS ephemeral namespace label (most reliable indicator)
+            # konflux-ci.dev/namespace-type: eaas
+            if labels.get("konflux-ci.dev/namespace-type") == "eaas":
+                return True
+            
+            # Check for other ephemeral namespace label indicators
+            # Look for labels that suggest ephemeral/test namespaces
+            ephemeral_label_indicators = {
+                "konflux-ci.dev/namespace-type": ["eaas", "ephemeral", "test"],
+                "namespace-type": ["eaas", "ephemeral", "test"],
+                "ephemeral": ["true", "yes"],
+            }
+            
+            for label_key, label_value in labels.items():
+                label_key_lower = label_key.lower()
+                label_value_lower = str(label_value).lower()
+                
+                # Check if label key matches known ephemeral indicators
+                for indicator_key, indicator_values in ephemeral_label_indicators.items():
+                    if indicator_key in label_key_lower:
+                        if any(val in label_value_lower for val in indicator_values):
+                            return True
+
+    # Method 2: Name pattern matching (fallback if labels not available)
     # Ephemeral cluster namespaces: clusters-<uuid> pattern
     # UUID format: 8-4-4-4-12 hex digits (e.g., clusters-4e52ba17-c17b-4f35-b7e0-0215e63678a0)
-    if re.match(r'^clusters-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', namespace, re.IGNORECASE):
+    if re.match(r'^clusters-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', namespace_name, re.IGNORECASE):
         return True
 
     # Ephemeral test namespaces: common test/e2e/ephemeral patterns
@@ -753,7 +787,7 @@ def is_ephemeral_namespace(namespace: str) -> bool:
     ]
 
     for pattern in ephemeral_test_patterns:
-        if re.search(pattern, namespace, re.IGNORECASE):
+        if re.search(pattern, namespace_name, re.IGNORECASE):
             return True
 
     return False
@@ -788,25 +822,28 @@ def get_namespaces_for_context(
     except json.JSONDecodeError as e:
         logging.warning(f"Failed to parse namespaces JSON: {e}")
         return []
-    all_ns = [
-        it.get("metadata", {}).get("name")
-        for it in obj.get("items", [])
-        if it.get("metadata", {}).get("name")
-    ]
+    # Collect namespace names and metadata for ephemeral detection
+    namespaces_with_metadata = []
+    for item in obj.get("items", []):
+        metadata = item.get("metadata", {})
+        ns_name = metadata.get("name")
+        if ns_name:
+            namespaces_with_metadata.append((ns_name, metadata))
+    
     filtered: List[str] = []
-    for ns in all_ns:
-        # Exclude ephemeral namespaces if enabled
-        if exclude_ephemeral and is_ephemeral_namespace(ns):
+    for ns_name, ns_metadata in namespaces_with_metadata:
+        # Exclude ephemeral namespaces if enabled (check both labels and name patterns)
+        if exclude_ephemeral and is_ephemeral_namespace(ns_name, ns_metadata):
             continue
 
         include = True
         if include_patterns:
-            include = any(p.search(ns) for p in include_patterns)
+            include = any(p.search(ns_name) for p in include_patterns)
         if not include:
             continue
-        if exclude_patterns and any(p.search(ns) for p in exclude_patterns):
+        if exclude_patterns and any(p.search(ns_name) for p in exclude_patterns):
             continue
-        filtered.append(ns)
+        filtered.append(ns_name)
     return filtered
 
 
