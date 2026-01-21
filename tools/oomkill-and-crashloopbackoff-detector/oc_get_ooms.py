@@ -28,6 +28,7 @@ import re
 import sys
 import time
 import logging
+import glob
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -1201,6 +1202,79 @@ def run_batches(
 
 
 # ---------------------------
+# output directory management
+# ---------------------------
+def ensure_output_directory() -> Path:
+    """
+    Ensure the 'output' subdirectory exists, creating it if necessary.
+    
+    Returns:
+        Path to the output directory
+    """
+    output_dir = Path("output")
+    output_dir.mkdir(exist_ok=True)
+    return output_dir
+
+
+def move_existing_output_files() -> int:
+    """
+    Move all existing output files (oom_results.* and timestamped versions)
+    from current directory to 'output' subdirectory.
+    
+    Returns:
+        Number of files moved
+    """
+    output_dir = ensure_output_directory()
+    moved_count = 0
+    
+    # Pattern to match output files
+    output_patterns = [
+        "oom_results.csv",
+        "oom_results.json",
+        "oom_results.html",
+        "oom_results.table",
+        "oom_results_*.csv",
+        "oom_results_*.json",
+        "oom_results_*.html",
+        "oom_results_*.table",
+    ]
+    
+    current_dir = Path(".")
+    for pattern in output_patterns:
+        # Handle wildcard patterns
+        if "*" in pattern:
+            files = glob.glob(str(current_dir / pattern))
+        else:
+            files = [str(current_dir / pattern)] if (current_dir / pattern).exists() else []
+        
+        for file_path_str in files:
+            file_path = Path(file_path_str)
+            if file_path.exists() and file_path.is_file():
+                try:
+                    dest_path = output_dir / file_path.name
+                    # If file already exists in output dir, skip (don't overwrite)
+                    if not dest_path.exists():
+                        file_path.rename(dest_path)
+                        moved_count += 1
+                    else:
+                        # If destination exists, try to rename with a timestamp
+                        timestamp = timestamp_for_backup()
+                        suffix = file_path.suffix
+                        stem = file_path.stem
+                        backup_name = f"{stem}_{timestamp}{suffix}"
+                        dest_path = output_dir / backup_name
+                        file_path.rename(dest_path)
+                        moved_count += 1
+                except Exception as e:
+                    logging.warning(f"Failed to move {file_path} to output directory: {e}")
+    
+    if moved_count > 0:
+        print(color(f"Moved {moved_count} existing output file(s) to 'output' directory", YELLOW))
+    
+    return moved_count
+
+
+# ---------------------------
 # file backup utilities
 # ---------------------------
 def backup_existing_file(file_path: Path) -> Optional[Path]:
@@ -1854,6 +1928,12 @@ def main() -> None:
         print(color("Aborted by user.", YELLOW))
         sys.exit(0)
 
+    # Move existing output files to output directory (one-time migration)
+    move_existing_output_files()
+    
+    # Ensure output directory exists
+    output_dir = ensure_output_directory()
+    
     results, skipped = run_batches(
         contexts,
         batch_size,
@@ -1865,10 +1945,11 @@ def main() -> None:
         exclude_ephemeral,
     )
 
-    json_path = Path("oom_results.json")
-    csv_path = Path("oom_results.csv")
-    table_path = Path("oom_results.table")
-    html_path = Path("oom_results.html")
+    # All output files go to 'output' subdirectory
+    json_path = output_dir / "oom_results.json"
+    csv_path = output_dir / "oom_results.csv"
+    table_path = output_dir / "oom_results.table"
+    html_path = output_dir / "oom_results.html"
     
     # Backup existing files before generating new ones
     backup_output_files(json_path, csv_path, table_path, html_path)
@@ -1888,6 +1969,12 @@ def main() -> None:
     print(
         color(
             "\nPer-cluster logs written to /private/tmp/<cluster>/ (if any findings were found)",
+            GREEN,
+        )
+    )
+    print(
+        color(
+            f"Output files written to '{output_dir}/' directory",
             GREEN,
         )
     )
