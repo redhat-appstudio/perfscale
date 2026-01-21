@@ -117,42 +117,88 @@ def run_shell_cmd_with_retries(
 
 
 # ---------------------------
-# oc helpers
+# CLI tool detection and helpers
 # ---------------------------
-def oc_cmd_parts(
-    context: str, oc_timeout_seconds: int, subcommand: List[str]
+_CLI_TOOL: Optional[str] = None  # Cached CLI tool (kubectl or oc)
+
+
+def detect_cli_tool() -> str:
+    """
+    Detect which CLI tool to use: kubectl (preferred) or oc (fallback).
+    
+    Returns:
+        "kubectl" if available, "oc" if kubectl not available, or raises error if neither found
+    """
+    global _CLI_TOOL
+    if _CLI_TOOL:
+        return _CLI_TOOL
+    
+    # Try kubectl first (works with any Kubernetes cluster)
+    rc, _, _ = run_cmd_with_retries(["kubectl", "version", "--client", "--short"], retries=1, timeout=5)
+    if rc == 0:
+        _CLI_TOOL = "kubectl"
+        return _CLI_TOOL
+    
+    # Fallback to oc (OpenShift)
+    rc, _, _ = run_cmd_with_retries(["oc", "version", "--client"], retries=1, timeout=5)
+    if rc == 0:
+        _CLI_TOOL = "oc"
+        return _CLI_TOOL
+    
+    # Neither found
+    raise RuntimeError(
+        "Neither 'kubectl' nor 'oc' CLI tool found. "
+        "Please install kubectl (for Kubernetes) or oc (for OpenShift)."
+    )
+
+
+def cli_cmd_parts(
+    context: str, cli_timeout_seconds: int, subcommand: List[str]
 ) -> List[str]:
-    parts = ["oc", f"--request-timeout={oc_timeout_seconds}s"]
+    """Build command parts for kubectl or oc."""
+    cli_tool = detect_cli_tool()
+    parts = [cli_tool, f"--request-timeout={cli_timeout_seconds}s"]
     if context:
         parts += ["--context", context]
     parts += subcommand
     return parts
 
 
+def run_cli_subcommand(
+    context: str, subcommand: List[str], retries: int, cli_timeout_seconds: int
+) -> Tuple[int, str, str]:
+    """Run a kubectl or oc subcommand."""
+    cmd = cli_cmd_parts(context, cli_timeout_seconds, subcommand)
+    return run_cmd_with_retries(cmd, retries=retries, timeout=cli_timeout_seconds + 5)
+
+
+# Backward compatibility aliases
+def oc_cmd_parts(
+    context: str, oc_timeout_seconds: int, subcommand: List[str]
+) -> List[str]:
+    """Backward compatibility alias for cli_cmd_parts."""
+    return cli_cmd_parts(context, oc_timeout_seconds, subcommand)
+
+
 def run_oc_subcommand(
     context: str, subcommand: List[str], retries: int, oc_timeout_seconds: int
 ) -> Tuple[int, str, str]:
-    cmd = oc_cmd_parts(context, oc_timeout_seconds, subcommand)
-    return run_cmd_with_retries(cmd, retries=retries, timeout=oc_timeout_seconds + 5)
+    """Backward compatibility alias for run_cli_subcommand."""
+    return run_cli_subcommand(context, subcommand, retries, oc_timeout_seconds)
 
 
 # ---------------------------
 # context utilities
 # ---------------------------
 def get_all_contexts(retries: int, oc_timeout_seconds: int) -> List[str]:
-    """Get all available OpenShift contexts."""
-    cmd = ["oc", "config", "get-contexts", "-o", "name"]
+    """Get all available Kubernetes/OpenShift contexts."""
+    cli_tool = detect_cli_tool()
+    cmd = [cli_tool, "config", "get-contexts", "-o", "name"]
     rc, out, err = run_cmd_with_retries(
         cmd, retries=retries, timeout=oc_timeout_seconds + 5
     )
     if rc != 0 or not out:
-        # Try kubectl as fallback
-        cmd = ["kubectl", "config", "get-contexts", "-o", "name"]
-        rc, out, err = run_cmd_with_retries(
-            cmd, retries=retries, timeout=oc_timeout_seconds + 5
-        )
-        if rc != 0 or not out:
-            return []
+        return []
     return [line.strip() for line in out.splitlines() if line.strip()]
 
 
@@ -217,8 +263,9 @@ def match_contexts_by_substring(
 
 
 def get_current_context(retries: int, oc_timeout_seconds: int) -> str:
-    """Get the current OpenShift context."""
-    cmd = ["oc", "config", "current-context"]
+    """Get the current Kubernetes/OpenShift context."""
+    cli_tool = detect_cli_tool()
+    cmd = [cli_tool, "config", "current-context"]
     rc, out, err = run_cmd_with_retries(
         cmd, retries=retries, timeout=oc_timeout_seconds + 5
     )
@@ -286,9 +333,21 @@ def timestamp_for_backup() -> str:
 def check_cluster_connectivity(
     context: str, retries: int, oc_timeout_seconds: int
 ) -> Tuple[bool, str]:
-    rc, out, err = run_oc_subcommand(
-        context, ["whoami"], retries=retries, oc_timeout_seconds=oc_timeout_seconds
-    )
+    """Check cluster connectivity using appropriate method for the CLI tool."""
+    cli_tool = detect_cli_tool()
+    
+    # oc has 'whoami', kubectl doesn't - use 'get ns' for kubectl
+    if cli_tool == "oc":
+        rc, out, err = run_cli_subcommand(
+            context, ["whoami"], retries=retries, cli_timeout_seconds=oc_timeout_seconds
+        )
+    else:  # kubectl
+        # Use 'get ns' as connectivity check (works for all auth methods)
+        # Note: --request-timeout is already added by cli_cmd_parts, so we don't need it here
+        rc, out, err = run_cli_subcommand(
+            context, ["get", "ns"], retries=retries, cli_timeout_seconds=oc_timeout_seconds
+        )
+    
     if rc == 0:
         return True, ""
     return False, err or out or "unknown error"
