@@ -5,7 +5,8 @@ set -e  # Exit on error
 # Default values
 POD_NAME=""
 TYPE=""
-CSV_FILE="oom_results.csv"
+CSV_FILE="output/oom_results.csv"
+OUTPUT_DIR="output"
 
 # Function to print help
 print_help() {
@@ -14,11 +15,11 @@ Usage: $0 -p POD_NAME -t TYPE [OPTIONS]
    or: $0 --pod-name POD_NAME --type TYPE [OPTIONS]
 
 Required Arguments:
-  -p, --pod-name POD_NAME    Name of the pod to bundle (must exist in oom_results.csv)
+  -p, --pod-name POD_NAME    Name of the pod to bundle (must exist in output/oom_results.csv)
   -t, --type TYPE            Type of issue: OOMKilled or CrashLoopBackOff (case-insensitive)
 
 Options:
-  -c, --csv-file FILE        Path to oom_results.csv (default: oom_results.csv)
+  -c, --csv-file FILE        Path to oom_results.csv (default: output/oom_results.csv)
   -h, --help                 Show this help message
 
 Examples:
@@ -129,6 +130,9 @@ fi
 # All validations passed - proceed with the script
 set -x
 
+# Ensure output directory exists
+mkdir -p "${OUTPUT_DIR}"
+
 DATE="`date +%Y-%m-%d`"
 TYPE1="OOMKilled"
 TYPE2="CrashLoopBackOff"
@@ -163,10 +167,11 @@ ls -l /private/tmp/${DATE}/
 
 du -sh /private/tmp/${DATE}/${TYPE}.tgz
 
-# Copy to current directory with descriptive name
-cp /private/tmp/${DATE}/${TYPE}.tgz .
-cp ${TYPE}.tgz ${TYPE}-${POD_NAME}.tgz
+# Copy to output directory with descriptive name
+cp /private/tmp/${DATE}/${TYPE}.tgz "${OUTPUT_DIR}/"
+cp "${OUTPUT_DIR}/${TYPE}.tgz" "${OUTPUT_DIR}/${TYPE}-${POD_NAME}.tgz"
 
-ls -ltr 
+echo "Bundle files saved to ${OUTPUT_DIR}/ directory:"
+ls -ltr "${OUTPUT_DIR}/${TYPE}"*.tgz 2>/dev/null || ls -ltr "${OUTPUT_DIR}/" | grep "${TYPE}"
 
 set +x
