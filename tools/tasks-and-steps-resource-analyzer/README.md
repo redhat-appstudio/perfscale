@@ -269,47 +269,32 @@ The `analyze_resource_limits.py` script analyzes resource consumption data and p
 ./analyze_resource_limits.py --file https://github.com/konflux-ci/build-definitions/blob/main/task/buildah/0.7/buildah.yaml
 ```
 
-## Base Metric Options
+## Phase 1: Analysis (Default Behavior)
 
-The tool supports four base metrics for calculating recommendations. The default is `max`, but you can choose based on your risk tolerance:
+**Important:** Phase 1 (analysis) generates recommendations for ALL base metrics (max, p95, p90, median) regardless of the `--base` flag. The `--base` flag is **ignored** in Phase 1.
 
-**4. Using Max (default - most conservative):**
+**4. Basic analysis (generates all base metrics):**
 ```bash
-# Uses maximum observed usage across all clusters
-./analyze_resource_limits.py --file /path/to/buildah.yaml --base max --margin 10
-```
-
-**5. Using P95 (recommended for production):**
-```bash
-# Uses 95th percentile - covers 95% of usage patterns
-./analyze_resource_limits.py --file /path/to/buildah.yaml --base p95 --margin 10
-```
-
-**6. Using P90 (more aggressive):**
-```bash
-# Uses 90th percentile - covers 90% of usage patterns
-./analyze_resource_limits.py --file /path/to/buildah.yaml --base p90 --margin 10
-```
-
-**7. Using Median (most aggressive):**
-```bash
-# Uses median usage - covers 50% of usage patterns
-./analyze_resource_limits.py --file /path/to/buildah.yaml --base median --margin 10
+# Generates recommendations for max, p95, p90, and median
+# --base flag is ignored in Phase 1
+./analyze_resource_limits.py --file /path/to/buildah.yaml
 ```
 
 ## Margin Configuration
 
-**8. Custom safety margin (default is 10%):**
+**5. Custom safety margin (default is 5%):**
 ```bash
-# Add 5% safety margin
-./analyze_resource_limits.py --file /path/to/buildah.yaml --margin 5
+# Use default 5% margin
+./analyze_resource_limits.py --file /path/to/buildah.yaml
+
+# Add 10% safety margin
+./analyze_resource_limits.py --file /path/to/buildah.yaml --margin 10
 
 # Add 20% safety margin
 ./analyze_resource_limits.py --file /path/to/buildah.yaml --margin 20
-
-# Combine with base metric
-./analyze_resource_limits.py --file /path/to/buildah.yaml --base p95 --margin 15
 ```
+
+**Note:** Margin is applied to all base metrics (max, p95, p90, median) in Phase 1.
 
 ## Time Range Configuration
 
@@ -342,46 +327,51 @@ The tool supports four base metrics for calculating recommendations. The default
 ./analyze_resource_limits.py --file /path/to/buildah.yaml --pll-clusters 3 --days 10 --base p95 --margin 5
 ```
 
-## Update Workflows
+## Phase 2: Update (View Recommendations)
 
-**11. Two-step workflow (recommended for review):**
+**Important:** Phase 2 (`--update`) requires `--file` to specify which task to update. The `--base` flag is **ignored** in Phase 2 - all base metrics (max, p95, p90, median) are always shown. YAML files are **NOT updated automatically** - you must update them manually after reviewing recommendations.
+
+**11. View recommendations for all base metrics:**
 ```bash
-# Step 1: Generate and cache recommendations (shows table format output)
-./analyze_resource_limits.py --file https://github.com/.../buildah.yaml --margin 5 --days 10 --base p95
+# View recommendations for all base metrics (max, p95, p90, median)
+# --base flag is ignored in Phase 2, margin must be specified
+./analyze_resource_limits.py --update --file /path/to/buildah.yaml --margin 5
 
-# Step 2: Review cached recommendations and apply (shows comparison table)
-./analyze_resource_limits.py --update
+# Same as above (--base is ignored)
+./analyze_resource_limits.py --update --file /path/to/buildah.yaml --base p95 --margin 5
 ```
 
-**12. Update local YAML file directly:**
+**12. Update with different margin (creates new comparison files for each margin):**
 ```bash
-# Analyzes and updates in one step
-./analyze_resource_limits.py --file /path/to/buildah.yaml --update
+# Create comparison files for margin 5% (if they don't exist)
+./analyze_resource_limits.py --update --file /path/to/buildah.yaml --margin 5
+
+# Create comparison files for margin 10% (separate file, coexists with margin 5% file)
+./analyze_resource_limits.py --update --file /path/to/buildah.yaml --margin 10
+
+# Create comparison files for margin 20% (separate file, coexists with other margin files)
+./analyze_resource_limits.py --update --file /path/to/buildah.yaml --margin 20
+
+# If comparison file already exists for a margin, it's reused (no new file created)
+./analyze_resource_limits.py --update --file /path/to/buildah.yaml --margin 5
 ```
 
-**13. Update local file using cache (no re-analysis):**
+**13. Two-phase workflow (recommended):**
 ```bash
-# Step 1: Generate cache from URL (long operation)
-./analyze_resource_limits.py --file https://github.com/.../buildah.yaml --margin 5 --days 10 --base p95
+# Phase 1: Generate all base metrics (margin: 5%, days: 7)
+./analyze_resource_limits.py --file /path/to/buildah.yaml --margin 5 --days 7
 
-# Step 2: Update local file using cache (fast, no re-analysis)
-./analyze_resource_limits.py --update --file /path/to/local/buildah.yaml
+# Phase 2: View recommendations for all base metrics with margin 5%
+./analyze_resource_limits.py --update --file /path/to/buildah.yaml --margin 5
+
+# Phase 2: View recommendations for all base metrics with margin 10% (creates new file)
+./analyze_resource_limits.py --update --file /path/to/buildah.yaml --margin 10
+
+# Phase 2: View recommendations for all base metrics with margin 20% (creates new file)
+./analyze_resource_limits.py --update --file /path/to/buildah.yaml --margin 20
 ```
 
-**14. Force re-analysis when updating local file:**
-```bash
-# Re-run analysis and update local file
-./analyze_resource_limits.py --update --file /path/to/local/buildah.yaml --analyze-again
-
-# With custom parameters
-./analyze_resource_limits.py --update --file /path/to/local/buildah.yaml --analyze-again --margin 10 --base max --days 7
-```
-
-**15. Update with specific parameters (uses cache if available, otherwise runs analysis):**
-```bash
-# Parameters are used for analysis if cache doesn't exist
-./analyze_resource_limits.py --file /path/to/buildah.yaml --update --margin 10 --base max --days 7
-```
+**Note:** You can run Phase 2 multiple times with different `--margin` values. Each margin gets its own comparison file, allowing you to compare recommendations across different margins. The `--base` flag is ignored - all base metrics are always shown.
 
 ## Debug and Validation
 
@@ -473,31 +463,37 @@ The tool supports four base metrics for calculating recommendations. The default
   - When provided, automatically extracts task/step info and runs data collection
   - Required for initial analysis, optional when using `--update` with cache
 
-- **`--update`** - Update the YAML file with recommended resource limits
-  - Without `--file`: Shows all available cached tasks and uses the most recent one to update its original file/URL
-  - With `--file <local_file>`: Extracts task name from the file and loads cache for that specific task (if available), otherwise runs analysis first
-  - Updates local files directly, generates patch files for GitHub URLs
-  - Shows comparison table before applying changes
-  - **Task-based**: Each task has its own independent cache, allowing multiple tasks to be analyzed and updated separately
+- **`--update`** - Phase 2: View recommendations for all base metrics
+  - **Requires `--file`**: Must specify which task to update
+  - Extracts task name from the file and loads analysis data from Phase 1
+  - Shows comparison tables for all base metrics (max, p95, p90, median) - `--base` flag is ignored
+  - **Does NOT update YAML files**: You must update YAML files manually after reviewing recommendations
+  - Creates comparison file for the specified margin if it doesn't exist: `{task_name}_comparison_data_margin-{margin}_{YYYYMMDD}.html/json`
+  - If comparison file already exists for the margin, uses existing file (no new file created)
+  - Can be run multiple times with different `--margin` values, creating separate files for each margin
+  - Multiple margin files coexist for the same analysis date, allowing easy comparison across margins
+  - **No timestamp added** in Phase 2 (timestamp only added when re-analysis happens in Phase 1)
 
 - **`--analyze-again`, `--aa`** - Force re-analysis even when cache exists
   - Only effective when used with `--update --file`
   - Ignores existing cache and runs fresh analysis before updating
   - Useful when you want to re-analyze with different parameters
 
-- **`--margin MARGIN`** - Safety margin percentage to add to base metric (default: 10)
+- **`--margin MARGIN`** - Safety margin percentage to add to base metric (default: 5)
   - Formula: `recommended = base_metric * (1 + margin / 100)`
-  - Common values: 5% (aggressive), 10% (balanced), 20% (conservative)
-  - Applied to both memory and CPU recommendations
+  - Common values: 5% (default), 10% (balanced), 20% (conservative)
+  - Applied to all base metrics (max, p95, p90, median) in both Phase 1 and Phase 2
   - Final recommendation is capped at maximum observed value
 
 - **`--base {max,p95,p90,median}`** - Base metric for margin calculation (default: max)
+  - **Phase 1 (Analysis)**: This flag is **IGNORED**. All base metrics (max, p95, p90, median) are generated regardless.
+  - **Phase 2 (Update)**: This flag is **IGNORED**. All base metrics are always shown regardless of this flag.
   - **`max`**: Maximum observed usage across all clusters (most conservative, default)
   - **`p95`**: 95th percentile usage (recommended for production, covers 95% of cases)
   - **`p90`**: 90th percentile usage (more aggressive, covers 90% of cases)
   - **`median`**: Median usage (most aggressive, covers 50% of cases)
   - Falls back to `max` if selected percentile data is unavailable
-  - The tool finds the maximum of the selected metric across all clusters, then adds margin
+  - The tool finds the maximum of each metric across all clusters, then adds margin
 
 - **`--days DAYS`** - Number of days for data collection when using `--file` (default: 7)
   - Range: Typically 1-30+ days
@@ -527,6 +523,8 @@ The tool supports four base metrics for calculating recommendations. The default
 
 **How it works:**
 
+**Phase 1: Analysis (default, unless `--update` is specified):**
+
 1. **With `--file` (local or GitHub URL):**
    - Validates wrapper-defined steps against YAML file steps before proceeding
    - Checks cluster connectivity and displays connectivity report with short cluster names (e.g., "stone-stg-rh01")
@@ -537,14 +535,30 @@ The tool supports four base metrics for calculating recommendations. The default
    - Displays Data Collection Summary with cluster processing statistics and error details
    - Shows data collection output in table format
    - Analyzes data across all clusters for each step
-   - Calculates recommendations using selected base metric + safety margin
+   - **Generates recommendations for ALL base metrics** (max, p95, p90, median) - `--base` flag is ignored
+   - Calculates recommendations using each base metric + safety margin
    - Rounds values to standard Kubernetes resource sizes
-   - Saves recommendations to cache (task-based: each task gets its own cache file)
-   - Generates HTML files for trend analysis:
-     - CSV data HTML with sortable columns (`{task_name}_analyzed_data_{timestamp}.html`)
-     - Comparison table HTML (`{task_name}_comparison_data_{timestamp}.html`)
-   - Shows detailed analysis and comparison table
-   - If `--update` is used: Updates local YAML or generates patch file for remote URLs
+   - Saves analyzed data files:
+     - First analysis: `{task_name}_analyzed_data_{YYYYMMDD}.html/json`
+     - Re-analysis: `{task_name}_analyzed_data_{YYYYMMDD_HHMMSS}.html/json` (preserves old files)
+   - Saves comparison data files with margin in filename:
+     - First analysis: `{task_name}_comparison_data_margin-{margin}_{YYYYMMDD}.html/json`
+     - Re-analysis: `{task_name}_comparison_data_margin-{margin}_{YYYYMMDD_HHMMSS}.html/json` (preserves old files)
+   - Shows detailed analysis for default base (max)
+   - Timestamp is only added when re-analysis happens (analyzed_data files exist for that date)
+
+**Phase 2: Update (with `--update` flag):**
+
+2. **With `--update --file`:**
+   - Requires `--file` to specify which task to update
+   - Loads analyzed data from Phase 1 (date-based files, handles both date-only and date+timestamp formats)
+   - Checks if comparison file exists for the specified margin
+   - If comparison file exists: Uses existing file (no new file created)
+   - If comparison file doesn't exist: Creates new comparison file `{task_name}_comparison_data_margin-{margin}_{YYYYMMDD}.html/json` (no timestamp, since no re-analysis)
+   - Shows comparison tables for **all base metrics** (max, p95, p90, median) - `--base` flag is ignored
+   - **Does NOT update YAML files** - you must update them manually
+   - Can be run multiple times with different `--margin` values, creating separate files for each margin
+   - Multiple margin files can coexist for the same analysis date, allowing easy comparison
    
    **Parallel Processing:**
    - When `--pll-clusters N` is specified, clusters are processed concurrently with N workers
@@ -557,23 +571,10 @@ The tool supports four base metrics for calculating recommendations. The default
    - Now matches parallel mode behavior with progress indicators and summary output
    - Consistent output formatting ensures same user experience regardless of execution mode
 
-2. **With piped input:**
+3. **With piped input:**
    - Reads CSV data from stdin
-   - Analyzes and provides recommendations
-   - Does not cache (no file reference)
-
-3. **With `--update` only (no `--file`):**
-   - Shows all available cached tasks
-   - Uses the most recent cache for its task
-   - Shows comparison table
-   - Applies changes to the original file/URL for that task
-
-4. **With `--update --file <local_file>`:**
-   - Extracts task name from the local file
-   - If cache exists for that task: Loads recommendations from cache (no re-analysis), shows comparison table, and updates the local file directly
-   - If no cache exists for that task: Automatically runs analysis (same as `--file` without `--update`), saves to cache for that task, then updates the local file
-   - If `--analyze-again` is provided: Always runs analysis, saves to cache for that task, then updates the local file
-   - **Task-based**: Each task has its own cache, so updating one task doesn't affect others
+   - Analyzes and provides recommendations for all base metrics
+   - Does not save files (no file reference)
 
 5. **With `--dry-run`:**
    - Validates wrapper-defined steps against YAML file steps
@@ -700,22 +701,27 @@ Apply with: patch <original_file> < buildah_20241219_141358.patch
 - When using `--update` without `--file`: Shows all available cached tasks and uses the most recent one
 - Use `--analyze-again` flag to force re-analysis even when cache exists for that task
 
-**HTML Output Files:**
-- **Automatic Generation**: HTML files are automatically generated during analysis and update operations
-- **CSV Data HTML** (`{task_name}_analyzed_data_{timestamp}.html`):
-  - Contains all collected resource usage data in a sortable HTML table
-  - Click column headers to sort (ascending/descending)
-  - Includes all CSV columns: cluster, task, step, pod info, memory metrics (max, P95, P90, median), CPU metrics (max, P95, P90, median)
-  - Saved when cache is created during analysis
-- **Comparison HTML** (`{task_name}_comparison_data_{timestamp}.html`):
-  - Contains the comparison table showing current vs proposed resource limits
-  - Non-sortable table format
-  - Saved when comparison table is displayed (during analysis and update)
-- **Timestamp Format**: `YYYYMMDD_HHMMSS` (e.g., `20250113_143022`)
-- **File Location**: All HTML files saved in `.analyze_cache/` directory alongside cache files
-- **Trend Analysis**: Timestamped filenames allow tracking changes over time
+**File Output (Phase 1 - Analysis):**
+- **Date-based naming**: Files use date format (YYYYMMDD) for first analysis, or date+timestamp (YYYYMMDD_HHMMSS) if files already exist for that date
+- **Analyzed Data Files**:
+  - First analysis on a date: `{task_name}_analyzed_data_{YYYYMMDD}.html/json`
+  - Re-running on same date: `{task_name}_analyzed_data_{YYYYMMDD_HHMMSS}.html/json` (preserves old files)
+  - Sortable HTML table of all collected CSV data
+  - JSON format of CSV data
+- **Comparison Data Files** (margin-specific, created in both Phase 1 and Phase 2):
+  - **Phase 1 (first analysis)**: `{task_name}_comparison_data_margin-{margin}_{YYYYMMDD}.html/json`
+  - **Phase 1 (re-analysis)**: `{task_name}_comparison_data_margin-{margin}_{YYYYMMDD_HHMMSS}.html/json` (preserves old files)
+  - **Phase 2 (new margin)**: `{task_name}_comparison_data_margin-{margin}_{YYYYMMDD}.html/json` (no timestamp, since no re-analysis)
+  - Comparison tables for all base metrics (max, p95, p90, median)
+  - All recommendations for all base metrics
+  - Each margin gets its own file, allowing multiple margin files to coexist for the same analysis
+  - Files are only created if they don't already exist for that margin
+- **Date Format**: `YYYYMMDD` (e.g., `20250113`) or `YYYYMMDD_HHMMSS` (e.g., `20250113_165921`) when re-analysis happens
+- **File Location**: All files saved in `.analyze_cache/` directory
+- **Task Isolation**: Each task has its own files, allowing parallel/serial analysis of multiple tasks without interference
+- **Margin Isolation**: Each margin has its own comparison file, allowing comparison across different margins
 - **Browser Compatibility**: HTML files work in any modern browser with no external dependencies
-- **Notification**: Tool prints HTML file locations to stderr when files are saved
+- **Notification**: Tool prints file locations to stderr when files are saved
 
 **Rounding Rules:**
 - **Memory**: 
