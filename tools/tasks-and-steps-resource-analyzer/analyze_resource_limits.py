@@ -1290,18 +1290,129 @@ def analyze_step_data(step_name, step_rows, margin_pct=10, base='max'):
     }
 
 
-def print_comparison_table(recommendations, current_resources=None, task_name=None):
+def analyze_step_data_all_bases(step_name, step_rows, margin_pct=5):
+    """Analyze data for a specific step and return recommendations for all base metrics.
+    
+    Args:
+        step_name: Name of the step
+        step_rows: List of data rows for this step
+        margin_pct: Safety margin percentage to add (applied to all base metrics)
+    
+    Returns:
+        Dictionary with recommendations for all base metrics: {'max': {...}, 'p95': {...}, 'p90': {...}, 'median': {...}}
+    """
+    if not step_rows:
+        return None
+    
+    # Extract memory values
+    mem_max_values = [
+        float(r['mem_max_mb']) for r in step_rows
+        if r.get('mem_max_mb') and r['mem_max_mb'] not in ('0', '', 'N/A')
+    ]
+    mem_p95_values = [
+        float(r['mem_p95_mb']) for r in step_rows
+        if r.get('mem_p95_mb') and r['mem_p95_mb'] not in ('0', '', 'N/A')
+    ]
+    mem_p90_values = [
+        float(r['mem_p90_mb']) for r in step_rows
+        if r.get('mem_p90_mb') and r['mem_p90_mb'] not in ('0', '', 'N/A')
+    ]
+    mem_median_values = [
+        float(r['mem_median_mb']) for r in step_rows
+        if r.get('mem_median_mb') and r['mem_median_mb'] not in ('0', '', 'N/A')
+    ]
+    
+    # Extract CPU values
+    cpu_max_values = [parse_cpu_value(r.get('cpu_max', '0m')) for r in step_rows if r.get('cpu_max')]
+    cpu_p95_values = [parse_cpu_value(r.get('cpu_p95', '0m')) for r in step_rows if r.get('cpu_p95')]
+    cpu_p90_values = [parse_cpu_value(r.get('cpu_p90', '0m')) for r in step_rows if r.get('cpu_p90')]
+    cpu_median_values = [parse_cpu_value(r.get('cpu_median', '0m')) for r in step_rows if r.get('cpu_median')]
+    
+    if not mem_max_values:
+        return None
+    
+    # Calculate max across all clusters
+    mem_max_max = max(mem_max_values)
+    mem_p95_max = max(mem_p95_values) if mem_p95_values else 0
+    mem_p90_max = max(mem_p90_values) if mem_p90_values else 0
+    mem_median_max = max(mem_median_values) if mem_median_values else 0
+    
+    cpu_max_max = max(cpu_max_values) if cpu_max_values else 0
+    cpu_p95_max = max(cpu_p95_values) if cpu_p95_values else 0
+    cpu_p90_max = max(cpu_p90_values) if cpu_p90_values else 0
+    cpu_median_max = max(cpu_median_values) if cpu_median_values else 0
+    
+    # Generate recommendations for all base metrics
+    all_recommendations = {}
+    
+    for base in ['max', 'p95', 'p90', 'median']:
+        if base == 'max':
+            mem_base = mem_max_max
+            cpu_base = cpu_max_max
+            base_label = 'Max'
+        elif base == 'p95':
+            mem_base = mem_p95_max if mem_p95_max > 0 else mem_max_max
+            cpu_base = cpu_p95_max if cpu_p95_max > 0 else cpu_max_max
+            base_label = 'P95'
+        elif base == 'p90':
+            mem_base = mem_p90_max if mem_p90_max > 0 else mem_max_max
+            cpu_base = cpu_p90_max if cpu_p90_max > 0 else cpu_max_max
+            base_label = 'P90'
+        elif base == 'median':
+            mem_base = mem_median_max if mem_median_max > 0 else mem_max_max
+            cpu_base = cpu_median_max if cpu_median_max > 0 else cpu_max_max
+            base_label = 'Median'
+        
+        # Calculate recommendations: base + margin, but don't exceed max observed
+        mem_recommended = min(mem_max_max, int(mem_base * (1 + margin_pct / 100))) if mem_base > 0 else mem_max_max
+        if cpu_base > 0:
+            cpu_recommended = min(cpu_max_max * 1.1, cpu_base * (1 + margin_pct / 100))
+        else:
+            cpu_recommended = cpu_max_max if cpu_max_max > 0 else 0
+        
+        # Count coverage
+        mem_coverage = len([x for x in mem_max_values if x <= mem_recommended])
+        cpu_coverage = len([x for x in cpu_max_values if x <= cpu_recommended]) if cpu_max_values else 0
+        
+        all_recommendations[base] = {
+            'step_name': step_name,
+            'mem_recommended_mb': mem_recommended,
+            'mem_recommended_k8s': mb_to_kubernetes(mem_recommended),
+            'cpu_recommended_cores': cpu_recommended,
+            'cpu_recommended_k8s': cores_to_kubernetes(cpu_recommended),
+            'mem_max_max': mem_max_max,
+            'mem_p95_max': mem_p95_max,
+            'mem_p90_max': mem_p90_max,
+            'mem_median_max': mem_median_max,
+            'mem_base': mem_base,
+            'cpu_max_max': cpu_max_max,
+            'cpu_p95_max': cpu_p95_max,
+            'cpu_p90_max': cpu_p90_max,
+            'cpu_median_max': cpu_median_max,
+            'cpu_base': cpu_base,
+            'base_label': base_label,
+            'mem_coverage': mem_coverage,
+            'mem_total': len(mem_max_values),
+            'cpu_coverage': cpu_coverage,
+            'cpu_total': len(cpu_max_values) if cpu_max_values else 0,
+        }
+    
+    return all_recommendations
+
+
+def print_comparison_table(recommendations, current_resources=None, task_name=None, save_html=True):
     """Print comparison table of current vs proposed resource limits.
     
-    Also saves the comparison table as HTML if task_name is provided.
+    Also saves the comparison table as HTML if task_name is provided and save_html is True.
     
     Args:
         recommendations: List of recommendation dictionaries
         current_resources: Dictionary of current resources by step name
         task_name: Optional task name for HTML file generation
+        save_html: Whether to save HTML file (default: True). Set to False in Phase 1 to avoid duplicate files.
     
     Returns:
-        Path to saved HTML file if task_name provided, None otherwise
+        Path to saved HTML file if task_name provided and save_html is True, None otherwise
     """
     if not recommendations:
         return None
@@ -1351,9 +1462,9 @@ def print_comparison_table(recommendations, current_resources=None, task_name=No
     
     print()
     
-    # Save as HTML if task_name provided
+    # Save as HTML if task_name provided and save_html is True
     comparison_html_path = None
-    if task_name:
+    if task_name and save_html:
         timestamp_str = datetime.now().strftime('%Y%m%d_%H%M%S')
         comparison_html_path = save_comparison_table_to_html(recommendations, current_resources, task_name, timestamp_str)
         if comparison_html_path:
@@ -1362,7 +1473,7 @@ def print_comparison_table(recommendations, current_resources=None, task_name=No
     return comparison_html_path
 
 
-def print_analysis(recommendations, margin_pct, base='max', current_resources=None, task_name=None):
+def print_analysis(recommendations, margin_pct, base='max', current_resources=None, task_name=None, save_comparison_html=True):
     """Print analysis results.
     
     Args:
@@ -1371,6 +1482,7 @@ def print_analysis(recommendations, margin_pct, base='max', current_resources=No
         base: Base metric used
         current_resources: Optional dictionary of current resources
         task_name: Optional task name for HTML file generation
+        save_comparison_html: Whether to save comparison HTML file (default: True). Set to False in Phase 1 to avoid duplicate files.
     
     Returns:
         Path to comparison HTML file if saved, None otherwise
@@ -1412,7 +1524,7 @@ def print_analysis(recommendations, margin_pct, base='max', current_resources=No
     comparison_html_path = None
     if current_resources:
         print()
-        comparison_html_path = print_comparison_table(recommendations, current_resources, task_name)
+        comparison_html_path = print_comparison_table(recommendations, current_resources, task_name, save_html=save_comparison_html)
     
     return comparison_html_path
 
@@ -1813,6 +1925,567 @@ def save_comparison_table_to_html(recommendations, current_resources, task_name,
         f.write(html_content)
     
     return html_path
+
+
+def get_date_based_file_path(task_name, file_type, date_str, timestamp_str=None, margin_pct=None):
+    """Get file path for date-based file naming.
+    
+    Args:
+        task_name: Task name
+        file_type: 'analyzed_data' or 'comparison_data'
+        date_str: Date string in YYYYMMDD format
+        timestamp_str: Optional timestamp string in YYYYMMDD_HHMMSS format (only used for re-analysis)
+        margin_pct: Optional margin percentage (only used for comparison_data file type)
+    
+    Returns:
+        Path object for the file
+    """
+    script_dir = Path(__file__).parent
+    cache_dir = script_dir / '.analyze_cache'
+    cache_dir.mkdir(exist_ok=True)
+    
+    safe_task_name = re.sub(r'[^a-zA-Z0-9_-]', '_', task_name)
+    
+    if file_type == 'comparison_data' and margin_pct is not None:
+        # Comparison files include margin in filename
+        if timestamp_str:
+            filename = f"{safe_task_name}_{file_type}_margin-{margin_pct}_{timestamp_str}"
+        else:
+            filename = f"{safe_task_name}_{file_type}_margin-{margin_pct}_{date_str}"
+    else:
+        # Analyzed data files don't include margin
+        if timestamp_str:
+            filename = f"{safe_task_name}_{file_type}_{timestamp_str}"
+        else:
+            filename = f"{safe_task_name}_{file_type}_{date_str}"
+    
+    return cache_dir / filename
+
+
+def check_files_exist_for_date(task_name, file_type, date_str, margin_pct=None):
+    """Check if files already exist for a given date.
+    
+    Args:
+        task_name: Task name
+        file_type: 'analyzed_data' or 'comparison_data'
+        date_str: Date string in YYYYMMDD format
+        margin_pct: Optional margin percentage (only used for comparison_data)
+    
+    Returns:
+        True if files exist for this date, False otherwise
+    """
+    html_path = get_date_based_file_path(task_name, file_type, date_str, margin_pct=margin_pct).with_suffix('.html')
+    json_path = get_date_based_file_path(task_name, file_type, date_str, margin_pct=margin_pct).with_suffix('.json')
+    return html_path.exists() or json_path.exists()
+
+
+def check_comparison_file_exists_for_margin(task_name, date_str, margin_pct):
+    """Check if comparison file exists for a specific margin.
+    
+    Args:
+        task_name: Task name
+        date_str: Date string in YYYYMMDD format
+        margin_pct: Margin percentage
+    
+    Returns:
+        True if comparison file exists for this margin, False otherwise
+    """
+    # Check date-only format first
+    html_path = get_date_based_file_path(task_name, 'comparison_data', date_str, margin_pct=margin_pct).with_suffix('.html')
+    json_path = get_date_based_file_path(task_name, 'comparison_data', date_str, margin_pct=margin_pct).with_suffix('.json')
+    
+    if html_path.exists() or json_path.exists():
+        return True
+    
+    # Also check if any timestamped version exists for this margin
+    script_dir = Path(__file__).parent
+    cache_dir = script_dir / '.analyze_cache'
+    
+    if not cache_dir.exists():
+        return False
+    
+    safe_task_name = re.sub(r'[^a-zA-Z0-9_-]', '_', task_name)
+    pattern = f"{safe_task_name}_comparison_data_margin-{margin_pct}_{date_str}_*.json"
+    
+    matching_files = list(cache_dir.glob(pattern))
+    return len(matching_files) > 0
+
+
+def save_analyzed_data(task_name, csv_data, date_str):
+    """Save analyzed data (CSV) as HTML and JSON files.
+    
+    Args:
+        task_name: Task name
+        csv_data: CSV data string
+        date_str: Date string in YYYYMMDD format
+    
+    Returns:
+        tuple: (html_path, json_path) - paths to saved files
+    """
+    # If files exist for this date, use timestamp to preserve old files
+    if check_files_exist_for_date(task_name, 'analyzed_data', date_str):
+        timestamp_str = datetime.now().strftime('%Y%m%d_%H%M%S')
+        html_path = get_date_based_file_path(task_name, 'analyzed_data', date_str, timestamp_str).with_suffix('.html')
+        json_path = get_date_based_file_path(task_name, 'analyzed_data', date_str, timestamp_str).with_suffix('.json')
+    else:
+        html_path = get_date_based_file_path(task_name, 'analyzed_data', date_str).with_suffix('.html')
+        json_path = get_date_based_file_path(task_name, 'analyzed_data', date_str).with_suffix('.json')
+    
+    # Save HTML (reuse existing function but with date-based naming)
+    if csv_data:
+        import io
+        csv_reader = csv.reader(io.StringIO(csv_data))
+        rows = list(csv_reader)
+        
+        if rows:
+            headers = [h.strip().strip('"') for h in rows[0]]
+            data_rows = rows[1:] if len(rows) > 1 else []
+            
+            html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resource Usage Data - {task_name}</title>
+    <style>
+        body {{
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }}
+        h1 {{
+            color: #333;
+            margin-bottom: 20px;
+        }}
+        .info {{
+            margin-bottom: 20px;
+            color: #666;
+        }}
+        table {{
+            border-collapse: collapse;
+            width: 100%;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }}
+        th {{
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+        }}
+        th:hover {{
+            background-color: #45a049;
+        }}
+        th::after {{
+            content: ' ↕';
+            opacity: 0.5;
+            margin-left: 5px;
+        }}
+        th.sorted-asc::after {{
+            content: ' ↑';
+            opacity: 1;
+        }}
+        th.sorted-desc::after {{
+            content: ' ↓';
+            opacity: 1;
+        }}
+        td {{
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }}
+        tr:hover {{
+            background-color: #f5f5f5;
+        }}
+        tr:nth-child(even) {{
+            background-color: #f9f9f9;
+        }}
+    </style>
+    <script>
+        function sortTable(columnIndex) {{
+            const table = document.getElementById('dataTable');
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            const header = table.querySelectorAll('th')[columnIndex];
+            const isAscending = header.classList.contains('sorted-asc');
+            
+            table.querySelectorAll('th').forEach(th => {{
+                th.classList.remove('sorted-asc', 'sorted-desc');
+            }});
+            
+            rows.sort((a, b) => {{
+                const aText = a.cells[columnIndex].textContent.trim();
+                const bText = b.cells[columnIndex].textContent.trim();
+                
+                const aNum = parseFloat(aText);
+                const bNum = parseFloat(bText);
+                if (!isNaN(aNum) && !isNaN(bNum)) {{
+                    return isAscending ? bNum - aNum : aNum - bNum;
+                }}
+                
+                return isAscending ? bText.localeCompare(aText) : aText.localeCompare(bText);
+            }});
+            
+            rows.forEach(row => tbody.appendChild(row));
+            header.classList.add(isAscending ? 'sorted-desc' : 'sorted-asc');
+        }}
+    </script>
+</head>
+<body>
+    <h1>Resource Usage Data - {task_name}</h1>
+    <div class="info">Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
+    <table id="dataTable">
+        <thead>
+            <tr>
+"""
+            
+            for i, header in enumerate(headers):
+                header_cleaned = header.strip().strip('"').strip("'")
+                html_content += f'                <th onclick="sortTable({i})">{header_cleaned}</th>\n'
+            
+            html_content += """            </tr>
+        </thead>
+        <tbody>
+"""
+            
+            for row in data_rows:
+                html_content += "            <tr>\n"
+                for cell in row:
+                    cell_cleaned = str(cell).strip().strip('"').strip("'")
+                    cell_escaped = cell_cleaned.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
+                    html_content += f"                <td>{cell_escaped}</td>\n"
+                html_content += "            </tr>\n"
+            
+            html_content += """        </tbody>
+    </table>
+</body>
+</html>
+"""
+            
+            with open(html_path, 'w', encoding='utf-8') as f:
+                f.write(html_content)
+    
+    # Save JSON (convert CSV to JSON structure)
+    json_data = {
+        'task_name': task_name,
+        'date': date_str,
+        'timestamp': datetime.now().isoformat(),
+        'csv_data': csv_data
+    }
+    
+    with open(json_path, 'w', encoding='utf-8') as f:
+        json.dump(json_data, f, indent=2)
+    
+    return html_path, json_path
+
+
+def save_comparison_data_all_bases(task_name, all_recommendations_by_base, current_resources, margin_pct, date_str, use_timestamp=False):
+    """Save comparison data for all base metrics as HTML and JSON.
+    
+    Args:
+        task_name: Task name
+        all_recommendations_by_base: Dict with keys 'max', 'p95', 'p90', 'median', each containing list of recommendations
+        current_resources: Dictionary of current resources by step name
+        margin_pct: Margin percentage used
+        date_str: Date string in YYYYMMDD format
+        use_timestamp: If True, add timestamp to filename (used when re-analysis happens in Phase 1)
+    
+    Returns:
+        tuple: (html_path, json_path) - paths to saved files
+    """
+    # If re-analysis happened (use_timestamp=True), use timestamp
+    # Otherwise, just use date (for Phase 1 first run or Phase 2 with different margin)
+    if use_timestamp:
+        timestamp_str = datetime.now().strftime('%Y%m%d_%H%M%S')
+        html_path = get_date_based_file_path(task_name, 'comparison_data', date_str, timestamp_str, margin_pct).with_suffix('.html')
+        json_path = get_date_based_file_path(task_name, 'comparison_data', date_str, timestamp_str, margin_pct).with_suffix('.json')
+    else:
+        html_path = get_date_based_file_path(task_name, 'comparison_data', date_str, margin_pct=margin_pct).with_suffix('.html')
+        json_path = get_date_based_file_path(task_name, 'comparison_data', date_str, margin_pct=margin_pct).with_suffix('.json')
+    
+    # Generate HTML with separate tables for each base metric
+    html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resource Limits Comparison - {task_name}</title>
+    <style>
+        body {{
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }}
+        h1 {{
+            color: #333;
+            margin-bottom: 10px;
+        }}
+        h2 {{
+            color: #555;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #2196F3;
+            padding-bottom: 5px;
+        }}
+        .info {{
+            margin-bottom: 20px;
+            color: #666;
+        }}
+        table {{
+            border-collapse: collapse;
+            width: 100%;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }}
+        th {{
+            background-color: #2196F3;
+            color: white;
+            padding: 12px;
+            text-align: left;
+        }}
+        td {{
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }}
+        tr:hover {{
+            background-color: #f5f5f5;
+        }}
+        tr:nth-child(even) {{
+            background-color: #f9f9f9;
+        }}
+    </style>
+</head>
+<body>
+    <h1>Resource Limits Comparison: Current vs Proposed</h1>
+    <div class="info">Task: {task_name}</div>
+    <div class="info">Margin: {margin_pct}%</div>
+    <div class="info">Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
+"""
+    
+    # Generate table for each base metric
+    for base in ['max', 'p95', 'p90', 'median']:
+        recommendations = all_recommendations_by_base.get(base, [])
+        if not recommendations:
+            continue
+        
+        base_label = base.upper() if base != 'max' else 'MAX'
+        html_content += f"""
+    <h2>Base Metric: {base_label} (Margin: {margin_pct}%)</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Step</th>
+                <th>Current Requests</th>
+                <th>Proposed Requests</th>
+                <th>Current Limits</th>
+                <th>Proposed Limits</th>
+            </tr>
+        </thead>
+        <tbody>
+"""
+        
+        for rec in recommendations:
+            if rec is None:
+                continue
+            
+            step_name = rec['step_name']
+            step_name_yaml = step_name.replace('step-', '') if step_name.startswith('step-') else step_name
+            proposed_mem = rec['mem_recommended_k8s']
+            proposed_cpu = rec['cpu_recommended_k8s']
+            
+            # Get current values
+            if current_resources and step_name_yaml in current_resources:
+                curr = current_resources[step_name_yaml]
+                curr_mem_req = curr['requests'].get('memory') or 'null'
+                curr_cpu_req = curr['requests'].get('cpu') or 'null'
+                curr_mem_lim = curr['limits'].get('memory') or 'null'
+                curr_cpu_lim = curr['limits'].get('cpu') or 'null'
+            else:
+                curr_mem_req = 'N/A'
+                curr_cpu_req = 'N/A'
+                curr_mem_lim = 'N/A'
+                curr_cpu_lim = 'N/A'
+            
+            curr_req = f"{curr_mem_req} / {curr_cpu_req}"
+            curr_lim = f"{curr_mem_lim} / {curr_cpu_lim}"
+            prop_req = f"{proposed_mem} / {proposed_cpu}"
+            prop_lim = f"{proposed_mem} / {proposed_cpu}"
+            
+            html_content += f"""            <tr>
+                <td>{step_name_yaml}</td>
+                <td>{curr_req}</td>
+                <td>{prop_req}</td>
+                <td>{curr_lim}</td>
+                <td>{prop_lim}</td>
+            </tr>
+"""
+        
+        html_content += """        </tbody>
+    </table>
+"""
+    
+    html_content += """</body>
+</html>
+"""
+    
+    # Save HTML
+    with open(html_path, 'w', encoding='utf-8') as f:
+        f.write(html_content)
+    
+    # Save JSON
+    json_data = {
+        'task_name': task_name,
+        'date': date_str,
+        'timestamp': datetime.now().isoformat(),
+        'margin_pct': margin_pct,
+        'recommendations_by_base': all_recommendations_by_base
+    }
+    
+    with open(json_path, 'w', encoding='utf-8') as f:
+        json.dump(json_data, f, indent=2)
+    
+    return html_path, json_path
+
+
+def load_analyzed_data(task_name, date_str):
+    """Load analyzed data from JSON file.
+    
+    Tries date-only format first, then looks for latest date+timestamp format.
+    
+    Args:
+        task_name: Task name
+        date_str: Date string in YYYYMMDD format
+    
+    Returns:
+        Dictionary with analyzed data or None if not found
+    """
+    # Try date-only format first
+    json_path = get_date_based_file_path(task_name, 'analyzed_data', date_str).with_suffix('.json')
+    
+    if json_path.exists():
+        try:
+            with open(json_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, KeyError) as e:
+            print(f"Warning: Failed to load analyzed data: {e}", file=sys.stderr)
+            return None
+    
+    # If not found, look for latest date+timestamp format
+    script_dir = Path(__file__).parent
+    cache_dir = script_dir / '.analyze_cache'
+    
+    if not cache_dir.exists():
+        return None
+    
+    safe_task_name = re.sub(r'[^a-zA-Z0-9_-]', '_', task_name)
+    pattern = f"{safe_task_name}_analyzed_data_{date_str}_*.json"
+    
+    matching_files = list(cache_dir.glob(pattern))
+    if not matching_files:
+        return None
+    
+    # Sort by modification time (newest first) and load the latest
+    matching_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    latest_file = matching_files[0]
+    
+    try:
+        with open(latest_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, KeyError) as e:
+        print(f"Warning: Failed to load analyzed data: {e}", file=sys.stderr)
+        return None
+
+
+def load_comparison_data(task_name, date_str, margin_pct):
+    """Load comparison data from JSON file for a specific margin.
+    
+    Tries date-only format first, then looks for latest date+timestamp format.
+    
+    Args:
+        task_name: Task name
+        date_str: Date string in YYYYMMDD format
+        margin_pct: Margin percentage
+    
+    Returns:
+        Dictionary with comparison data or None if not found
+    """
+    # Try date-only format first
+    json_path = get_date_based_file_path(task_name, 'comparison_data', date_str, margin_pct=margin_pct).with_suffix('.json')
+    
+    if json_path.exists():
+        try:
+            with open(json_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, KeyError) as e:
+            print(f"Warning: Failed to load comparison data: {e}", file=sys.stderr)
+            return None
+    
+    # If not found, look for latest date+timestamp format with this margin
+    script_dir = Path(__file__).parent
+    cache_dir = script_dir / '.analyze_cache'
+    
+    if not cache_dir.exists():
+        return None
+    
+    safe_task_name = re.sub(r'[^a-zA-Z0-9_-]', '_', task_name)
+    pattern = f"{safe_task_name}_comparison_data_margin-{margin_pct}_{date_str}_*.json"
+    
+    matching_files = list(cache_dir.glob(pattern))
+    if not matching_files:
+        return None
+    
+    # Sort by modification time (newest first) and load the latest
+    matching_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    latest_file = matching_files[0]
+    
+    try:
+        with open(latest_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, KeyError) as e:
+        print(f"Warning: Failed to load comparison data: {e}", file=sys.stderr)
+        return None
+
+
+def find_latest_analysis_date(task_name):
+    """Find the latest analysis date for a task.
+    
+    Handles both date-only (YYYYMMDD) and date+timestamp (YYYYMMDD_HHMMSS) formats.
+    
+    Args:
+        task_name: Task name
+    
+    Returns:
+        Date string in YYYYMMDD format or None if not found
+    """
+    script_dir = Path(__file__).parent
+    cache_dir = script_dir / '.analyze_cache'
+    
+    if not cache_dir.exists():
+        return None
+    
+    safe_task_name = re.sub(r'[^a-zA-Z0-9_-]', '_', task_name)
+    pattern = f"{safe_task_name}_analyzed_data_*.json"
+    
+    matching_files = list(cache_dir.glob(pattern))
+    if not matching_files:
+        return None
+    
+    # Extract dates and find the latest
+    dates = set()
+    for file_path in matching_files:
+        # Extract date from filename: task_analyzed_data_YYYYMMDD.json or task_analyzed_data_YYYYMMDD_HHMMSS.json
+        match = re.search(r'_analyzed_data_(\d{8})(?:_\d{6})?\.json$', file_path.name)
+        if match:
+            dates.add(match.group(1))  # Extract just the date part (YYYYMMDD)
+    
+    if not dates:
+        return None
+    
+    # Return the latest date (already in YYYYMMDD format, so lexicographic sort works)
+    return max(dates)
 
 
 def generate_diff_patch(original_yaml, updated_yaml, file_path_or_url):
@@ -2359,30 +3032,18 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  Basic Usage:
+  Phase 1: Analysis (default behavior):
     # From piped input:
     ./wrapper_for_promql_for_all_clusters.sh 7 --csv | ./analyze_resource_limits.py
 
     # From YAML file (auto-runs data collection):
+    # Note: --base is IGNORED in Phase 1. All base metrics (max, p95, p90, median) are generated.
     ./analyze_resource_limits.py --file /path/to/buildah.yaml
     ./analyze_resource_limits.py --file https://github.com/.../buildah.yaml
 
-  Base Metric Options (default: max):
-    # Using Max (most conservative):
-    ./analyze_resource_limits.py --file /path/to/buildah.yaml --base max
-
-    # Using P95 (recommended for production):
-    ./analyze_resource_limits.py --file /path/to/buildah.yaml --base p95
-
-    # Using P90 (more aggressive):
-    ./analyze_resource_limits.py --file /path/to/buildah.yaml --base p90
-
-    # Using Median (most aggressive):
-    ./analyze_resource_limits.py --file /path/to/buildah.yaml --base median
-
-  Margin and Time Range:
-    # Custom safety margin (default: 10%):
+    # Custom safety margin (default: 5%):
     ./analyze_resource_limits.py --file /path/to/buildah.yaml --margin 5
+    ./analyze_resource_limits.py --file /path/to/buildah.yaml --margin 10
     ./analyze_resource_limits.py --file /path/to/buildah.yaml --margin 20
 
     # Custom data collection period (default: 7 days):
@@ -2390,49 +3051,49 @@ Examples:
     ./analyze_resource_limits.py --file /path/to/buildah.yaml --days 10
     ./analyze_resource_limits.py --file /path/to/buildah.yaml --days 30
 
-    # Combine options:
-    ./analyze_resource_limits.py --file /path/to/buildah.yaml --base p95 --margin 15 --days 10
+    # Combine options (--base is ignored in Phase 1):
+    ./analyze_resource_limits.py --file /path/to/buildah.yaml --margin 15 --days 10
 
-  Parallel Processing:
+  Parallel Processing (Phase 1 only):
     # Process multiple clusters concurrently:
     ./analyze_resource_limits.py --file /path/to/buildah.yaml --pll-clusters 3
     ./analyze_resource_limits.py --file /path/to/buildah.yaml --pll-clusters 5
 
     # Combine with other options:
-    ./analyze_resource_limits.py --file /path/to/buildah.yaml --pll-clusters 3 --days 10 --base p95 --margin 5
+    ./analyze_resource_limits.py --file /path/to/buildah.yaml --pll-clusters 3 --days 10 --margin 5
 
-  Update Workflows:
-    # Update YAML file with recommendations:
-    ./analyze_resource_limits.py --file /path/to/buildah.yaml --update
+  Phase 2: Update (view recommendations):
+    # View recommendations for all base metrics (requires --file):
+    # Note: --base flag is ignored. All base metrics (max, p95, p90, median) are always shown.
+    # YAML files are NOT updated automatically.
+    ./analyze_resource_limits.py --update --file /path/to/buildah.yaml --margin 5
 
-    # Update using cached recommendations (from previous run):
-    ./analyze_resource_limits.py --update
-
-    # Update local file using cache (no re-analysis):
-    ./analyze_resource_limits.py --update --file /path/to/local/buildah.yaml
-
-    # Force re-analysis and update local file:
-    ./analyze_resource_limits.py --update --file /path/to/local/buildah.yaml --analyze-again
-
-    # Update with specific parameters:
-    ./analyze_resource_limits.py --file /path/to/buildah.yaml --update --margin 10 --base max --days 7
+    # Create comparison files for different margins (each margin gets its own file):
+    ./analyze_resource_limits.py --update --file /path/to/buildah.yaml --margin 5
+    ./analyze_resource_limits.py --update --file /path/to/buildah.yaml --margin 10
+    ./analyze_resource_limits.py --update --file /path/to/buildah.yaml --margin 20
+    # All three margin files coexist, allowing easy comparison
 
   Debug and Validation:
     # Enable debug output:
     ./analyze_resource_limits.py --file /path/to/buildah.yaml --debug
     ./analyze_resource_limits.py --update --file /path/to/buildah.yaml --debug
 
-    # Dry-run: Validate task/steps and check cluster connectivity:
+    # Dry-run: Validate task/steps and check cluster connectivity (Phase 1 only):
     ./analyze_resource_limits.py --file /path/to/buildah.yaml --dry-run
     ./analyze_resource_limits.py --file /path/to/buildah.yaml --dry-run --debug
 
   Complete Examples:
-    # Full-featured analysis:
-    ./analyze_resource_limits.py --file /path/to/buildah.yaml --base p95 --margin 15 --days 10 --pll-clusters 4 --debug
+    # Phase 1: Full-featured analysis (generates all base metrics):
+    ./analyze_resource_limits.py --file /path/to/buildah.yaml --margin 15 --days 10 --pll-clusters 4 --debug
 
-    # Two-step workflow (recommended):
-    ./analyze_resource_limits.py --file https://github.com/.../buildah.yaml --base p95 --margin 10 --days 7
-    ./analyze_resource_limits.py --update
+    # Two-phase workflow (recommended):
+    # Phase 1: Run analysis (generates all base metrics with margin 5%)
+    ./analyze_resource_limits.py --file https://github.com/.../buildah.yaml --margin 5 --days 7
+    # Phase 2: View recommendations for all base metrics with margin 5%
+    ./analyze_resource_limits.py --update --file /path/to/buildah.yaml --margin 5
+    # Phase 2: Create comparison files for margin 10% (separate file, coexists with margin 5% file)
+    ./analyze_resource_limits.py --update --file /path/to/buildah.yaml --margin 10
         """
     )
     parser.add_argument(
@@ -2442,7 +3103,7 @@ Examples:
     parser.add_argument(
         '--update',
         action='store_true',
-        help='Update the YAML file with recommended resource limits. If --file is not provided, uses cached recommendations from the last run. If --file <local_file> is provided, loads from cache (or runs analysis if no cache exists).'
+        help='Phase 2: View recommendations for all base metrics with specified --margin. Requires --file to specify which task to update. Creates comparison files for each margin (if they don\'t exist). Does not modify YAML files (user must update manually). --base flag is ignored.'
     )
     parser.add_argument(
         '--analyze-again',
@@ -2454,15 +3115,15 @@ Examples:
     parser.add_argument(
         '--margin',
         type=int,
-        default=10,
-        help='Safety margin percentage (default: 10)'
+        default=5,
+        help='Safety margin percentage (default: 5)'
     )
     parser.add_argument(
         '--base',
         type=str,
         choices=['max', 'p95', 'p90', 'median'],
         default='max',
-        help='Base metric for margin calculation: max, p95, p90, or median (default: max)'
+        help='Base metric for margin calculation: max, p95, p90, or median (default: max). Ignored in both Phase 1 (analysis) and Phase 2 (--update). All base metrics are always generated and shown.'
     )
     parser.add_argument(
         '--days',
@@ -2489,203 +3150,103 @@ Examples:
     
     args = parser.parse_args()
     
-    # Handle --update with --file <local_file> (load from cache, update specified local file)
-    if args.update and args.file:
-        # Check if it's a local file (not a URL)
-        if not (args.file.startswith('http://') or args.file.startswith('https://')):
-            # Load the local file YAML to get task_name
-            yaml_content, yaml_path = fetch_yaml_content(args.file)
-            task_name, file_steps, _, current_resources = extract_task_info(yaml_content)
+    # Phase 2: --update (requires --file)
+    if args.update:
+        if not args.file:
+            print("Error: --update requires --file to specify which task to update", file=sys.stderr)
+            sys.exit(1)
+        
+        # Load YAML to get task name and current resources
+        yaml_content, yaml_path = fetch_yaml_content(args.file)
+        task_name, file_steps, _, current_resources = extract_task_info(yaml_content)
+        
+        if not task_name:
+            print("Error: Could not extract task name from YAML file", file=sys.stderr)
+            sys.exit(1)
+        
+        # Find latest analysis date for this task
+        analysis_date = find_latest_analysis_date(task_name)
+        if not analysis_date:
+            print(f"Error: No analysis data found for task '{task_name}'. Please run Phase 1 (analysis) first.", file=sys.stderr)
+            sys.exit(1)
+        
+        # Load analyzed data
+        analyzed_data = load_analyzed_data(task_name, analysis_date)
+        if not analyzed_data:
+            print(f"Error: Could not load analyzed data for task '{task_name}' (date: {analysis_date})", file=sys.stderr)
+            sys.exit(1)
+        
+        # Check if comparison file exists for this margin
+        comparison_file_exists = check_comparison_file_exists_for_margin(task_name, analysis_date, args.margin)
+        
+        if not comparison_file_exists:
+            print(f"Comparison file for margin {args.margin}% does not exist. Creating new comparison files...", file=sys.stderr)
             
-            if not task_name:
-                print("Error: Could not extract task name from YAML file", file=sys.stderr)
+            # Need to generate recommendations for all base metrics with this margin
+            # Load CSV data from analyzed_data
+            csv_data = analyzed_data.get('csv_data')
+            if not csv_data:
+                print("Error: CSV data not found in analyzed data", file=sys.stderr)
                 sys.exit(1)
             
-            # Load cache for this task_name
-            cache_data = load_recommendations_cache(task_name)
+            # Parse CSV and regenerate recommendations for all base metrics
+            data = parse_csv_data(csv_data)
+            if not data:
+                print("Error: Could not parse CSV data", file=sys.stderr)
+                sys.exit(1)
             
-            # If cache exists and user didn't request re-analysis, use cache
-            if cache_data and not args.analyze_again:
-                original_file_path_or_url = cache_data.get('file_path_or_url', 'unknown')
-                recommendations = cache_data['recommendations']
-                margin_pct = cache_data.get('margin_pct', 10)
-                base = cache_data.get('base', 'max')
-                
-                print(f"Loading recommendations from cache for task '{task_name}'", file=sys.stderr)
-                print(f"Cache info: original_file={original_file_path_or_url}, margin={margin_pct}%, base={base}", file=sys.stderr)
-                print(f"Updating local file: {args.file}", file=sys.stderr)
-                print()
-                
-                # Validate that cached recommendations match the file being updated
-                cache_step_names = set()
-                for rec in recommendations:
-                    if rec is None:
-                        continue
-                    step_name_csv = rec['step_name']
-                    step_name_yaml = step_name_csv.replace('step-', '') if step_name_csv.startswith('step-') else step_name_csv
-                    cache_step_names.add(step_name_yaml)
-                
-                file_step_names = set(file_steps)
-                
-                # Check for mismatches
-                cache_only_steps = cache_step_names - file_step_names
-                file_only_steps = file_step_names - cache_step_names
-                
-                if cache_only_steps:
-                    print(f"Warning: Cache contains steps not found in file: {sorted(cache_only_steps)}", file=sys.stderr)
-                    print(f"  These steps will be skipped during update.", file=sys.stderr)
-                
-                if file_only_steps:
-                    print(f"Warning: File contains steps not found in cache: {sorted(file_only_steps)}", file=sys.stderr)
-                    print(f"  These steps will not be updated. Consider running analysis on this file.", file=sys.stderr)
-                
-                if not cache_step_names & file_step_names:
-                    print("Error: No matching steps found between cache and file.", file=sys.stderr)
-                    print(f"  Cache steps: {sorted(cache_step_names)}", file=sys.stderr)
-                    print(f"  File steps: {sorted(file_step_names)}", file=sys.stderr)
-                    print(f"  Original cache file: {original_file_path_or_url}", file=sys.stderr)
-                    print(f"  Current file: {args.file}", file=sys.stderr)
-                    sys.exit(1)
-                
-                # If --dry-run, just show what would be updated and exit
-                if args.dry_run:
-                    print("\n" + "="*80, file=sys.stderr)
-                    print("DRY-RUN: Would update file with cached recommendations", file=sys.stderr)
-                    print("="*80, file=sys.stderr)
-                    print_comparison_table(recommendations, current_resources, task_name)
-                    print("\nDRY-RUN completed. No file was updated.", file=sys.stderr)
-                    return
-                
-                # Show comparison table
-                comparison_html_path = print_comparison_table(recommendations, current_resources, task_name)
-                
-                # Update the local file directly (not generate patch)
-                updated = update_yaml_file(yaml_path, recommendations, yaml_content, None, debug=args.debug)
-                if not updated:
-                    print("Warning: No steps were updated in YAML file", file=sys.stderr)
-                return
-            else:
-                # No cache exists or user requested re-analysis
-                # Fall through to normal processing to run analysis (with validation)
-                if not cache_data:
-                    print(f"No cache found for task '{task_name}'. Running analysis...", file=sys.stderr)
-                else:
-                    print(f"Re-running analysis for task '{task_name}' as requested (--analyze-again)...", file=sys.stderr)
-                # Continue to normal processing below (will go through validation flow)
+            # Group by step
+            by_step = defaultdict(list)
+            for row in data:
+                step = row.get('step', '').strip()
+                if step:
+                    by_step[step].append(row)
+            
+            # Analyze each step for all base metrics
+            all_recommendations_by_base = {'max': [], 'p95': [], 'p90': [], 'median': []}
+            for step_name in sorted(by_step.keys()):
+                step_all_bases = analyze_step_data_all_bases(step_name, by_step[step_name], args.margin)
+                if step_all_bases:
+                    for base in ['max', 'p95', 'p90', 'median']:
+                        all_recommendations_by_base[base].append(step_all_bases[base])
+            
+            # Save comparison data with new margin (no timestamp since no re-analysis)
+            html_path, json_path = save_comparison_data_all_bases(
+                task_name, all_recommendations_by_base, current_resources, args.margin, analysis_date, use_timestamp=False
+            )
+            print(f"Created comparison files for margin {args.margin}%:", file=sys.stderr)
+            print(f"  - {html_path}", file=sys.stderr)
+            print(f"  - {json_path}", file=sys.stderr)
         else:
-            # --update --file <URL> - treat as normal update (will generate patch)
-            # Fall through to normal processing below
-            pass
-    
-    # Handle --update without --file (load from cache)
-    if args.update and not args.file:
-        # Find the most recent cache file
-        script_dir = Path(__file__).parent
-        cache_dir = script_dir / '.analyze_cache'
+            print(f"Comparison file for margin {args.margin}% already exists. Using existing file.", file=sys.stderr)
+            # Load existing comparison data
+            comparison_data = load_comparison_data(task_name, analysis_date, args.margin)
+            if not comparison_data:
+                print("Error: Could not load comparison data", file=sys.stderr)
+                sys.exit(1)
+            all_recommendations_by_base = comparison_data.get('recommendations_by_base', {})
         
-        if not cache_dir.exists():
-            print("Error: No cache found. Please run with --file first to generate recommendations.", file=sys.stderr)
-            sys.exit(1)
-        
-        cache_files = list(cache_dir.glob('*.json'))
-        if not cache_files:
-            print("Error: No cache found. Please run with --file first to generate recommendations.", file=sys.stderr)
-            sys.exit(1)
-        
-        # Load all cache files to show available tasks
-        available_tasks = []
-        for cache_file in cache_files:
-            try:
-                with open(cache_file, 'r') as f:
-                    cache_data = json.load(f)
-                    task_name = cache_data.get('task_name', 'unknown')
-                    file_path = cache_data.get('file_path_or_url', 'unknown')
-                    timestamp = cache_data.get('timestamp', 'unknown')
-                    available_tasks.append((task_name, file_path, timestamp, cache_file))
-            except Exception as e:
-                print(f"Warning: Could not read cache file {cache_file}: {e}", file=sys.stderr)
-        
-        if not available_tasks:
-            print("Error: No valid cache files found.", file=sys.stderr)
-            sys.exit(1)
-        
-        # Sort by timestamp (most recent first)
-        available_tasks.sort(key=lambda x: x[2], reverse=True)
-        
-        # Show available tasks
-        print("Available cached tasks:", file=sys.stderr)
-        for i, (task_name, file_path, timestamp, _) in enumerate(available_tasks[:5], 1):
-            print(f"  {i}. {task_name} (from {file_path}) - {timestamp}", file=sys.stderr)
-        if len(available_tasks) > 5:
-            print(f"  ... and {len(available_tasks) - 5} more", file=sys.stderr)
+        # Show comparison tables for all base metrics (--base is ignored in Phase 2)
+        print(f"\nShowing recommendations for all base metrics (margin: {args.margin}%):", file=sys.stderr)
+        print(f"Note: --base flag is ignored. All base metrics are shown.", file=sys.stderr)
         print()
         
-        # Use most recent cache
-        task_name, file_path_or_url, timestamp, latest_cache = available_tasks[0]
+        # Show comparison table for each base metric
+        for base in ['max', 'p95', 'p90', 'median']:
+            recommendations = all_recommendations_by_base.get(base, [])
+            if recommendations:
+                print(f"\n{'='*100}", file=sys.stderr)
+                print(f"Base Metric: {base.upper()}", file=sys.stderr)
+                print(f"{'='*100}", file=sys.stderr)
+                print_comparison_table(recommendations, current_resources, task_name, save_html=False)
         
-        print(f"Using most recent cache for task '{task_name}': {latest_cache}", file=sys.stderr)
-        with open(latest_cache, 'r') as f:
-            cache_data = json.load(f)
+        print(f"\nNote: YAML file is NOT updated automatically. Please review the recommendations above", file=sys.stderr)
+        print(f"      and update the YAML file manually if needed.", file=sys.stderr)
         
-        recommendations = cache_data['recommendations']
-        margin_pct = cache_data.get('margin_pct', 10)
-        base = cache_data.get('base', 'max')
-        
-        print(f"Cache info: task={task_name}, file={file_path_or_url}, margin={margin_pct}%, base={base}", file=sys.stderr)
-        print()
-        
-        # Load YAML to update
-        yaml_content, yaml_path = fetch_yaml_content(file_path_or_url)
-        yaml_task_name, file_steps, _, current_resources = extract_task_info(yaml_content)
-        
-        # Verify task name matches
-        if yaml_task_name != task_name:
-            print(f"Warning: Cache is for task '{task_name}' but file contains task '{yaml_task_name}'", file=sys.stderr)
-            print(f"  Proceeding with update, but steps may not match.", file=sys.stderr)
-        
-        # Validate that cached recommendations match the file being updated
-        cache_step_names = set()
-        for rec in recommendations:
-            if rec is None:
-                continue
-            step_name_csv = rec['step_name']
-            step_name_yaml = step_name_csv.replace('step-', '') if step_name_csv.startswith('step-') else step_name_csv
-            cache_step_names.add(step_name_yaml)
-        
-        file_step_names = set(file_steps)
-        
-        # Check for mismatches (file may have changed since cache was created)
-        cache_only_steps = cache_step_names - file_step_names
-        file_only_steps = file_step_names - cache_step_names
-        
-        if cache_only_steps:
-            print(f"Warning: Cache contains steps not found in file: {sorted(cache_only_steps)}", file=sys.stderr)
-            print(f"  These steps will be skipped during update.", file=sys.stderr)
-        
-        if file_only_steps:
-            print(f"Warning: File contains steps not found in cache: {sorted(file_only_steps)}", file=sys.stderr)
-            print(f"  These steps will not be updated. Consider running analysis again.", file=sys.stderr)
-        
-        if not cache_step_names & file_step_names:
-            print("Error: No matching steps found between cache and file.", file=sys.stderr)
-            print(f"  Cache steps: {sorted(cache_step_names)}", file=sys.stderr)
-            print(f"  File steps: {sorted(file_step_names)}", file=sys.stderr)
-            print(f"  File: {file_path_or_url}", file=sys.stderr)
-            sys.exit(1)
-        
-        # Show comparison table
-        comparison_html_path = print_comparison_table(recommendations, current_resources, task_name)
-        
-        # Update YAML
-        update_yaml_file(yaml_path, recommendations, yaml_content, file_path_or_url, debug=args.debug)
-        
-        # Print summary of HTML files
-        if comparison_html_path:
-            print(file=sys.stderr)
-            print("HTML file saved for trend analysis:", file=sys.stderr)
-            print(f"  - {comparison_html_path}", file=sys.stderr)
         return
     
+    # Phase 1: ANALYSIS (default, unless --update is specified)
+    # --base is ignored in Phase 1, all base metrics are generated
     # Determine input source
     current_resources = None
     file_path_or_url = args.file
@@ -2849,50 +3410,48 @@ Examples:
         if step:
             by_step[step].append(row)
     
-    # Analyze each step
-    recommendations = []
+    # Phase 1: Analyze each step for ALL base metrics (ignore --base flag)
+    # Note: --base is ignored in Phase 1, all metrics (max, p95, p90, median) are generated
+    all_recommendations_by_base = {'max': [], 'p95': [], 'p90': [], 'median': []}
     for step_name in sorted(by_step.keys()):
-        rec = analyze_step_data(step_name, by_step[step_name], args.margin, args.base)
-        if rec:
-            recommendations.append(rec)
+        step_all_bases = analyze_step_data_all_bases(step_name, by_step[step_name], args.margin)
+        if step_all_bases:
+            for base in ['max', 'p95', 'p90', 'median']:
+                all_recommendations_by_base[base].append(step_all_bases[base])
     
-    # Print analysis (this also saves comparison HTML if current_resources available)
-    comparison_html_path = print_analysis(recommendations, args.margin, args.base, current_resources, task_name)
+    # Get date string for file naming (YYYYMMDD format)
+    date_str = datetime.now().strftime('%Y%m%d')
     
-    # Save to cache if using --file and we have task_name (even without --update)
-    csv_html_path = None
+    # Check if analyzed_data files exist for this date (indicates re-analysis)
+    # This check happens BEFORE saving, so we know if we need timestamp
+    analyzed_files_exist = check_files_exist_for_date(task_name, 'analyzed_data', date_str) if file_path_or_url and task_name else False
+    
+    # Save analyzed_data (CSV data) - use timestamp if re-analysis happened
+    analyzed_html_path = None
+    analyzed_json_path = None
+    if file_path_or_url and task_name and csv_data:
+        analyzed_html_path, analyzed_json_path = save_analyzed_data(task_name, csv_data, date_str)
+        print(f"\nSaved analyzed data:", file=sys.stderr)
+        print(f"  - {analyzed_html_path}", file=sys.stderr)
+        print(f"  - {analyzed_json_path}", file=sys.stderr)
+    
+    # Save comparison_data (all base metrics) - use timestamp if re-analysis happened
+    comparison_html_path = None
+    comparison_json_path = None
     if file_path_or_url and task_name:
-        # Save cache and CSV HTML (csv_data is available from run_data_collection)
-        cache_file, csv_html_path = save_recommendations_cache(
-            task_name, file_path_or_url, recommendations, args.margin, args.base, args.days, csv_data
+        comparison_html_path, comparison_json_path = save_comparison_data_all_bases(
+            task_name, all_recommendations_by_base, current_resources, args.margin, date_str, use_timestamp=analyzed_files_exist
         )
-        if not args.update:
-            print(f"\nRecommendations cached for task '{task_name}'. Run with --update to apply changes.", file=sys.stderr)
+        print(f"\nSaved comparison data (all base metrics, margin={args.margin}%):", file=sys.stderr)
+        print(f"  - {comparison_html_path}", file=sys.stderr)
+        print(f"  - {comparison_json_path}", file=sys.stderr)
     
-    # Update YAML if requested
-    if args.update and file_path_or_url:
-        
-        if yaml_path and not yaml_path.startswith('http'):
-            # Local file - update directly
-            updated = update_yaml_file(yaml_path, recommendations, yaml_content, file_path_or_url, debug=args.debug)
-            if not updated:
-                print("Warning: No steps were updated in YAML file", file=sys.stderr)
-        elif file_path_or_url.startswith('http'):
-            # Remote URL - generate patch file
-            update_yaml_file(None, recommendations, yaml_content, file_path_or_url, debug=args.debug)
+    # Print analysis for default base (max) for display (skip HTML saving since we already saved it)
+    if all_recommendations_by_base.get('max'):
+        print_analysis(all_recommendations_by_base['max'], args.margin, 'max', current_resources, task_name, save_comparison_html=False)
     
-    # Print summary of HTML files saved
-    html_files = []
-    if csv_html_path:
-        html_files.append(str(csv_html_path))
-    if comparison_html_path:
-        html_files.append(str(comparison_html_path))
-    
-    if html_files:
-        print(file=sys.stderr)
-        print("HTML files saved for trend analysis:", file=sys.stderr)
-        for html_file in html_files:
-            print(f"  - {html_file}", file=sys.stderr)
+    print(f"\nPhase 1 (Analysis) completed. All base metrics (max, p95, p90, median) have been generated.", file=sys.stderr)
+    print(f"Run Phase 2 (--update) with --file to view recommendations for a specific base metric.", file=sys.stderr)
 
 
 if __name__ == '__main__':
