@@ -69,8 +69,8 @@ Architecture Overview (ASCII Diagram)
              │        - >30 days: 1h step                                          │
              │ • Sends HTTP requests to Prometheus API                             │
              │ • Executes queries for:                                             │
-             │        - container_memory_max_usage_bytes (peak memory)             │
-             │        - container_memory_working_set_bytes (for percentiles)       │
+             │        - container_memory_working_set_bytes (actual memory usage)   │
+             │        - container_cpu_usage_seconds_total (with rate calculation)  │
              │        - container_cpu_usage_seconds_total (with rate calculation)  │
              │ • Returns time series data for aggregation                          │
              └──────────────────────────────┬──────────────────────────────────────┘
@@ -82,6 +82,8 @@ Architecture Overview (ASCII Diagram)
                      │ • Processes pods in batches (50 per batch)               │
                      │ • For each batch:                                        │
                      │        - Queries memory max, p95, p90, median            │
+                     │          (uses container_memory_working_set_bytes for    │
+                     │           actual usage, not limits)                      │
                      │        - Queries CPU max, p95, p90, median               │
                      │        - Validates returned pods belong to task          │
                      │ • Aggregates across all batches:                         │
@@ -240,8 +242,8 @@ The `analyze_resource_limits.py` script analyzes resource consumption data and p
 - **Configurable Base Metrics**: Choose calculation base (max, P95, P90, median) with configurable safety margin
 - **Patch File Generation**: For remote GitHub URLs, generates `.patch` files for manual review
 - **Smart Rounding**: 
-  - Memory: Rounds UP to increments of 256Mi (< 1Gi) or whole Gi (>= 1Gi), minimum 256Mi
-  - CPU: Rounds UP to increments of 100m, minimum 100m
+  - Memory: Rounds UP to increments of 64Mi (< 1Gi) or whole Gi (>= 1Gi), minimum 64Mi
+  - CPU: Rounds UP to increments of 50m, minimum 50m
 - **Update from Cache**: Apply cached recommendations without re-running analysis
 
 **User Experience Improvements:**
@@ -677,8 +679,8 @@ Step                      Current Requests               Proposed Requests      
 build                     8Gi / 1                        8Gi / 5100m                    8Gi / null                     8Gi / 5100m                   
 push                      4Gi / 1                        1Gi / 400m                     4Gi / null                     1Gi / 400m                    
 sbom-syft-generate        4Gi / 1                        2Gi / 800m                     4Gi / null                     2Gi / 800m                    
-prepare-sboms             512Mi / 100m                   256Mi / 300m                   512Mi / null                   256Mi / 300m                  
-upload-sbom               512Mi / 100m                   256Mi / 100m                   512Mi / null                   256Mi / 100m                  
+prepare-sboms             512Mi / 100m                   192Mi / 50m                    512Mi / null                   192Mi / 50m                   
+upload-sbom               512Mi / 100m                   64Mi / 50m                     512Mi / null                   64Mi / 50m                  
 ```
 
 **Patch File Generation (for remote URLs):**
@@ -725,13 +727,17 @@ Apply with: patch <original_file> < buildah_20241219_141358.patch
 
 **Rounding Rules:**
 - **Memory**: 
-  - Minimum: 256Mi
-  - < 1Gi: Rounds UP to next increment of 256Mi (e.g., 300MB → 512Mi, 544MB → 768Mi)
-  - >= 1Gi: Rounds UP to next whole Gi (e.g., 1269MB → 2Gi)
+  - Minimum: 64Mi
+  - < 1Gi: Rounds UP to next increment of 64Mi (e.g., 65MB → 128Mi, 200MB → 256Mi, 735MB → 768Mi)
+  - >= 1Gi: Rounds UP to next whole Gi (e.g., 1269MB → 2Gi, 2989MB → 3Gi)
 - **CPU**:
-  - Minimum: 100m
-  - Always rounds UP to next increment of 100m (e.g., 243m → 300m, 385m → 400m)
+  - Minimum: 50m
+  - Always rounds UP to next increment of 50m (e.g., 51m → 100m, 243m → 250m, 459m → 500m)
   - Always outputs in millicore format (e.g., `5100m` for 5.1 cores)
+
+**Technical Notes:**
+- **Memory Metrics**: The tool uses `container_memory_working_set_bytes` for all memory calculations (max, p95, p90, median). This metric reflects actual memory usage, not memory limits. This ensures recommendations are based on real usage patterns rather than configured limits.
+- **CPU Metrics**: CPU calculations use `container_cpu_usage_seconds_total` with rate calculations to determine actual CPU consumption over time.
 
 Konflux Cluster Authentication
 ===================================

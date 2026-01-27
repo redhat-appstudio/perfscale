@@ -1089,24 +1089,24 @@ def parse_csv_data(csv_text):
 def round_memory_to_standard(mb):
     """Round memory to standard Kubernetes values.
     
-    For values < 1Gi: round to increments of 256Mi (256Mi, 512Mi, 768Mi)
+    For values < 1Gi: round to increments of 64Mi (64Mi, 128Mi, 192Mi, 256Mi, etc.)
     For values >= 1Gi: round to whole Gi values (1Gi, 2Gi, 3Gi, etc.)
     
-    Minimum value: 256Mi (to account for sparse monitoring data)
-    Rounds to nearest, but ensures we don't go below the recommended value.
+    Minimum value: 64Mi (allows fine granularity while being more standard than 32Mi)
+    Always rounds up to ensure we don't go below the recommended value.
     """
     mb = float(mb)
     
-    # Enforce minimum of 256Mi
-    MIN_MEMORY_MB = 256
+    # Enforce minimum of 64Mi (allows fine granularity while being more standard than 32Mi)
+    MIN_MEMORY_MB = 64
     
     if mb < MIN_MEMORY_MB:
         mb = MIN_MEMORY_MB
     
     if mb < 1024:
-        # Round UP to next highest increment of 256Mi
-        # Using +255 ensures we always round up (e.g., 300Mi -> 512Mi, not 256Mi)
-        rounded = ((int(mb) + 255) // 256) * 256
+        # Round UP to next highest increment of 64Mi
+        # Using +63 ensures we always round up (e.g., 65Mi -> 128Mi, not 64Mi)
+        rounded = ((int(mb) + 63) // 64) * 64
         
         # Ensure minimum
         if rounded < MIN_MEMORY_MB:
@@ -1139,22 +1139,22 @@ def mb_to_kubernetes(mb):
 def round_cpu_to_standard(cores):
     """Round CPU to standard Kubernetes values.
     
-    Rounds UP to next highest increment of 100m (100m, 200m, 300m, etc.)
-    Minimum value: 100m (to account for sparse monitoring data)
+    Rounds UP to next highest increment of 50m (50m, 100m, 150m, 200m, etc.)
+    Minimum value: 50m (allows finer granularity)
     Always rounds up to ensure we don't go below the recommended value.
     """
     cores = float(cores)
     millicores = cores * 1000
     
-    # Enforce minimum of 100m
-    MIN_CPU_MILLICORES = 100
+    # Enforce minimum of 50m (allows finer granularity)
+    MIN_CPU_MILLICORES = 50
     
     if millicores < MIN_CPU_MILLICORES:
         millicores = MIN_CPU_MILLICORES
     
-    # Round UP to next highest increment of 100m
-    # Using +99 ensures we always round up (e.g., 243m -> 300m, not 200m)
-    rounded_m = ((int(millicores) + 99) // 100) * 100
+    # Round UP to next highest increment of 50m
+    # Using +49 ensures we always round up (e.g., 51m -> 100m, not 50m)
+    rounded_m = ((int(millicores) + 49) // 50) * 50
     
     # Ensure minimum
     if rounded_m < MIN_CPU_MILLICORES:

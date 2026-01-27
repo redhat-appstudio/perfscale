@@ -176,8 +176,10 @@ while [ "$start" -lt "$total" ]; do
     
     # ------------------------------------------------------------
     # MEMORY - Max
+    # Use container_memory_working_set_bytes (actual usage) instead of 
+    # container_memory_max_usage_bytes (which reflects limits, not actual usage)
     # ------------------------------------------------------------
-    max_query="max_over_time(container_memory_max_usage_bytes{container=\"$STEP\",pod=~\"($batch_pods)\",namespace=~\".*-tenant\"}[$RANGE])"
+    max_query="max_over_time(container_memory_working_set_bytes{container=\"$STEP\",pod=~\"($batch_pods)\",namespace=~\".*-tenant\"}[$RANGE])"
     max_json="$(query "$max_query")"
     
     max_entry="$(echo "$max_json" | jq -r '
