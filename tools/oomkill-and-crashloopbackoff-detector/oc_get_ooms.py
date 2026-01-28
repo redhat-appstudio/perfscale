@@ -834,14 +834,20 @@ def get_namespaces_for_context(
     for ns_name, ns_metadata in namespaces_with_metadata:
         # Exclude ephemeral namespaces if enabled (check both labels and name patterns)
         if exclude_ephemeral and is_ephemeral_namespace(ns_name, ns_metadata):
+            if _VERBOSE:
+                print(color(f"  [skip ephemeral] {ns_name}", YELLOW))
             continue
 
         include = True
         if include_patterns:
             include = any(p.search(ns_name) for p in include_patterns)
         if not include:
+            if _VERBOSE:
+                print(color(f"  [skip include filter] {ns_name}", YELLOW))
             continue
         if exclude_patterns and any(p.search(ns_name) for p in exclude_patterns):
+            if _VERBOSE:
+                print(color(f"  [skip exclude filter] {ns_name}", YELLOW))
             continue
         filtered.append(ns_name)
     return filtered
@@ -1090,6 +1096,11 @@ def query_context(
     if not namespaces:
         return cluster, {}, None
 
+    if _VERBOSE:
+        print(color(f"  Will scan {len(namespaces)} namespaces:", BLUE))
+        for ns in namespaces:
+            print(color(f"    {ns}", BLUE))
+
     cluster_result: Dict[str, Any] = {}
 
     total_ns = len(namespaces)
@@ -1101,6 +1112,8 @@ def query_context(
                 YELLOW,
             )
         )
+        if _VERBOSE:
+            print(color(f"    Scanning: {', '.join(ns_batch)}", BLUE))
 
         with ThreadPoolExecutor(max_workers=min(ns_workers, len(ns_batch))) as ex:
             futures = {
@@ -1626,10 +1639,12 @@ def pretty_print(results: Dict[str, Any], skipped: Dict[str, str]) -> None:
 
 
 # ---------------------------
-# global patterns (populated in parse_args)
+# global patterns and flags (populated in parse_args)
 # ---------------------------
 _INCLUDE_PATTERNS: Optional[List[Pattern]] = None
 _EXCLUDE_PATTERNS: Optional[List[Pattern]] = None
+_VERBOSE: bool = False
+_LIST_NAMESPACES: bool = False
 
 
 # ---------------------------
@@ -1682,6 +1697,11 @@ Output:
   - oom_results.table      Human-readable table format
   - oom_results.html       Standalone HTML report (open in browser)
 
+Debug & Troubleshooting:
+  -v, --verbose            Show which namespaces are scanned or skipped (ephemeral/include/exclude)
+  --list-namespaces        Print namespaces that would be scanned (per context) and exit.
+                           Use to verify a namespace (e.g. preflight-dev-tenant) is included.
+
 Other:
   -h, --help               Show this help message
 
@@ -1706,6 +1726,12 @@ Examples:
 
   # All contexts, last 7 days, with custom parallelism
   ./oc_get_ooms.py --time-range 7d --batch 8 --ns-batch-size 100 --ns-workers 50
+
+  # Verify which namespaces will be scanned (e.g. check if preflight-dev-tenant is included)
+  ./oc_get_ooms.py --contexts stone-stg-rh01 --list-namespaces | grep preflight
+
+  # Verbose run to see skipped vs scanned namespaces
+  ./oc_get_ooms.py --contexts stone-stg-rh01 --verbose --time-range 1d
 """
     )
     sys.exit(1)
@@ -1726,7 +1752,7 @@ def compile_patterns(csv_patterns: Optional[str]) -> Optional[List[Pattern]]:
 
 def parse_args(
     argv: List[str],
-) -> Tuple[List[str], int, int, int, int, Optional[int], str, bool]:
+) -> Tuple[List[str], int, int, int, int, Optional[int], str, bool, bool, bool]:
     args = list(argv)
     if "--help" in args or "-h" in args:
         print_usage_and_exit()
@@ -1741,6 +1767,8 @@ def parse_args(
     exclude_csv = None
     time_range_str = "1d"  # Default 1 day
     exclude_ephemeral = True  # Default: exclude ephemeral namespaces
+    verbose = False
+    list_namespaces = False
 
     if "--current" in args:
         cur = get_current_context(
@@ -1823,6 +1851,12 @@ def parse_args(
     if "--include-ephemeral" in args:
         exclude_ephemeral = False  # User wants to include ephemeral namespaces
 
+    if "--verbose" in args or "-v" in args:
+        verbose = True
+
+    if "--list-namespaces" in args:
+        list_namespaces = True
+
     if "--retries" in args:
         i = args.index("--retries")
         if i + 1 >= len(args):
@@ -1862,9 +1896,11 @@ def parse_args(
             print(color(f"ERROR: invalid --time-range value: {e}", RED))
             print_usage_and_exit()
 
-    global _INCLUDE_PATTERNS, _EXCLUDE_PATTERNS
+    global _INCLUDE_PATTERNS, _EXCLUDE_PATTERNS, _VERBOSE, _LIST_NAMESPACES
     _INCLUDE_PATTERNS = compile_patterns(include_csv)
     _EXCLUDE_PATTERNS = compile_patterns(exclude_csv)
+    _VERBOSE = verbose
+    _LIST_NAMESPACES = list_namespaces
 
     # Parse time range to seconds
     try:
@@ -1882,6 +1918,8 @@ def parse_args(
         time_range_seconds,
         time_range_str,
         exclude_ephemeral,
+        verbose,
+        list_namespaces,
     )
 
 
@@ -1906,11 +1944,30 @@ def main() -> None:
         time_range_seconds,
         time_range_str,
         exclude_ephemeral,
+        verbose,
+        list_namespaces,
     ) = parse_args(sys.argv[1:])
 
     if not contexts:
         print(color("No contexts discovered. Exiting.", RED))
         sys.exit(1)
+
+    # --list-namespaces: print namespaces that would be scanned per context and exit
+    if list_namespaces:
+        for ctx in contexts:
+            namespaces = get_namespaces_for_context(
+                ctx,
+                retries=retries,
+                oc_timeout_seconds=oc_timeout_seconds,
+                include_patterns=_INCLUDE_PATTERNS,
+                exclude_patterns=_EXCLUDE_PATTERNS,
+                exclude_ephemeral=exclude_ephemeral,
+            )
+            cluster = short_cluster_name(ctx)
+            print(color(f"Context: {ctx} (cluster: {cluster}) — {len(namespaces)} namespaces", BLUE))
+            for ns in sorted(namespaces):
+                print(ns)
+        sys.exit(0)
 
     print(color(f"Using contexts: {contexts}", BLUE))
     print(
