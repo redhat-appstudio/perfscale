@@ -27,10 +27,6 @@ A high-performance, parallel OOMKilled / CrashLoopBackOff detector for OpenShift
   - **JSON** - Structured automation input
   - **HTML** - Standalone visual report (open in browser)
   - **TABLE** - Human-readable text table
-- **Automatic ephemeral namespace exclusion** on EaaS clusters
-  - Excludes ephemeral test and cluster namespaces by default to avoid false positives
-  - Ephemeral cluster namespaces: `clusters-<uuid>` pattern
-  - Ephemeral test namespaces: `test-*`, `e2e-*`, `ephemeral-*`, `ci-*`, etc.
 - Colorized terminal output
 
 ---
@@ -313,23 +309,6 @@ Filter events by time range (default: 1 day):
 
 ### Namespace Filtering
 
-#### Ephemeral Namespace Exclusion (Default on EaaS Clusters)
-
-By default, the tool automatically excludes ephemeral test and cluster namespaces
-to avoid false positives from temporary test environments on EaaS clusters.
-
-**Ephemeral namespaces that are excluded by default:**
-- **Ephemeral cluster namespaces**: `clusters-<uuid>` pattern
-  - Example: `clusters-4e52ba17-c17b-4f35-b7e0-0215e63678a0`
-- **Ephemeral test namespaces**: Common test patterns
-  - `test-*`, `e2e-*`, `ephemeral-*`, `ci-*`, `pr-*`, `temp-*`, `tmp-*`
-  - Namespaces ending with `-test`, `-e2e`, `-ephemeral`
-
-To include ephemeral namespaces in the scan:
-```bash
-./oc_get_ooms.py --include-ephemeral
-```
-
 #### Include only specific namespaces
 ```bash
 # Only namespaces containing "tenant"
@@ -450,6 +429,40 @@ The **HTML report** (`oom_results.html`) is particularly useful for:
   - Kubernetes events (optimized single API call)
   - Direct pod status checks (for currently existing pods)
 - Namespaces printed **only if issues are found**
+
+---
+
+## 🔍 Why might I not see an OOM for a namespace?
+
+If users report OOMs in a namespace (e.g. `preflight-dev-tenant`) but the tool reports none, common causes are:
+
+1. **Different cluster or context**
+   Reports may be from another cluster. You ran with `--contexts 'stone-stg-rh01'`; the OOMs might be on a different context (e.g. prod). Re-run for the context where OOMs were reported.
+
+2. **Namespace not scanned (excluded)**
+   The namespace might be excluded by:
+   - **Ephemeral logic** (e.g. label `konflux-ci.dev/namespace-type: eaas`, or name patterns like `test-*`, `ci-*`, `clusters-<uuid>`). Use `--include-ephemeral` if that namespace is ephemeral but you still want it.
+   - **Include/exclude patterns** (`--include-ns` / `--exclude-ns`). If you use `--include-ns`, the namespace must match one of the patterns.
+
+3. **Pods no longer exist**
+   OOM detection from **pod status** only sees **current** pods. If the OOMKilled pod was replaced or deleted, the new pod may not have `lastState.terminated.reason == OOMKilled` yet. Deleted pods are not visible to the tool.
+
+4. **Events evicted or outside time range**
+   **Events** are filtered by `--time-range` (e.g. `1d` = last 24 hours). Older events may have been evicted by the cluster (event TTL), or the OOM may have happened outside the window. Try a longer `--time-range` (e.g. `7d` or `1M`).
+
+**How detection works (short):**
+- **Events**: OOM/CrashLoop events in the namespace, filtered by `--time-range`. Older events can be evicted by the API server.
+- **Pod status**: Current pods only; checks `state.terminated` and `lastState.terminated` for OOMKilled/CrashLoopBackOff. No history for pods that no longer exist.
+
+**Verify that a namespace is scanned:**
+- **List namespaces** that would be scanned (no cluster scan):
+  ```bash
+  ./oc_get_ooms.py --contexts 'stone-stg-rh01' --list-namespaces | grep preflight
+  ```
+- **Verbose run** to see which namespaces are skipped (ephemeral/include/exclude) and which are scanned:
+  ```bash
+  ./oc_get_ooms.py --contexts 'stone-stg-rh01' --verbose --time-range 1d
+  ```
 
 ---
 
