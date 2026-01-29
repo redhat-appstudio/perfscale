@@ -1,31 +1,83 @@
 #!/opt/homebrew/bin/bash
 
-set -e  # Exit on error
+set -e
 
 # Default values
 POD_NAME=""
-TYPE=""
-CSV_FILE="output/oom_results.csv"
 OUTPUT_DIR="output"
 
-# Function to print help
+# Ordinal suffix for day: 1st, 2nd, 3rd, 4th, ..., 11th, 21st, 22nd, 23rd, etc.
+day_ordinal() {
+    local d="$1"
+    [[ -z "$d" || ! "$d" =~ ^[0-9]+$ ]] && echo "${d}th" && return
+    case "$((d % 100))" in
+        11|12|13) echo "${d}th" ;;
+        *) case "$((d % 10))" in
+               1) echo "${d}st" ;;
+               2) echo "${d}nd" ;;
+               3) echo "${d}rd" ;;
+               *) echo "${d}th" ;;
+           esac ;;
+    esac
+}
+
+# Extract date label from date-wise CSV filename: oom_results_28-Jan-2026_14-55-05-EDT.csv -> 28th-Jan-2026
+date_label_from_csv_basename() {
+    local base="$1"
+    # Match oom_results_DD-Mon-YYYY_*
+    if [[ "$base" =~ ^oom_results_([0-9]{2})-([A-Za-z]{3})-([0-9]{4})_ ]]; then
+        local dd="${BASH_REMATCH[1]}"
+        local mon="${BASH_REMATCH[2]}"
+        local yyyy="${BASH_REMATCH[3]}"
+        local ord
+        ord=$(day_ordinal "$((10#${dd}))")
+        echo "${ord}-${mon}-${yyyy}"
+    fi
+}
+
+# Extract date key from filename (DD-Mon-YYYY) for grouping; for oom_results.csv use file mtime
+date_key_from_csv_basename() {
+    local base="$1"
+    local csv_path="$2"
+    if [[ "$base" =~ ^oom_results_([0-9]{2})-([A-Za-z]{3})-([0-9]{4})_ ]]; then
+        echo "${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-${BASH_REMATCH[3]}"
+        return
+    fi
+    if [[ "$base" == "oom_results.csv" && -n "$csv_path" && -f "$csv_path" ]]; then
+        local mtime
+        if mtime=$(stat -f %m "$csv_path" 2>/dev/null); then
+            date -r "$mtime" "+%d-%b-%Y" 2>/dev/null || true
+        elif mtime=$(stat -c %Y "$csv_path" 2>/dev/null); then
+            date -d "@$mtime" "+%d-%b-%Y" 2>/dev/null || true
+        fi
+    fi
+}
+
 print_help() {
     cat << EOF
-Usage: $0 -p POD_NAME -t TYPE [OPTIONS]
-   or: $0 --pod-name POD_NAME --type TYPE [OPTIONS]
+Usage: $0 -p POD_NAME [OPTIONS]
 
 Required Arguments:
-  -p, --pod-name POD_NAME    Name of the pod to bundle (must exist in output/oom_results.csv)
-  -t, --type TYPE            Type of issue: OOMKilled or CrashLoopBackOff (case-insensitive)
+  -p, --pod-name POD_NAME    Pod name (or substring) to match; e.g. image-controller-image-pruner-cronjob
+                            matches image-controller-image-pruner-cronjob-29439360-r9np8 (must appear in date-wise CSVs)
 
 Options:
-  -c, --csv-file FILE        Path to oom_results.csv (default: output/oom_results.csv)
-  -h, --help                 Show this help message
+  -d, --output-dir DIR      Directory containing date-wise oom_results_*.csv files (default: output)
+  -h, --help                Show this help message
+
+Behavior:
+  1. Scans all date-wise CSV files in OUTPUT_DIR (oom_results_<DD>-<Mon>-<YYYY>_*.csv).
+  2. For the given POD, reports how many OOMKilled and CrashLoopBackOff instances were
+     detected and on which days.
+  3. Creates one tarball per (type, date), with pod name in the filename, e.g.:
+     output/OOMKilled-image-controller-image-pruner-cronjob-instance-28th-Jan-2026.tgz
+     output/CrashLoopBackOff-image-controller-image-pruner-cronjob-instance-29th-Jan-2026.tgz
+     Find all tarballs for a pod: ls output/*<pod-name>*.tgz
+     Each tarball contains logs and descriptions for that pod on that date.
 
 Examples:
-  $0 -p loki-querier-7646bc8ddc-bvcpd -t OOMKilled
-  $0 --pod-name audit-exporter-2fzlc --type OOMKilled
-  $0 -p rbac-permissions-operator-7cb6d7bdb4-8jkfq -t CrashLoopBackOff
+  $0 -p loki-ingester-zone-a-0
+  $0 --pod-name audit-exporter-2fzlc -d output
 
 EOF
 }
@@ -37,12 +89,8 @@ while [[ $# -gt 0 ]]; do
             POD_NAME="$2"
             shift 2
             ;;
-        -t|--type)
-            TYPE="$2"
-            shift 2
-            ;;
-        -c|--csv-file)
-            CSV_FILE="$2"
+        -d|--output-dir)
+            OUTPUT_DIR="$2"
             shift 2
             ;;
         -h|--help)
@@ -51,127 +99,155 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             echo "ERROR: Unknown option: $1" >&2
-            echo "" >&2
             print_help
             exit 1
             ;;
     esac
 done
 
-# Validation: Check if required arguments are provided
 if [[ -z "$POD_NAME" ]]; then
     echo "ERROR: -p/--pod-name is required" >&2
-    echo "" >&2
     print_help
     exit 1
 fi
 
-if [[ -z "$TYPE" ]]; then
-    echo "ERROR: -t/--type is required" >&2
-    echo "" >&2
-    print_help
+if [[ ! -d "$OUTPUT_DIR" ]]; then
+    echo "ERROR: Output directory not found: $OUTPUT_DIR" >&2
     exit 1
 fi
 
-# Validation: Check if CSV file exists
-if [[ ! -f "$CSV_FILE" ]]; then
-    echo "ERROR: CSV file not found: $CSV_FILE" >&2
-    echo "" >&2
-    print_help
+# Resolve OUTPUT_DIR so we always use a consistent path (handles relative paths)
+OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
+
+# Find date-wise CSVs (oom_results_DD-Mon-YYYY_*.csv) and main oom_results.csv
+DATEWISE_CSVS=()
+while IFS= read -r -d '' f; do
+    DATEWISE_CSVS+=("$f")
+done < <(find "$OUTPUT_DIR" -maxdepth 1 -name 'oom_results_*_*.csv' -print0 2>/dev/null | sort -z)
+
+# Also include main oom_results.csv (use its mtime date as the date bucket)
+MAIN_CSV="${OUTPUT_DIR}/oom_results.csv"
+if [[ -f "$MAIN_CSV" ]]; then
+    DATEWISE_CSVS+=("$MAIN_CSV")
+fi
+
+if [[ ${#DATEWISE_CSVS[@]} -eq 0 ]]; then
+    echo "ERROR: No CSV files found in $OUTPUT_DIR (expected oom_results.csv or oom_results_<DD>-<Mon>-<YYYY>_<time>.csv)" >&2
     exit 1
 fi
 
-# Validation: Check if TYPE is valid (case-insensitive) and normalize to correct case
-TYPE_LOWER=$(echo "$TYPE" | tr '[:upper:]' '[:lower:]')
-case "$TYPE_LOWER" in
-    oomkilled)
-        TYPE="OOMKilled"
-        ;;
-    crashloopbackoff)
-        TYPE="CrashLoopBackOff"
-        ;;
-    *)
-        echo "ERROR: Invalid TYPE: '$TYPE'" >&2
-        echo "       TYPE must be either 'OOMKilled' or 'CrashLoopBackOff' (case-insensitive)" >&2
-        echo "" >&2
-        print_help
-        exit 1
-        ;;
-esac
+# Collect per (type, date): list of "desc_file|log_file" (pipe-separated to handle paths)
+declare -A FILES_BY_KEY    # "type|date_key" -> "desc1|log1 desc2|log2 ..."
 
-# Validation: Check if POD_NAME exists in CSV
-if ! grep -q "$POD_NAME" "$CSV_FILE"; then
-    echo "ERROR: POD_NAME '$POD_NAME' not found in $CSV_FILE" >&2
-    echo "" >&2
-    print_help
-    exit 1
+for csv in "${DATEWISE_CSVS[@]}"; do
+    base=$(basename "$csv")
+    date_key=$(date_key_from_csv_basename "$base" "$csv")
+    [[ -z "$date_key" ]] && continue
+
+    # CSV columns: 1=cluster, 2=namespace, 3=pod, 4=type, 7=description_file, 8=pod_log_file
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        type=$(echo "$line" | awk -F',' '{print $4}')
+        desc=$(echo "$line" | awk -F',' '{print $7}')
+        log=$(echo "$line" | awk -F',' '{print $8}')
+        [[ -z "$type" || -z "$desc" || -z "$log" ]] && continue
+        # Normalize type
+        case "$(echo "$type" | tr '[:upper:]' '[:lower:]')" in
+            oomkilled) type="OOMKilled" ;;
+            crashloopbackoff) type="CrashLoopBackOff" ;;
+            *) continue ;;
+        esac
+        key="${type}|${date_key}"
+        FILES_BY_KEY[$key]+="${desc}|${log} "
+    # Match pod by substring: user can pass base name (e.g. image-controller-image-pruner-cronjob)
+    # and we match full pod names (e.g. image-controller-image-pruner-cronjob-29439360-r9np8)
+    done < <(awk -F',' -v pod="$POD_NAME" 'NR>1 && index($3, pod) > 0 {print $0}' "$csv" 2>/dev/null)
+done
+
+# Report: counts and days per type (derived from FILES_BY_KEY)
+echo "=============================================="
+echo "Report for pod: $POD_NAME"
+echo "=============================================="
+
+total_oom=0
+total_crash=0
+for type in OOMKilled CrashLoopBackOff; do
+    count=0
+    dates_list=""
+    for key in "${!FILES_BY_KEY[@]}"; do
+        [[ "$key" != "${type}|"* ]] && continue
+        date_key="${key#*|}"
+        files_str="${FILES_BY_KEY[$key]:-}"
+        for pair in $files_str; do
+            ((count++)) || true
+        done
+        dates_list+="$date_key "
+    done
+    if [[ $count -eq 0 ]]; then
+        echo "${type}: 0 instances (no occurrences in date-wise CSVs)"
+        continue
+    fi
+    days_display=$(echo "$dates_list" | tr ' ' '\n' | grep -v '^$' | sort -u | tr '\n' ', ' | sed 's/,$//')
+    echo "${type}: ${count} instance(s) on day(s): ${days_display}"
+    if [[ "$type" == "OOMKilled" ]]; then
+        total_oom=$count
+    else
+        total_crash=$count
+    fi
+done
+
+echo "=============================================="
+
+if [[ $total_oom -eq 0 && $total_crash -eq 0 ]]; then
+    echo "No OOMKilled or CrashLoopBackOff instances found for pod '$POD_NAME' in date-wise CSVs. Exiting."
+    exit 0
 fi
 
-# Validation: Check if POD_NAME matches the specified TYPE
-# Extract the type column (4th column, index 3) for the pod
-POD_TYPES=$(grep "$POD_NAME" "$CSV_FILE" | cut -d',' -f4 | sort -u)
+# Sanitize pod name for use in tarball filenames (alphanumeric, hyphen, underscore only)
+POD_SANITIZED=$(echo "$POD_NAME" | sed 's/[^A-Za-z0-9_.-]/_/g' | sed 's/__*/_/g' | sed 's/^_\|_$//g')
+[[ -z "$POD_SANITIZED" ]] && POD_SANITIZED="pod"
 
-if [[ -z "$POD_TYPES" ]]; then
-    echo "ERROR: Could not extract type information for POD_NAME '$POD_NAME'" >&2
-    echo "" >&2
-    print_help
-    exit 1
-fi
+# Create one tarball per (type, date), with pod name in filename so different pods don't overwrite
+mkdir -p "$OUTPUT_DIR"
+TMP_BASE=$(mktemp -d)
+trap "rm -rf '$TMP_BASE'" EXIT
 
-# Check if the specified TYPE exists for this pod
-if ! echo "$POD_TYPES" | grep -q "^${TYPE}$"; then
-    echo "ERROR: POD_NAME '$POD_NAME' does not match TYPE '$TYPE'" >&2
-    echo "       Found type(s) for this pod: $(echo $POD_TYPES | tr '\n' ' ')" >&2
-    echo "" >&2
-    print_help
-    exit 1
-fi
+for key in "${!FILES_BY_KEY[@]}"; do
+    type="${key%%|*}"
+    date_key="${key#*|}"
+    files_str="${FILES_BY_KEY[$key]:-}"
+    [[ -z "$files_str" ]] && continue
+    # date_key is DD-Mon-YYYY; we need ordinal label for tarball name
+    if [[ "$date_key" =~ ^([0-9]{2})-([A-Za-z]{3})-([0-9]{4})$ ]]; then
+        dd="${BASH_REMATCH[1]}"
+        mon="${BASH_REMATCH[2]}"
+        yyyy="${BASH_REMATCH[3]}"
+        ord=$(day_ordinal "$((10#${dd}))")
+        date_label="${ord}-${mon}-${yyyy}"
+    else
+        date_label="$date_key"
+    fi
+    # Include pod name in tarball filename so you can find with: ls *image-controller-image-pruner-cronjob*.tgz
+    tarball_name="${type}-${POD_SANITIZED}-instance-${date_label}.tgz"
+    tarball_path="${OUTPUT_DIR}/${tarball_name}"
+    tmpdir="${TMP_BASE}/${type}-${date_key}"
+    mkdir -p "$tmpdir"
+    for pair in $files_str; do
+        desc="${pair%%|*}"
+        log="${pair#*|}"
+        if [[ -f "$desc" ]]; then
+            cp "$desc" "$tmpdir/"
+        else
+            echo "Warning: description file not found (skipped): $desc" >&2
+        fi
+        if [[ -f "$log" ]]; then
+            cp "$log" "$tmpdir/"
+        else
+            echo "Warning: log file not found (skipped): $log" >&2
+        fi
+    done
+    tar -czf "$tarball_path" -C "$tmpdir" .
+    echo "Created: $tarball_path"
+done
 
-# All validations passed - proceed with the script
-set -x
-
-# Ensure output directory exists
-mkdir -p "${OUTPUT_DIR}"
-
-DATE="`date +%Y-%m-%d`"
-TYPE1="OOMKilled"
-TYPE2="CrashLoopBackOff"
-
-mkdir -p /private/tmp/${DATE} /private/tmp/${DATE}/${TYPE1} /private/tmp/${DATE}/${TYPE2}
-
-echo "Processing: TYPE=${TYPE}, POD_NAME=${POD_NAME}"
-
-# Show matching entries
-cat ${CSV_FILE} | grep ${TYPE} | grep ${POD_NAME}
-
-# Count matching entries
-MATCH_COUNT=$(cat ${CSV_FILE} | grep ${TYPE} | grep ${POD_NAME} | wc -l | tr -d ' ')
-echo "Found ${MATCH_COUNT} matching entry/entries"
-
-# Extract file paths (columns 7-8: description_file and pod_log_file)
-cat ${CSV_FILE} | grep ${TYPE} | grep ${POD_NAME} | cut -d',' -f7-8 | tr ',' ' '
-
-rm -rf /private/tmp/${DATE}/${TYPE}/* 
-
-ls -l /private/tmp/${DATE}/${TYPE}/
-
-# Copy files to bundle directory
-cp -r `cat ${CSV_FILE} | grep ${TYPE} | grep ${POD_NAME} | cut -d',' -f7-8 | tr ',' ' ' | xargs` /private/tmp/${DATE}/${TYPE}/
-
-ls -l /private/tmp/${DATE}/${TYPE}/
-
-# Create tarball
-(cd /private/tmp/${DATE}/; tar -czf ${TYPE}.tgz ${TYPE})
-
-ls -l /private/tmp/${DATE}/
-
-du -sh /private/tmp/${DATE}/${TYPE}.tgz
-
-# Copy to output directory with descriptive name
-cp /private/tmp/${DATE}/${TYPE}.tgz "${OUTPUT_DIR}/"
-cp "${OUTPUT_DIR}/${TYPE}.tgz" "${OUTPUT_DIR}/${TYPE}-${POD_NAME}.tgz"
-
-echo "Bundle files saved to ${OUTPUT_DIR}/ directory:"
-ls -ltr "${OUTPUT_DIR}/${TYPE}"*.tgz 2>/dev/null || ls -ltr "${OUTPUT_DIR}/" | grep "${TYPE}"
-
-set +x
+echo "Done. Tarballs written to $OUTPUT_DIR/"
