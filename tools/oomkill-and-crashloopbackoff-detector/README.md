@@ -504,6 +504,28 @@ Backed up 4 existing file(s):
   → oom_results_13-Jan-2026_12-10-22-EDT.table
 ```
 
+### Date-wise bundle generator (`oom_logs_and_desc_bundle_generator`)
+
+The script `oom_logs_and_desc_bundle_generator` builds **date-specific** log/description tarballs for a **single pod** you pass on the command line. It uses the **date-wise CSV files** in `output/` (e.g. `oom_results_28-Jan-2026_14-55-05-EDT.csv`).
+
+**Usage:**
+```bash
+./oom_logs_and_desc_bundle_generator -p POD_NAME [ -d output ]
+```
+
+**Behavior:**
+1. Scans all date-wise CSVs in the output directory (`oom_results_<DD>-<Mon>-<YYYY>_<time>.csv`).
+2. **Reports** how many OOMKilled and CrashLoopBackOff instances were detected for that pod and **on which days**.
+3. Creates **one tarball per (type, date)** in `output/`, e.g.:
+   - `output/OOMKilled-instance-28th-Jan-2026.tgz`
+   - `output/CrashLoopBackOff-instance-29th-Jan-2026.tgz`  
+   Each tarball contains the description and log files for that pod on that date.
+
+**Example:**
+```bash
+./oom_logs_and_desc_bundle_generator -p loki-ingester-zone-a-0 -d output
+```
+
 ---
 
 ## 🧠 Design Philosophy
