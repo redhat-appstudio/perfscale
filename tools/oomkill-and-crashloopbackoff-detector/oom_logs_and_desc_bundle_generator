@@ -164,7 +164,7 @@ for csv in "${DATEWISE_CSVS[@]}"; do
     done < <(awk -F',' -v pod="$POD_NAME" 'NR>1 && index($3, pod) > 0 {print $0}' "$csv" 2>/dev/null)
 done
 
-# Report: counts and days per type (derived from FILES_BY_KEY)
+# Report: counts per (type, date) - one line per date for each type
 echo "=============================================="
 echo "Report for pod: $POD_NAME"
 echo "=============================================="
@@ -172,28 +172,34 @@ echo "=============================================="
 total_oom=0
 total_crash=0
 for type in OOMKilled CrashLoopBackOff; do
-    count=0
-    dates_list=""
+    # Collect (date_key, count) for this type, then sort by date and print per line
+    unset date_counts
+    declare -A date_counts
     for key in "${!FILES_BY_KEY[@]}"; do
         [[ "$key" != "${type}|"* ]] && continue
         date_key="${key#*|}"
         files_str="${FILES_BY_KEY[$key]:-}"
+        count=0
         for pair in $files_str; do
             ((count++)) || true
         done
-        dates_list+="$date_key "
+        date_counts[$date_key]=$count
     done
-    if [[ $count -eq 0 ]]; then
+    if [[ ${#date_counts[@]} -eq 0 ]]; then
         echo "${type}: 0 instances (no occurrences in date-wise CSVs)"
         continue
     fi
-    days_display=$(echo "$dates_list" | tr ' ' '\n' | grep -v '^$' | sort -u | tr '\n' ', ' | sed 's/,$//')
-    echo "${type}: ${count} instance(s) on day(s): ${days_display}"
-    if [[ "$type" == "OOMKilled" ]]; then
-        total_oom=$count
-    else
-        total_crash=$count
-    fi
+    # Sort date keys and print one line per date
+    while IFS= read -r date_key; do
+        [[ -z "$date_key" ]] && continue
+        count="${date_counts[$date_key]:-0}"
+        echo "${type}: ${count} instance(s) on ${date_key}"
+        if [[ "$type" == "OOMKilled" ]]; then
+            ((total_oom += count)) || true
+        else
+            ((total_crash += count)) || true
+        fi
+    done < <(printf '%s\n' "${!date_counts[@]}" | sort)
 done
 
 echo "=============================================="
