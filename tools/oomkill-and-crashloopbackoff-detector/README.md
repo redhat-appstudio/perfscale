@@ -21,7 +21,7 @@ A high-performance, parallel OOMKilled / CrashLoopBackOff detector for OpenShift
   - Automatic load balancing across clusters
 - Saves **forensic artifacts**:
   - `oc describe pod`
-  - `oc logs` (or `--previous`)
+  - One log file with `oc logs --previous` (crashed run) then `oc logs` (current run)
 - Exports **multiple formats** with absolute paths to artifacts and time range metadata:
   - **CSV** - Spreadsheet-friendly format
   - **JSON** - Structured automation input
@@ -117,10 +117,16 @@ Example:
   clusters-a53fda0e...__catalog-operator__2025-12-12T05-25-40Z__log.txt
 ```
 
-If `oc logs` returns no data, the tool automatically retries with:
+The tool saves **both** log sources into one file (so you get logs from the crashed run and the current run):
+1. **Previous container logs** (`oc logs <pod> --previous`) — from the container that OOM'd or crashed
+2. **Current container logs** (`oc logs <pod>`) — from the current (possibly restarted) container
 
+The log file contains two sections, clearly labeled:
 ```
-oc logs --previous
+=== Previous container logs (oc logs <pod> --previous) ===
+...
+=== Current container logs (oc logs <pod>) ===
+...
 ```
 
 ---
