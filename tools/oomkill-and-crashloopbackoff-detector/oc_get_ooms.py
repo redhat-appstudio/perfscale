@@ -8,7 +8,7 @@ parallelized at cluster and namespace levels, with artifact collection.
 New in this version:
 - When a pod is detected as OOMKilled or CrashLoopBackOff, save:
     - `oc describe pod <pod>` output
-    - `oc logs <pod>` (or `oc logs --previous <pod>` if no current logs)
+    - One log file with `oc logs <pod> --previous` (crashed container) then `oc logs <pod>` (current), appended
   into per-cluster directories under /private/tmp/<cluster>/
   Filenames include namespace, pod name, and timestamp to avoid collisions.
 - CSV and JSON now include the absolute paths to the description and pod log files:
@@ -866,7 +866,8 @@ def save_pod_artifacts(
     oc_timeout_seconds: int,
 ) -> Tuple[str, str]:
     """
-    Save 'oc describe pod' and 'oc logs pod' (or --previous) into files under /private/tmp/<cluster>/
+    Save 'oc describe pod' and pod logs into files under /private/tmp/<cluster>/.
+    Log file contains: first --previous (crashed container), then current logs, in one file.
     Filenames include namespace, pod name and timestamp to avoid collisions.
     Returns absolute file paths (description_file, pod_log_file)
     """
@@ -913,32 +914,32 @@ def save_pod_artifacts(
         except Exception:
             pass
 
-    # oc logs pod (current)
-    log_content = ""
+    # oc logs: --previous first (crashed container), then current; append both to one file
+    log_sections: List[str] = []
     try:
-        rc2, out2, err2 = run_oc_subcommand(
+        # 1. Previous container logs (from the run that OOM'd/crashed)
+        rc_prev, out_prev, err_prev = run_oc_subcommand(
+            context,
+            ["-n", namespace, "logs", pod, "--previous"],
+            retries=retries,
+            oc_timeout_seconds=oc_timeout_seconds,
+        )
+        prev_content = out_prev if rc_prev == 0 and out_prev else (err_prev or "(no previous logs)")
+        log_sections.append(
+            "=== Previous container logs (oc logs <pod> --previous) ===\n" + prev_content
+        )
+        # 2. Current container logs
+        rc_cur, out_cur, err_cur = run_oc_subcommand(
             context,
             ["-n", namespace, "logs", pod],
             retries=retries,
             oc_timeout_seconds=oc_timeout_seconds,
         )
-        if rc2 == 0 and out2:
-            log_content = out2
-        else:
-            # try previous
-            rc3, out3, err3 = run_oc_subcommand(
-                context,
-                ["-n", namespace, "logs", pod, "--previous"],
-                retries=retries,
-                oc_timeout_seconds=oc_timeout_seconds,
-            )
-            if rc3 == 0 and out3:
-                log_content = out3
-            else:
-                # if both empty, record the stderr or note
-                log_content = (
-                    err2 or err3 or "No logs found (both current and previous empty)"
-                )
+        cur_content = out_cur if rc_cur == 0 and out_cur else (err_cur or "(no current logs)")
+        log_sections.append(
+            "=== Current container logs (oc logs <pod>) ===\n" + cur_content
+        )
+        log_content = "\n\n".join(log_sections)
     except Exception as e:
         logging.error(f"Error fetching logs for {namespace}/{pod}: {e}")
         log_content = f"Error fetching logs: {e}"
