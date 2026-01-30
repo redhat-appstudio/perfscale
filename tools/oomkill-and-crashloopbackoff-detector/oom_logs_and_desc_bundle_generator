@@ -5,6 +5,9 @@ set -e
 # Default values
 POD_NAME=""
 OUTPUT_DIR="output"
+CODEOWNERS_DIR=""      # If set, look up namespace owners from CODEOWNERS and GitLab (glab)
+CODEOWNERS_TEMP_DIR="" # If we clone konflux-release-data, we remove this on exit
+KONFLUX_RELEASE_DATA_REPO="git@gitlab.cee.redhat.com:releng/konflux-release-data.git"
 
 # Ordinal suffix for day: 1st, 2nd, 3rd, 4th, ..., 11th, 21st, 22nd, 23rd, etc.
 day_ordinal() {
@@ -53,6 +56,35 @@ date_key_from_csv_basename() {
     fi
 }
 
+# Get owner @usernames for (cluster, namespace) from CODEOWNERS. Output: @user1 @user2 ...
+get_owners_for_namespace() {
+    local codeowners_dir="$1"
+    local cluster="$2"
+    local namespace="$3"
+    [[ -z "$codeowners_dir" || ! -d "$codeowners_dir" ]] && return
+    grep -h "/tenants-config/cluster/${cluster}/" "${codeowners_dir}/CODEOWNERS" "${codeowners_dir}/staging/CODEOWNERS" 2>/dev/null | grep -v '^#' | grep "${namespace}" | head -1 | grep -oE '@[a-zA-Z0-9_.-]+' | sort -u
+}
+
+# Get "Name <email>" for a GitLab username via glab. Falls back to "(no public email)" or "(lookup failed)".
+get_user_display() {
+    local username="$1"
+    [[ -z "$username" ]] && echo "(unknown)" && return
+    local resp
+    resp=$(glab api "users?username=${username}" 2>/dev/null)
+    local name email
+    name=$(echo "$resp" | python3 -c "import sys,json; d=json.load(sys.stdin); d=d[0] if isinstance(d,list) and d else d; print((d.get('name') or '').strip() if d else '')" 2>/dev/null)
+    email=$(echo "$resp" | python3 -c "import sys,json; d=json.load(sys.stdin); d=d[0] if isinstance(d,list) and d else d; e=d.get('public_email') if d else None; print(e if e and str(e) != 'None' else '')" 2>/dev/null)
+    if [[ -z "$name" ]]; then
+        echo "@${username} (lookup failed)"
+        return
+    fi
+    if [[ -n "$email" ]]; then
+        echo "${name} <${email}>"
+    else
+        echo "${name} (no public email)"
+    fi
+}
+
 print_help() {
     cat << EOF
 Usage: $0 -p POD_NAME [OPTIONS]
@@ -63,6 +95,9 @@ Required Arguments:
 
 Options:
   -d, --output-dir DIR      Directory containing date-wise oom_results_*.csv files (default: output)
+  -c, --codeowners-dir DIR  Path to konflux-release-data (contains CODEOWNERS, staging/CODEOWNERS).
+                            If not set, script clones the repo to a temp dir, uses it, then deletes it.
+                            Report always includes namespace owners (name + email via glab) when available.
   -h, --help                Show this help message
 
 Behavior:
@@ -78,6 +113,7 @@ Behavior:
 Examples:
   $0 -p loki-ingester-zone-a-0
   $0 --pod-name audit-exporter-2fzlc -d output
+  $0 -p oom-stress-retry -c /path/to/konflux-release-data   # include namespace owners (name + email via glab)
 
 EOF
 }
@@ -91,6 +127,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -d|--output-dir)
             OUTPUT_DIR="$2"
+            shift 2
+            ;;
+        -c|--codeowners-dir)
+            CODEOWNERS_DIR="$2"
             shift 2
             ;;
         -h|--help)
@@ -136,8 +176,9 @@ if [[ ${#DATEWISE_CSVS[@]} -eq 0 ]]; then
     exit 1
 fi
 
-# Collect per (type, date): list of "desc_file|log_file" (pipe-separated to handle paths)
+# Collect per (type, date): list of "desc_file|log_file"; and per (type, date, cluster, namespace): count
 declare -A FILES_BY_KEY    # "type|date_key" -> "desc1|log1 desc2|log2 ..."
+declare -A COUNT_BY_NS     # "type|date_key|cluster|namespace" -> count
 
 for csv in "${DATEWISE_CSVS[@]}"; do
     base=$(basename "$csv")
@@ -147,6 +188,8 @@ for csv in "${DATEWISE_CSVS[@]}"; do
     # CSV columns: 1=cluster, 2=namespace, 3=pod, 4=type, 7=description_file, 8=pod_log_file
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
+        cluster=$(echo "$line" | awk -F',' '{print $1}')
+        namespace=$(echo "$line" | awk -F',' '{print $2}')
         type=$(echo "$line" | awk -F',' '{print $4}')
         desc=$(echo "$line" | awk -F',' '{print $7}')
         log=$(echo "$line" | awk -F',' '{print $8}')
@@ -159,12 +202,25 @@ for csv in "${DATEWISE_CSVS[@]}"; do
         esac
         key="${type}|${date_key}"
         FILES_BY_KEY[$key]+="${desc}|${log} "
+        key_ns="${type}|${date_key}|${cluster}|${namespace}"
+        COUNT_BY_NS[$key_ns]=$((${COUNT_BY_NS[$key_ns]:-0} + 1))
     # Match pod by substring: user can pass base name (e.g. image-controller-image-pruner-cronjob)
     # and we match full pod names (e.g. image-controller-image-pruner-cronjob-29439360-r9np8)
     done < <(awk -F',' -v pod="$POD_NAME" 'NR>1 && index($3, pod) > 0 {print $0}' "$csv" 2>/dev/null)
 done
 
-# Report: counts per (type, date) - one line per date for each type
+# If -c was not passed, clone konflux-release-data to a temp dir so we can still show owner name+email
+if [[ -z "$CODEOWNERS_DIR" || ! -d "$CODEOWNERS_DIR" ]]; then
+    CODEOWNERS_TEMP_DIR=$(mktemp -d 2>/dev/null || mktemp -d -t oom-bundle)
+    if git clone --depth 1 -q "$KONFLUX_RELEASE_DATA_REPO" "$CODEOWNERS_TEMP_DIR" 2>/dev/null; then
+        CODEOWNERS_DIR="$CODEOWNERS_TEMP_DIR"
+    else
+        rm -rf "$CODEOWNERS_TEMP_DIR" 2>/dev/null || true
+        CODEOWNERS_TEMP_DIR=""
+    fi
+fi
+
+# Report: counts per (type, date, cluster, namespace) with optional owner name+email
 echo "=============================================="
 echo "Report for pod: $POD_NAME"
 echo "=============================================="
@@ -172,34 +228,49 @@ echo "=============================================="
 total_oom=0
 total_crash=0
 for type in OOMKilled CrashLoopBackOff; do
-    # Collect (date_key, count) for this type, then sort by date and print per line
-    unset date_counts
-    declare -A date_counts
-    for key in "${!FILES_BY_KEY[@]}"; do
+    # Get all keys for this type from COUNT_BY_NS (format: type|date_key|cluster|namespace)
+    keys_for_type=()
+    for key in "${!COUNT_BY_NS[@]}"; do
         [[ "$key" != "${type}|"* ]] && continue
-        date_key="${key#*|}"
-        files_str="${FILES_BY_KEY[$key]:-}"
-        count=0
-        for pair in $files_str; do
-            ((count++)) || true
-        done
-        date_counts[$date_key]=$count
+        keys_for_type+=("$key")
     done
-    if [[ ${#date_counts[@]} -eq 0 ]]; then
+    if [[ ${#keys_for_type[@]} -eq 0 ]]; then
         echo "${type}: 0 instances (no occurrences in date-wise CSVs)"
         continue
     fi
-    # Sort date keys and print one line per date
-    while IFS= read -r date_key; do
-        [[ -z "$date_key" ]] && continue
-        count="${date_counts[$date_key]:-0}"
-        echo "${type}: ${count} instance(s) on ${date_key}"
+    # Sort keys by date_key then cluster then namespace
+    while IFS= read -r key; do
+        [[ -z "$key" ]] && continue
+        count="${COUNT_BY_NS[$key]:-0}"
+        rest="${key#*|}"
+        date_key="${rest%%|*}"
+        rest2="${rest#*|}"
+        cluster="${rest2%%|*}"
+        namespace="${rest2#*|}"
+        owner_part=""
+        if [[ -n "$CODEOWNERS_DIR" && -d "$CODEOWNERS_DIR" ]]; then
+            owners=$(get_owners_for_namespace "$CODEOWNERS_DIR" "$cluster" "$namespace")
+            if [[ -n "$owners" ]]; then
+                owner_displays=()
+                for u in $owners; do
+                    username="${u#@}"
+                    owner_displays+=("$(get_user_display "$username")")
+                done
+                owner_str=$(printf '%s, ' "${owner_displays[@]}" | sed 's/, $//')
+                owner_part=" is owned by \"${owner_str}\""
+            else
+                owner_part=" (no owner in CODEOWNERS)"
+            fi
+        else
+            owner_part=" (no CODEOWNERS repo available)"
+        fi
+        echo "${type}: ${count} instance(s) on ${date_key}, Namespace: ${namespace} (cluster: ${cluster})${owner_part}"
         if [[ "$type" == "OOMKilled" ]]; then
             ((total_oom += count)) || true
         else
             ((total_crash += count)) || true
         fi
-    done < <(printf '%s\n' "${!date_counts[@]}" | sort)
+    done < <(printf '%s\n' "${keys_for_type[@]}" | sort -t'|' -k2,2 -k3,3 -k4,4)
 done
 
 echo "=============================================="
@@ -216,7 +287,7 @@ POD_SANITIZED=$(echo "$POD_NAME" | sed 's/[^A-Za-z0-9_.-]/_/g' | sed 's/__*/_/g'
 # Create one tarball per (type, date), with pod name in filename so different pods don't overwrite
 mkdir -p "$OUTPUT_DIR"
 TMP_BASE=$(mktemp -d)
-trap "rm -rf '$TMP_BASE'" EXIT
+trap 'rm -rf "$CODEOWNERS_TEMP_DIR" "$TMP_BASE"' EXIT
 
 for key in "${!FILES_BY_KEY[@]}"; do
     type="${key%%|*}"

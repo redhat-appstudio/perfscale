@@ -523,20 +523,40 @@ The script `oom_logs_and_desc_bundle_generator` builds **date-specific** log/des
 
 **Usage:**
 ```bash
-./oom_logs_and_desc_bundle_generator -p POD_NAME [ -d output ]
+./oom_logs_and_desc_bundle_generator -p POD_NAME [ -d output ] [ -c /path/to/konflux-release-data ]
 ```
 
-**Behavior:**
-1. Scans all date-wise CSVs in the output directory (`oom_results_<DD>-<Mon>-<YYYY>_<time>.csv`).
-2. **Reports** how many OOMKilled and CrashLoopBackOff instances were detected for that pod and **on which days**.
-3. Creates **one tarball per (type, date)** in `output/`, e.g.:
-   - `output/OOMKilled-instance-28th-Jan-2026.tgz`
-   - `output/CrashLoopBackOff-instance-29th-Jan-2026.tgz`  
-   Each tarball contains the description and log files for that pod on that date.
+**Options:**
+- **`-p` / `--pod-name`** (required): Pod name or substring to match (e.g. `oom-stress-retry` matches `oom-stress-retry-mp275`).
+- **`-d` / `--output-dir`**: Directory containing date-wise CSVs (default: `output`).
+- **`-c` / `--codeowners-dir`**: Path to konflux-release-data (contains `CODEOWNERS`, `staging/CODEOWNERS`). If **not** set, the script clones `git@gitlab.cee.redhat.com:releng/konflux-release-data.git` to a temp dir, uses it for owner lookup, then deletes it.
 
-**Example:**
+**Behavior:**
+1. Scans all date-wise CSVs (and `oom_results.csv`) in the output directory.
+2. **Report**: For each (type, date, cluster, namespace), prints one line with instance count, **namespace**, **cluster**, and **owner name + email** (from CODEOWNERS + GitLab via `glab`). If `-c` is not passed, the script clones konflux-release-data to a temp dir for this lookup.
+3. Creates **one tarball per (type, date)** with the **pod name in the filename**, e.g.:
+   - `output/OOMKilled-oom-stress-retry-instance-28th-Jan-2026.tgz`
+   - `output/CrashLoopBackOff-<pod>-instance-29th-Jan-2026.tgz`  
+   Find all tarballs for a pod: `ls output/*<pod-name>*.tgz`. Each tarball contains the description and log files for that pod on that date.
+
+**Example report output:**
+```
+==============================================
+Report for pod: oom-stress-retry
+==============================================
+OOMKilled: 1 instance(s) on 26-Jan-2026, Namespace: falrayes-tenant (cluster: stone-stg-rh01) is owned by "Faisal Al-Rayes <falrayes@redhat.com>"
+OOMKilled: 3 instance(s) on 28-Jan-2026, Namespace: falrayes-tenant (cluster: stone-stg-rh01) is owned by "Faisal Al-Rayes <falrayes@redhat.com>"
+CrashLoopBackOff: 0 instances (no occurrences in date-wise CSVs)
+==============================================
+```
+
+**Requirements for owner name + email:** `git` (and SSH access to gitlab.cee.redhat.com) and `glab` (logged in). If clone or glab fails, the report still runs; owner part is omitted or shows "(no CODEOWNERS repo available)".
+
+**Examples:**
 ```bash
+./oom_logs_and_desc_bundle_generator -p oom-stress-retry
 ./oom_logs_and_desc_bundle_generator -p loki-ingester-zone-a-0 -d output
+./oom_logs_and_desc_bundle_generator -p image-controller-image-pruner-cronjob -c /path/to/konflux-release-data
 ```
 
 ---
