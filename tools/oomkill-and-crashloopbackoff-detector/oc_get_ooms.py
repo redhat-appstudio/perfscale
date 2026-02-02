@@ -328,6 +328,27 @@ def timestamp_for_backup() -> str:
     return now.strftime(f"%d-%b-%Y_%H-%M-%S-{tz_abbr}")
 
 
+def timestamp_for_backup_from_file(file_path: Path) -> str:
+    """Generate a timestamp string for backup filenames using the file's last modified time.
+
+    Same format as timestamp_for_backup(): e.g. '02-Feb-2026_10-38-49-EDT'.
+    This keeps backup names aligned with the file's actual modification date.
+    """
+    mtime = file_path.stat().st_mtime
+    dt = datetime.fromtimestamp(mtime)
+    tz_abbr = "UTC"
+    try:
+        tz_str = dt.strftime("%Z")
+        if tz_str and tz_str.strip():
+            tz_abbr = tz_str
+        else:
+            if time.tzname and len(time.tzname) > 0:
+                tz_abbr = time.tzname[0] if time.daylight == 0 else time.tzname[1]
+    except Exception:
+        tz_abbr = "UTC"
+    return dt.strftime(f"%d-%b-%Y_%H-%M-%S-{tz_abbr}")
+
+
 # ---------------------------
 # connectivity
 # ---------------------------
@@ -1308,8 +1329,8 @@ def move_existing_output_files() -> int:
                         file_path.rename(dest_path)
                         moved_count += 1
                     else:
-                        # If destination exists, try to rename with a timestamp
-                        timestamp = timestamp_for_backup()
+                        # If destination exists, rename with timestamp from file's last modified time
+                        timestamp = timestamp_for_backup_from_file(file_path)
                         suffix = file_path.suffix
                         stem = file_path.stem
                         backup_name = f"{stem}_{timestamp}{suffix}"
@@ -1341,13 +1362,13 @@ def backup_existing_file(file_path: Path) -> Optional[Path]:
         return None
     
     try:
-        timestamp = timestamp_for_backup()
-        # Get file extension
+        # Use file's last modified time for backup name (same format: DD-MMM-YYYY_HH-MM-SS-TZ)
+        timestamp = timestamp_for_backup_from_file(file_path)
         suffix = file_path.suffix
         stem = file_path.stem
         backup_name = f"{stem}_{timestamp}{suffix}"
         backup_path = file_path.parent / backup_name
-        
+
         # Rename the file
         file_path.rename(backup_path)
         return backup_path
