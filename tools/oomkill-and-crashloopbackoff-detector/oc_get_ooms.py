@@ -33,6 +33,7 @@ from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional, Set, Pattern
+from collections import defaultdict
 
 # Import HTML export module
 try:
@@ -1660,6 +1661,315 @@ def pretty_print(results: Dict[str, Any], skipped: Dict[str, str]) -> None:
             print(color(f"  {c}: {msg}", RED))
 
 
+def _pod_base_name(full_name: str) -> str:
+    """
+    Derive a readable, collatable base pod name by replacing hashes and random IDs
+    with '*', so multiple pods group under one report (e.g. CI jobs, hostnames).
+    Examples:
+      backfill-redis-v1-2-on-pull-request-g6w9f-run-unit-test -> ...-*-run-unit-test
+      kube-rbac-proxy-crio-ip-10-202-25-219.ec2.internal -> ...-ip-*.internal
+      instance-6xsb9 -> instance
+      gatekeeper-op41130a155... -> gatekeeper-op
+    """
+    if not full_name:
+        return full_name
+    name = full_name
+
+    # 1. Hostname: *-ip-<something>.ec2.internal or *.internal -> *-ip-*.internal
+    if ".internal" in name and "-ip-" in name:
+        idx = name.find("-ip-")
+        inr = name.find(".internal")
+        if idx >= 0 and inr > idx:
+            name = name[: idx + 4] + "*" + name[inr:]
+
+    # 2. instance-<short single segment> -> instance
+    if name.startswith("instance-"):
+        rest = name[len("instance-") :]
+        if rest.isalnum() and len(rest) <= 10 and "-" not in rest:
+            return "instance"
+
+    # 3. Split by '-' for segment-wise rules (rejoin later)
+    segments = name.split("-")
+    out: List[str] = []
+
+    for i, seg in enumerate(segments):
+        if not seg:
+            out.append(seg)
+            continue
+        # Segment with a dot (e.g. 219.ec2.internal) - keep as-is or already handled
+        if "." in seg:
+            out.append(seg)
+            continue
+        # Short word + long alnum (e.g. op41130..., observ1b4c..., pullca107...) -> word only (check before long-hash)
+        if len(seg) > 10 and seg.isalnum():
+            # Try known CI/word prefixes first (so "pull" wins over "pullca"); no "pu" so pu<hash> -> *
+            for prefix in ("pull", "reque", "observ", "op", "midstream", "on"):
+                if seg.startswith(prefix) and len(seg) > len(prefix) + 12:
+                    out.append(prefix)
+                    break
+            else:
+                # Longest all-alpha prefix followed by 12+ chars (the hash)
+                word_len = 0
+                for j, c in enumerate(seg):
+                    if c.isalpha():
+                        word_len = j + 1
+                    else:
+                        break
+                if word_len >= 2 and word_len < len(seg) and len(seg) - word_len >= 12:
+                    word = seg[:word_len]
+                    # "pu" + long hash -> * so trailing -* gets dropped (e.g. cloudwatch-aggregator-on)
+                    if word == "pu" and len(seg) - word_len >= 20:
+                        out.append("*")
+                    else:
+                        out.append(word)
+                elif len(seg) >= 20:
+                    # No alpha prefix (e.g. t98022b86..., a08677e97...); treat as hash
+                    out.append("*")
+                else:
+                    out.append(seg)
+            continue
+        # Long hash segment (20+ alnum) with no alpha prefix -> *
+        if len(seg) >= 20 and seg.isalnum():
+            out.append("*")
+            continue
+        # Short random-looking ID (5-8 alnum, contains digit) -> *
+        if 5 <= len(seg) <= 8 and seg.isalnum() and any(c.isdigit() for c in seg):
+            out.append("*")
+            continue
+        # ReplicaSet-style hash (8-10 alnum, contains digit) as standalone segment -> *
+        if 8 <= len(seg) <= 10 and seg.isalnum() and any(c.isdigit() for c in seg):
+            out.append("*")
+            continue
+        out.append(seg)
+
+    # 4. Collapse consecutive '*' into one
+    collapsed: List[str] = []
+    for s in out:
+        if s == "*" and collapsed and collapsed[-1] == "*":
+            continue
+        collapsed.append(s)
+    result = "-".join(collapsed)
+
+    # 5. Drop trailing lone '*' or *-only suffix (e.g. odh-midstream-* -> odh-midstream)
+    while result.endswith("-*") and result.count("-") > 1:
+        result = result[: -2]
+
+    # 6. Classic ReplicaSet: <name>-<hash>-<suffix> if we still have *-* at end, keep one *
+    if result.endswith("-*-*"):
+        result = result[:-2]  # remove last -*
+
+    # 7. Trailing "-pod" (CI job pod suffix)
+    if result.endswith("-pod") and result.count("-") > 1:
+        result = result[:-4]
+
+    # 8. Trailing short random-looking segment (5-8 alnum, e.g. -wzpwf, -bjcvs) -> * (keep words like verify, apply)
+    _keep_trailing = frozenset(
+        ("verify", "apply", "build", "push", "pull", "scan", "test", "tags", "pod", "run",
+         "tekton", "check", "observ", "dependencies", "unicode")
+    )
+    while result.count("-") >= 1:
+        last_part = result.rsplit("-", 1)[-1]
+        if 5 <= len(last_part) <= 8 and last_part.isalnum() and last_part.lower() not in _keep_trailing:
+            result = result[: -len(last_part) - 1] + "-*"
+            while result.endswith("-*") and result.count("-") > 1:
+                result = result[:-2]
+            break
+        break
+
+    return result if result else full_name
+
+
+def _date_from_timestamped_csv_basename(basename: str) -> Optional[str]:
+    """Extract DD-Mon-YYYY from oom_results_DD-Mon-YYYY_*.csv. Returns None if not matched."""
+    if not basename.startswith("oom_results_") or not basename.endswith(".csv"):
+        return None
+    # oom_results_03-Feb-2026_12-04-19-EDT.csv -> 03-Feb-2026
+    m = re.match(r"oom_results_(\d{2}-[A-Za-z]{3}-\d{4})_[^.]*\.csv", basename)
+    return m.group(1) if m else None
+
+
+def _normalize_type(t: str) -> str:
+    """Normalize type to OOMKilled or CrashLoopBackOff."""
+    u = (t or "").strip().lower()
+    if u == "oomkilled":
+        return "OOMKilled"
+    if u == "crashloopbackoff":
+        return "CrashLoopBackOff"
+    return (t or "").strip()
+
+
+def _read_csv_rows_with_date(csv_path: Path, date_str: str) -> List[Dict[str, str]]:
+    """Read CSV and return list of row dicts with cluster, namespace, pod, type, date (added)."""
+    rows: List[Dict[str, str]] = []
+    try:
+        with csv_path.open(newline="", encoding="utf-8", errors="replace") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                pod = (row.get("pod") or "").strip()
+                if not pod:
+                    continue
+                raw_type = (row.get("type") or "").strip()
+                rows.append({
+                    "cluster": (row.get("cluster") or "").strip(),
+                    "namespace": (row.get("namespace") or "").strip(),
+                    "pod": pod,
+                    "type": _normalize_type(raw_type),
+                    "date": date_str,
+                })
+    except (IOError, OSError) as e:
+        logging.warning(f"Failed to read CSV {csv_path}: {e}")
+    return rows
+
+
+def _load_historical_rows_from_output_dir(output_dir: Path) -> List[Dict[str, str]]:
+    """Load rows from all timestamped oom_results_*_*.csv in output_dir (date from filename)."""
+    historical: List[Dict[str, str]] = []
+    for path in sorted(output_dir.glob("oom_results_*_*.csv")):
+        date_str = _date_from_timestamped_csv_basename(path.name)
+        if date_str:
+            historical.extend(_read_csv_rows_with_date(path, date_str))
+    return historical
+
+
+def _get_owners_for_namespace(codeowners_dir: Path, cluster: str, namespace: str) -> List[str]:
+    """Get owner @usernames for (cluster, namespace) from CODEOWNERS. Returns list of @user."""
+    if not codeowners_dir or not codeowners_dir.is_dir():
+        return []
+    pattern = f"/tenants-config/cluster/{cluster}/"
+    first_matching_line: Optional[str] = None
+    for fname in ("CODEOWNERS", "staging/CODEOWNERS"):
+        path = codeowners_dir / fname
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text()
+        except (IOError, OSError):
+            continue
+        for line in text.splitlines():
+            line_stripped = line.strip()
+            if not line_stripped or line_stripped.startswith("#"):
+                continue
+            if pattern in line_stripped and namespace in line_stripped:
+                first_matching_line = line_stripped
+                break
+        if first_matching_line is not None:
+            break
+    if first_matching_line is None:
+        return []
+    owners = [p for p in first_matching_line.split() if p.startswith("@")]
+    return sorted(set(owners))
+
+
+def _get_user_display(username: str) -> str:
+    """Get 'Name <email>' for a GitLab username via glab. Returns display string."""
+    if not username:
+        return "(unknown)"
+    try:
+        result = subprocess.run(
+            ["glab", "api", f"users?username={username}"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode != 0 or not result.stdout:
+            return f"@{username} (lookup failed)"
+        data = json.loads(result.stdout)
+        if isinstance(data, list) and data:
+            data = data[0]
+        if not data:
+            return f"@{username} (lookup failed)"
+        name = (data.get("name") or "").strip()
+        if not name:
+            return f"@{username} (lookup failed)"
+        email = data.get("public_email")
+        if email and str(email) != "None":
+            return f"{name} <{email}>"
+        return f"{name} (no public email)"
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError):
+        return f"@{username} (lookup failed)"
+
+
+def print_per_pod_summary(
+    current_run_rows: List[Dict[str, str]],
+    run_date_str: str,
+    output_dir: Optional[Path] = None,
+    codeowners_dir: Optional[Path] = None,
+) -> None:
+    """
+    Print a per-pod historical summary (same format as oom_logs_and_desc_bundle_generator).
+    Uses base pod names (e.g. tekton-results-api-debug) so multiple instances are collated.
+    Reports only for pods found in the current run; aggregates current run + historical
+    from timestamped CSVs in output_dir when provided.
+    """
+    # Ensure each current run row has date
+    for row in current_run_rows:
+        if "date" not in row:
+            row["date"] = run_date_str
+
+    all_rows = list(current_run_rows)
+    if output_dir and output_dir.is_dir():
+        historical = _load_historical_rows_from_output_dir(output_dir)
+        all_rows = current_run_rows + historical
+
+    if not current_run_rows:
+        return
+
+    # Base names from current run only (report only for pods found this run)
+    base_names = set(_pod_base_name(row["pod"]) for row in current_run_rows)
+    if not base_names:
+        return
+
+    for base_name in sorted(base_names):
+        # Match rows by computed base (same base normalizes to same display name)
+        matching = [r for r in all_rows if _pod_base_name(r["pod"]) == base_name]
+        if not matching:
+            continue
+
+        # Aggregate by (type, date, cluster, namespace) -> count
+        agg: Dict[Tuple[str, str, str, str], int] = defaultdict(int)
+        for row in matching:
+            t = (row.get("type") or "").strip() or "OOMKilled"
+            if t not in ("OOMKilled", "CrashLoopBackOff"):
+                continue
+            key = (t, row["date"], row["cluster"], row["namespace"])
+            agg[key] += 1
+
+        print()
+        print("==============================================")
+        print(f"Report for pod: {base_name}")
+        print("==============================================")
+
+        for event_type in ("OOMKilled", "CrashLoopBackOff"):
+            keys_for_type = [
+                (t, d, c, ns)
+                for (t, d, c, ns) in agg
+                if t == event_type
+            ]
+            if not keys_for_type:
+                print(f"{event_type}: 0 instances (no occurrences in date-wise CSVs)")
+                continue
+            # Sort by date, then cluster, then namespace
+            for (_, date_key, cluster, namespace) in sorted(
+                keys_for_type, key=lambda x: (x[1], x[2], x[3])
+            ):
+                count = agg[(event_type, date_key, cluster, namespace)]
+                if codeowners_dir:
+                    owners = _get_owners_for_namespace(codeowners_dir, cluster, namespace)
+                    if owners:
+                        displays = [_get_user_display(u.lstrip("@")) for u in owners]
+                        owner_str = ", ".join(displays)
+                        owner_part = f' is owned by "{owner_str}"'
+                    else:
+                        owner_part = " (no owner in CODEOWNERS)"
+                else:
+                    owner_part = " (no CODEOWNERS repo available)"
+                print(
+                    f"{event_type}: {count} instance(s) on {date_key}, "
+                    f"Namespace: {namespace} (cluster: {cluster}){owner_part}"
+                )
+        print("==============================================")
+
+
 # ---------------------------
 # global patterns and flags (populated in parse_args)
 # ---------------------------
@@ -1718,11 +2028,21 @@ Output:
   - oom_results.csv        Spreadsheet-friendly CSV format
   - oom_results.table      Human-readable table format
   - oom_results.html       Standalone HTML report (open in browser)
+  At the end, a per-pod summary is printed (same format as
+  oom_logs_and_desc_bundle_generator); use -c to include CODEOWNERS owners.
+
+  -c, --codeowners-dir DIR  Path to konflux-release-data (CODEOWNERS, staging/CODEOWNERS).
+                            If set, per-pod summary shows namespace owner (name + email via glab).
 
 Debug & Troubleshooting:
   -v, --verbose            Show which namespaces are scanned or skipped (ephemeral/include/exclude)
   --list-namespaces        Print namespaces that would be scanned (per context) and exit.
                            Use to verify a namespace (e.g. preflight-dev-tenant) is included.
+
+Testing (no cluster run):
+  --print-summary-from-dir [DIR]  Print per-pod summary from existing CSVs in DIR (default: output).
+                                   Uses oom_results.csv as \"current run\" (date from file mtime) and
+                                   all oom_results_*_*.csv as historical. Use to verify summary logic.
 
 Other:
   -h, --help               Show this help message
@@ -1774,7 +2094,7 @@ def compile_patterns(csv_patterns: Optional[str]) -> Optional[List[Pattern]]:
 
 def parse_args(
     argv: List[str],
-) -> Tuple[List[str], int, int, int, int, Optional[int], str, bool, bool, bool]:
+) -> Tuple[List[str], int, int, int, int, Optional[int], str, bool, bool, bool, Optional[str], Optional[str]]:
     args = list(argv)
     if "--help" in args or "-h" in args:
         print_usage_and_exit()
@@ -1791,6 +2111,15 @@ def parse_args(
     exclude_ephemeral = True  # Default: exclude ephemeral namespaces
     verbose = False
     list_namespaces = False
+    codeowners_dir: Optional[str] = None
+    print_summary_from_dir: Optional[str] = None
+
+    if "--print-summary-from-dir" in args:
+        i = args.index("--print-summary-from-dir")
+        if i + 1 < len(args) and not args[i + 1].startswith("-"):
+            print_summary_from_dir = args[i + 1].strip()
+        else:
+            print_summary_from_dir = "output"
 
     if "--current" in args:
         cur = get_current_context(
@@ -1918,6 +2247,16 @@ def parse_args(
             print(color(f"ERROR: invalid --time-range value: {e}", RED))
             print_usage_and_exit()
 
+    if "--codeowners-dir" in args or "-c" in args:
+        flag = "--codeowners-dir" if "--codeowners-dir" in args else "-c"
+        i = args.index(flag)
+        if i + 1 >= len(args):
+            print(color("ERROR: missing argument for --codeowners-dir", RED))
+            print_usage_and_exit()
+        codeowners_dir = args[i + 1].strip()
+        if not codeowners_dir:
+            codeowners_dir = None
+
     global _INCLUDE_PATTERNS, _EXCLUDE_PATTERNS, _VERBOSE, _LIST_NAMESPACES
     _INCLUDE_PATTERNS = compile_patterns(include_csv)
     _EXCLUDE_PATTERNS = compile_patterns(exclude_csv)
@@ -1942,6 +2281,8 @@ def parse_args(
         exclude_ephemeral,
         verbose,
         list_namespaces,
+        codeowners_dir,
+        print_summary_from_dir,
     )
 
 
@@ -1968,7 +2309,27 @@ def main() -> None:
         exclude_ephemeral,
         verbose,
         list_namespaces,
+        codeowners_dir,
+        print_summary_from_dir,
     ) = parse_args(sys.argv[1:])
+
+    # --print-summary-from-dir: print summary from existing CSVs only (no cluster run)
+    if print_summary_from_dir is not None:
+        out_dir = Path(print_summary_from_dir)
+        main_csv = out_dir / "oom_results.csv"
+        if not main_csv.is_file():
+            print(color(f"ERROR: {main_csv} not found. Run oc_get_ooms.py first to generate CSVs.", RED))
+            sys.exit(1)
+        mtime = main_csv.stat().st_mtime
+        run_date_str = datetime.fromtimestamp(mtime).strftime("%d-%b-%Y")
+        current_run_rows = _read_csv_rows_with_date(main_csv, run_date_str)
+        codeowners_path = Path(codeowners_dir) if codeowners_dir else None
+        print_per_pod_summary(
+            current_run_rows, run_date_str,
+            output_dir=out_dir,
+            codeowners_dir=codeowners_path,
+        )
+        sys.exit(0)
 
     if not contexts:
         print(color("No contexts discovered. Exiting.", RED))
@@ -2093,6 +2454,18 @@ def main() -> None:
             f"Output files written to '{output_dir}/' directory",
             GREEN,
         )
+    )
+
+    # Per-pod summary (base names, current run + historical from output dir)
+    run_date_str = datetime.now().strftime("%d-%b-%Y")
+    current_run_rows = collect_rows(results, "")
+    for row in current_run_rows:
+        row["date"] = run_date_str
+    codeowners_path = Path(codeowners_dir) if codeowners_dir else None
+    print_per_pod_summary(
+        current_run_rows, run_date_str,
+        output_dir=output_dir,
+        codeowners_dir=codeowners_path,
     )
 
 

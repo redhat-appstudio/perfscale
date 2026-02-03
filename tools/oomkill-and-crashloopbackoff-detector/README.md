@@ -27,6 +27,7 @@ A high-performance, parallel OOMKilled / CrashLoopBackOff detector for OpenShift
   - **JSON** - Structured automation input
   - **HTML** - Standalone visual report (open in browser)
   - **TABLE** - Human-readable text table
+- At the **end of each run**, prints a **per-pod summary** (same format as `oom_logs_and_desc_bundle_generator`): for each pod that had OOMKilled or CrashLoopBackOff in this run, one "Report for pod: …" block with instance counts per (type, cluster, namespace). Optional `-c` / `--codeowners-dir` shows namespace owner (name + email via `glab`).
 - Colorized terminal output
 
 ---
@@ -219,6 +220,26 @@ Simply **double-click** `oom_results.html` in Finder (macOS) or File Explorer (W
 
 Human-readable text table format, perfect for terminal viewing or plain text reports.
 
+### 5. Per-pod summary (terminal, at end of run)
+
+After writing the CSV/JSON/HTML/TABLE files, the tool prints a **per-pod summary** in the same format as `oom_logs_and_desc_bundle_generator`. For each pod that had at least one OOMKilled or CrashLoopBackOff in **this run**, you get a block like:
+
+```
+==============================================
+Report for pod: kube-rbac-proxy-crio-ip-10-29-64-78.ec2.internal
+==============================================
+OOMKilled: 0 instances (no occurrences in this run)
+CrashLoopBackOff: 1 instance(s) on 03-Feb-2026, Namespace: openshift-machine-config-operator (cluster: stone-stage-p01) (no owner in CODEOWNERS)
+==============================================
+```
+
+- **No tarballs** are created by `oc_get_ooms.py`; use `oom_logs_and_desc_bundle_generator -p <pod_name>` to generate pod-specific tarballs when needed.
+- To show **namespace owner** (name + email from CODEOWNERS + GitLab) in each line, pass **`-c` / `--codeowners-dir`** with the path to konflux-release-data (directory containing `CODEOWNERS` and `staging/CODEOWNERS`). Requires `glab` to be installed and logged in.
+
+```bash
+./oc_get_ooms.py --time-range 1d -c /path/to/konflux-release-data
+```
+
 ---
 
 ## 🧪 Example Runs
@@ -368,6 +389,12 @@ Filter events by time range (default: 1 day):
   --current \
   --time-range 6h
 ```
+
+#### Per-pod summary with CODEOWNERS owners
+```bash
+./oc_get_ooms.py --time-range 1d -c /path/to/konflux-release-data
+```
+The per-pod summary at the end will show namespace owner (name + email via `glab`) when available.
 
 #### Comprehensive multi-cluster scan (last 7 days)
 ```bash
@@ -522,6 +549,11 @@ Backed up 4 existing file(s):
   → oom_results_13-Jan-2026_12-10-22-EDT.html
   → oom_results_13-Jan-2026_12-10-22-EDT.table
 ```
+
+### Per-pod summary from `oc_get_ooms.py` vs bundle generator
+
+- **`oc_get_ooms.py`** prints a per-pod summary **at the end of every run**: one "Report for pod: …" block per pod that had OOM/CrashLoop in that run. It uses only the data from the current run (one date = run date). No tarballs are created.
+- **`oom_logs_and_desc_bundle_generator`** is used when you want **date-wise** reports and **tarballs** for a **specific pod**: it scans all date-wise CSVs in `output/` and builds one tarball per (type, date) for that pod.
 
 ### Date-wise bundle generator (`oom_logs_and_desc_bundle_generator`)
 
