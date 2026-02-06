@@ -43,6 +43,7 @@
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
+            "axisSoftMin": 0,
             "barAlignment": 0,
             "drawStyle": "line",
             "fillOpacity": 20,
@@ -188,6 +189,7 @@
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
+            "axisSoftMin": 0,
             "barAlignment": 0,
             "drawStyle": "bars",
             "fillOpacity": 20,
@@ -288,12 +290,127 @@
       "type": "timeseries"
     },
     {
+      "datasource": {
+        "type": "postgres",
+        "uid": "lJMKSZxHk"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "stepBefore",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 13,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "id": 55,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "9.2.10",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "lJMKSZxHk"
+          },
+          "format": "time_series",
+          "group": [],
+          "metricColumn": "none",
+          "rawQuery": true,
+          "rawSql": "SELECT\n    $__timeGroupAlias(start, '1h'),\n    COALESCE(\n        CASE\n            WHEN label_values ? '__results_errors_error_caused_by_simple' AND label_values->>'__results_errors_error_caused_by_simple' = '' THEN\n                'no error detected'\n            WHEN label_values ? '__results_errors_error_caused_by_simple' THEN\n                label_values->>'__results_errors_error_caused_by_simple'\n            ELSE\n                NULL\n        END,\n        NULL) AS \"metric\",\n    COUNT(*) AS \"count\"\n\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values ? '__results_errors_error_caused_by_simple'\n    AND label_values->>'__results_errors_error_caused_by_simple' != ''\n    AND $__timeFilter(start)\nGROUP BY 1,2\nORDER BY 1;",
+          "refId": "A",
+          "select": [
+            [
+              {
+                "params": [
+                  "value"
+                ],
+                "type": "column"
+              }
+            ]
+          ],
+          "timeColumn": "time",
+          "where": [
+            {
+              "name": "$__timeFilter",
+              "params": [],
+              "type": "macro"
+            }
+          ]
+        }
+      ],
+      "title": "Errors by cause grand total",
+      "type": "timeseries"
+    },
+    {
       "collapsed": true,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 26
+        "y": 39
       },
       "id": 54,
       "panels": [
@@ -328,8 +445,8 @@
                 "scaleDistribution": {
                   "type": "linear"
                 },
-                "showPoints": "auto",
-                "spanNulls": false,
+                "showPoints": "always",
+                "spanNulls": 3600000,
                 "stacking": {
                   "group": "A",
                   "mode": "normal"
@@ -344,8 +461,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -361,7 +477,7 @@
             "h": 9,
             "w": 6,
             "x": 0,
-            "y": 27
+            "y": 40
           },
           "id": 4,
           "maxPerRow": 4,
@@ -456,7 +572,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 27
+        "y": 40
       },
       "id": 34,
       "panels": [
@@ -506,8 +622,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -588,7 +703,7 @@
     "list": [
       {
         "current": {
-          "selected": false,
+          "selected": true,
           "text": [
             "https://api.kfluxfedorap01.toli.p1.openshiftapps.com:6443/",
             "https://api.kflux-ocp-p01.7ayg.p1.openshiftapps.com:6443/",
@@ -687,6 +802,6 @@
   "timezone": "",
   "title": "Trending errors",
   "uid": "8nNUfXVDz",
-  "version": 11,
+  "version": 15,
   "weekStart": ""
 }
