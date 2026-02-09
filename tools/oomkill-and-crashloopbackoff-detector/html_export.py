@@ -9,8 +9,185 @@ Generates a standalone HTML report that can be opened directly in a browser.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Tuple
 import html
+import json
+import re
+
+
+def _svg_single_series_chart(
+    labels: List[str],
+    counts: List[int],
+    color_hex: str,
+    stroke_width: int = 2,
+    width: int = 800,
+    height: int = 388,
+    vertical_x_labels: bool = True,
+) -> str:
+    """Generate an inline SVG line chart for one series (own Y scale).
+    X-axis labels are drawn vertically so all dates fit; chart width can exceed 800px for many points.
+    """
+    if not labels:
+        return '<p class="chart-empty">No historical data points.</p>'
+    n = len(labels)
+    pad_left = 56
+    pad_right = 24
+    pad_top = 24
+    pad_bottom = 120  # room for vertical X labels (readable below axis)
+    plot_w = width - pad_left - pad_right
+    plot_h = height - pad_top - pad_bottom
+    max_val = max(max(counts or [0]), 1)
+    y_max = max_val if max_val <= 10 else (max_val + 1)
+
+    def y_pos(val: float) -> float:
+        return pad_top + plot_h - (val / y_max) * plot_h if y_max else pad_top + plot_h
+
+    def x_pos(i: int) -> float:
+        if n <= 1:
+            return pad_left + plot_w / 2
+        return pad_left + (i / (n - 1)) * plot_w
+
+    pts = " ".join(f"{x_pos(i)},{y_pos(counts[i] if i < len(counts) else 0)}" for i in range(n))
+    r = 4
+    circles = "".join(
+        f'<circle cx="{x_pos(i)}" cy="{y_pos(counts[i] if i < len(counts) else 0)}" r="{r}" fill="{color_hex}" stroke="{color_hex}" stroke-width="1"/>'
+        for i in range(n)
+    )
+    # Value labels just above each dot
+    value_labels = "".join(
+        f'<text x="{x_pos(i)}" y="{y_pos(counts[i] if i < len(counts) else 0) - 10}" text-anchor="middle" class="chart-value-label" font-size="10" fill="#374151">{counts[i] if i < len(counts) else 0}</text>'
+        for i in range(n)
+    )
+    # Vertical X labels: start just below the axis (rotate 90, text extends down); keep fully inside SVG
+    axis_y = pad_top + plot_h  # = height - pad_bottom
+    label_y = axis_y + 8  # 8px below axis so labels sit close to x-axis
+    x_ticks = []
+    step = 1 if vertical_x_labels else max(1, (n + 9) // 10)
+    for i in range(0, n, step):
+        x = x_pos(i)
+        label = labels[i] if i < len(labels) else ""
+        short = label if len(label) <= 14 else label[:12] + ".."
+        if vertical_x_labels:
+            x_ticks.append(
+                f'<text x="{x}" y="{label_y}" text-anchor="start" class="chart-x-label chart-x-label-vertical" font-size="10" transform="rotate(90, {x}, {label_y})">{escape_html(short)}</text>'
+            )
+        else:
+            x_ticks.append(f'<text x="{x}" y="{label_y}" text-anchor="middle" class="chart-x-label" font-size="10">{escape_html(short)}</text>')
+    x_ticks_html = "\n                ".join(x_ticks)
+    y_ticks_html_parts = []
+    step_y = max(1, int(y_max) // 8) if y_max >= 8 else 1
+    for v in range(0, int(y_max) + 1, step_y):
+        y = y_pos(v)
+        y_ticks_html_parts.append(f'<text x="{pad_left - 6}" y="{y + 4}" text-anchor="end" class="chart-y-label" font-size="10">{v}</text><line x1="{pad_left}" y1="{y}" x2="{pad_left + plot_w}" y2="{y}" stroke="#e5e7eb" stroke-dasharray="2,2"/>')
+    y_ticks_html = "\n                ".join(y_ticks_html_parts)
+    svg = f"""<svg class="inline-chart-svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}" preserveAspectRatio="xMinYMid meet" style="overflow: visible;">
+            <line x1="{pad_left}" y1="{pad_top}" x2="{pad_left}" y2="{pad_top + plot_h}" stroke="#374151" stroke-width="1"/>
+            <line x1="{pad_left}" y1="{pad_top + plot_h}" x2="{pad_left + plot_w}" y2="{pad_top + plot_h}" stroke="#374151" stroke-width="1"/>
+            {y_ticks_html}
+            {x_ticks_html}
+            <polyline points="{pts}" fill="none" stroke="{color_hex}" stroke-width="{stroke_width}" stroke-linejoin="round" stroke-linecap="round"/>
+            {circles}
+            {value_labels}
+        </svg>"""
+    return svg
+
+
+def _svg_dual_series_chart(
+    labels: List[str],
+    oom_counts: List[int],
+    crash_counts: List[int],
+    width: int = 800,
+    height: int = 388,
+    vertical_x_labels: bool = True,
+) -> str:
+    """Generate an inline SVG line chart with two series (OOM red, CrashLoop blue) on one Y scale.
+    Same layout as single-series: vertical X labels, scrollable when wide.
+    """
+    if not labels:
+        return '<p class="chart-empty">No historical data points.</p>'
+    n = len(labels)
+    pad_left = 56
+    pad_right = 24
+    pad_top = 24
+    pad_bottom = 120
+    plot_w = width - pad_left - pad_right
+    plot_h = height - pad_top - pad_bottom
+    max_val = max(
+        max(oom_counts or [0]),
+        max(crash_counts or [0]),
+        1,
+    )
+    y_max = max_val if max_val <= 10 else (max_val + 1)
+
+    def y_pos(val: float) -> float:
+        return pad_top + plot_h - (val / y_max) * plot_h if y_max else pad_top + plot_h
+
+    def x_pos(i: int) -> float:
+        if n <= 1:
+            return pad_left + plot_w / 2
+        return pad_left + (i / (n - 1)) * plot_w
+
+    oom_pts = " ".join(
+        f"{x_pos(i)},{y_pos(oom_counts[i] if i < len(oom_counts) else 0)}" for i in range(n)
+    )
+    crash_pts = " ".join(
+        f"{x_pos(i)},{y_pos(crash_counts[i] if i < len(crash_counts) else 0)}" for i in range(n)
+    )
+    r = 4
+    oom_circles = "".join(
+        f'<circle cx="{x_pos(i)}" cy="{y_pos(oom_counts[i] if i < len(oom_counts) else 0)}" r="{r}" fill="#b91c1c" stroke="#b91c1c" stroke-width="1"/>'
+        for i in range(n)
+    )
+    crash_circles = "".join(
+        f'<circle cx="{x_pos(i)}" cy="{y_pos(crash_counts[i] if i < len(crash_counts) else 0)}" r="{r}" fill="#1d4ed8" stroke="#1d4ed8" stroke-width="1"/>'
+        for i in range(n)
+    )
+    oom_values = "".join(
+        f'<text x="{x_pos(i)}" y="{y_pos(oom_counts[i] if i < len(oom_counts) else 0) - 10}" text-anchor="middle" class="chart-value-label" font-size="9" fill="#b91c1c">{oom_counts[i] if i < len(oom_counts) else 0}</text>'
+        for i in range(n)
+    )
+    crash_values = "".join(
+        f'<text x="{x_pos(i)}" y="{y_pos(crash_counts[i] if i < len(crash_counts) else 0) + 14}" text-anchor="middle" class="chart-value-label" font-size="9" fill="#1d4ed8">{crash_counts[i] if i < len(crash_counts) else 0}</text>'
+        for i in range(n)
+    )
+    axis_y = pad_top + plot_h
+    label_y = axis_y + 8
+    x_ticks = []
+    step = 1 if vertical_x_labels else max(1, (n + 9) // 10)
+    for i in range(0, n, step):
+        x = x_pos(i)
+        label = labels[i] if i < len(labels) else ""
+        short = label if len(label) <= 14 else label[:12] + ".."
+        if vertical_x_labels:
+            x_ticks.append(
+                f'<text x="{x}" y="{label_y}" text-anchor="start" class="chart-x-label chart-x-label-vertical" font-size="10" transform="rotate(90, {x}, {label_y})">{escape_html(short)}</text>'
+            )
+        else:
+            x_ticks.append(f'<text x="{x}" y="{label_y}" text-anchor="middle" class="chart-x-label" font-size="10">{escape_html(short)}</text>')
+    x_ticks_html = "\n                ".join(x_ticks)
+    y_ticks_html_parts = []
+    step_y = max(1, int(y_max) // 8) if y_max >= 8 else 1
+    for v in range(0, int(y_max) + 1, step_y):
+        y = y_pos(v)
+        y_ticks_html_parts.append(
+            f'<text x="{pad_left - 6}" y="{y + 4}" text-anchor="end" class="chart-y-label" font-size="10">{v}</text><line x1="{pad_left}" y1="{y}" x2="{pad_left + plot_w}" y2="{y}" stroke="#e5e7eb" stroke-dasharray="2,2"/>'
+        )
+    y_ticks_html = "\n                ".join(y_ticks_html_parts)
+    svg = f"""<svg class="inline-chart-svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}" preserveAspectRatio="xMinYMid meet" style="overflow: visible;">
+            <line x1="{pad_left}" y1="{pad_top}" x2="{pad_left}" y2="{pad_top + plot_h}" stroke="#374151" stroke-width="1"/>
+            <line x1="{pad_left}" y1="{pad_top + plot_h}" x2="{pad_left + plot_w}" y2="{pad_top + plot_h}" stroke="#374151" stroke-width="1"/>
+            {y_ticks_html}
+            {x_ticks_html}
+            <polyline points="{oom_pts}" fill="none" stroke="#b91c1c" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+            <polyline points="{crash_pts}" fill="none" stroke="#1d4ed8" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+            {oom_circles}
+            {crash_circles}
+            {oom_values}
+            {crash_values}
+            <text x="{pad_left + plot_w + 8}" y="{pad_top + 12}" class="chart-legend" font-size="11" fill="#b91c1c" font-weight="bold">OOMKilled</text>
+            <text x="{pad_left + plot_w + 8}" y="{pad_top + 28}" class="chart-legend" font-size="11" fill="#1d4ed8">CrashLoopBackOff</text>
+        </svg>"""
+    return svg
 
 
 def escape_html(text: str) -> str:
@@ -18,33 +195,72 @@ def escape_html(text: str) -> str:
     return html.escape(str(text))
 
 
+def _plot_range_to_readable(plot_range_str: Optional[str]) -> str:
+    """Convert plot range abbreviation (e.g. 2M, 7d, 1h) to readable form (e.g. '2 months', '7 days')."""
+    if not plot_range_str or not str(plot_range_str).strip():
+        return "2 months"
+    s = str(plot_range_str).strip()
+    m = re.match(r"^(\d+)([smhdM])$", s)
+    if not m:
+        return s
+    value = int(m.group(1))
+    unit = m.group(2)
+    units = {
+        "s": ("second", "seconds"),
+        "m": ("minute", "minutes"),
+        "h": ("hour", "hours"),
+        "d": ("day", "days"),
+        "M": ("month", "months"),
+    }
+    singular, plural = units.get(unit, ("", ""))
+    if not singular:
+        return s
+    return f"{value} {singular}" if value == 1 else f"{value} {plural}"
+
+
 def generate_html_report(
     rows: List[Dict[str, str]],
     time_range_str: str,
     html_path: Path,
+    report_generated_est: Optional[str] = None,
+    historical_series: Optional[List[Tuple[str, int, int]]] = None,
+    historical_series_by_cluster: Optional[Dict[str, List[Tuple[str, int, int]]]] = None,
+    plot_range_str: Optional[str] = None,
 ) -> None:
     """
     Generate a standalone HTML report from collected rows.
-    
+
     Args:
         rows: List of dictionaries representing OOM/CrashLoopBackOff findings
         time_range_str: Time range string used for detection (e.g., "1d", "6h")
         html_path: Path where HTML file should be written
+        report_generated_est: Report generated timestamp (e.g. EST) for header
+        historical_series: List of (label, oom_count, crash_count) for all-clusters graph
+        historical_series_by_cluster: Per-cluster (label, oom, crash) for per-cluster graphs
+        plot_range_str: Label for plot range (e.g. "2M") for graph subtitle
     """
-    if not rows:
-        # Generate empty report
-        html_content = _generate_empty_html(time_range_str)
+    if not rows and not historical_series:
+        html_content = _generate_empty_html(time_range_str, report_generated_est)
     else:
-        html_content = _generate_html_with_data(rows, time_range_str)
-    
+        html_content = _generate_html_with_data(
+            rows or [],
+            time_range_str,
+            report_generated_est=report_generated_est,
+            historical_series=historical_series,
+            historical_series_by_cluster=historical_series_by_cluster or {},
+            plot_range_str=plot_range_str,
+        )
     try:
         html_path.write_text(html_content, encoding='utf-8')
     except (IOError, OSError) as e:
         raise IOError(f"Failed to write HTML file {html_path}: {e}")
 
 
-def _generate_empty_html(time_range_str: str) -> str:
+def _generate_empty_html(time_range_str: str, report_generated_est: Optional[str] = None) -> str:
     """Generate HTML for empty results."""
+    title_text = "OOM / CrashLoopBackOff Detection Report"
+    if report_generated_est:
+        title_text += f" ({escape_html(report_generated_est)})"
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -58,7 +274,8 @@ def _generate_empty_html(time_range_str: str) -> str:
 <body>
     <div class="container">
         <header>
-            <h1>OOM / CrashLoopBackOff Detection Report</h1>
+            <div class="report-org-line">- Performance and Scale Engineering -</div>
+            <h1>{title_text}</h1>
             <div class="metadata">
                 <span class="badge badge-success">No Issues Found</span>
                 <span class="badge badge-info">Time Range: {escape_html(time_range_str)}</span>
@@ -74,19 +291,104 @@ def _generate_empty_html(time_range_str: str) -> str:
 </html>"""
 
 
-def _generate_html_with_data(rows: List[Dict[str, str]], time_range_str: str) -> str:
-    """Generate HTML report with data."""
-    # Count statistics
+def _generate_html_with_data(
+    rows: List[Dict[str, str]],
+    time_range_str: str,
+    report_generated_est: Optional[str] = None,
+    historical_series: Optional[List[Tuple[str, int, int]]] = None,
+    historical_series_by_cluster: Optional[Dict[str, List[Tuple[str, int, int]]]] = None,
+    plot_range_str: Optional[str] = None,
+) -> str:
+    """Generate HTML report with data. Order: header, all-clusters graphs, per-cluster graphs, Summary, Detailed Findings."""
     total_findings = len(rows)
     oom_count = sum(1 for r in rows if r.get("type") == "OOMKilled")
     crash_count = sum(1 for r in rows if r.get("type") == "CrashLoopBackOff")
-    
-    # Generate summary table
+
+    title_text = "OOM / CrashLoopBackOff Detection Report"
+    if report_generated_est:
+        title_text += f" ({escape_html(report_generated_est)})"
+
+    plot_label = escape_html(_plot_range_to_readable(plot_range_str or "2M"))
+    graph_section = ""
+    if historical_series:
+        labels = [s[0] for s in historical_series]
+        oom_counts = [s[1] for s in historical_series]
+        crash_counts = [s[2] for s in historical_series]
+        n = len(labels)
+        chart_width = max(800, n * 50)
+        chart_height = 388
+        oom_svg = _svg_single_series_chart(
+            labels, oom_counts, color_hex="#b91c1c", stroke_width=3,
+            width=chart_width, height=chart_height, vertical_x_labels=True,
+        )
+        crash_svg = _svg_single_series_chart(
+            labels, crash_counts, color_hex="#1d4ed8", stroke_width=2,
+            width=chart_width, height=chart_height, vertical_x_labels=True,
+        )
+        data_table_rows = "".join(
+            f'<tr><td>{escape_html(lb)}</td><td class="number">{o}</td><td class="number">{c}</td></tr>'
+            for lb, o, c in historical_series
+        )
+        graph_section = f"""
+        <section class="graph-section">
+            <h2>OOM - Historical trend (all Konflux clusters) — Plot range: {plot_label}</h2>
+            <div class="chart-container chart-container-svg chart-scroll-wrap">
+                {oom_svg}
+            </div>
+            <h2>CrashLoopBackOffs - Historical trend (all Konflux clusters) — Plot range: {plot_label}</h2>
+            <div class="chart-container chart-container-svg chart-scroll-wrap">
+                {crash_svg}
+            </div>
+            <table class="summary-table historical-fallback-table">
+                <thead><tr><th>Date (run)</th><th class="number">OOMKilled</th><th class="number">CrashLoopBackOff</th></tr></thead>
+                <tbody>{data_table_rows}</tbody>
+            </table>
+        </section>"""
+
+    # Per-cluster graphs: both OOM and CrashLoop in one chart per cluster, sorted by total (desc)
+    per_cluster_section = ""
+    if historical_series_by_cluster:
+        # Sort clusters by total (oom+crash) across all points, descending
+        def cluster_total(cluster_name: str) -> int:
+            series = historical_series_by_cluster.get(cluster_name, [])
+            return sum(o + c for (_, o, c) in series)
+
+        clusters_sorted = sorted(
+            historical_series_by_cluster.keys(),
+            key=cluster_total,
+            reverse=True,
+        )
+        parts = []
+        for cluster_name in clusters_sorted:
+            series = historical_series_by_cluster[cluster_name]
+            if not series:
+                continue
+            labels_c = [s[0] for s in series]
+            oom_c = [s[1] for s in series]
+            crash_c = [s[2] for s in series]
+            n_c = len(labels_c)
+            chart_width_c = max(800, n_c * 50)
+            chart_height_c = 388
+            dual_svg = _svg_dual_series_chart(
+                labels_c, oom_c, crash_c,
+                width=chart_width_c, height=chart_height_c,
+                vertical_x_labels=True,
+            )
+            cluster_esc = escape_html(cluster_name)
+            parts.append(f"""
+            <h2>OOM &amp; CrashLoopBackOffs - Historical trend (cluster: {cluster_esc}) — Plot range: {plot_label}</h2>
+            <div class="chart-container chart-container-svg chart-scroll-wrap">
+                {dual_svg}
+            </div>""")
+        if parts:
+            per_cluster_section = """
+        <section class="graph-section graph-section-per-cluster">
+            """ + "\n".join(parts) + """
+        </section>"""
+
     summary_table = _generate_summary_table(rows)
-    
-    # Generate detailed findings table (flat table matching oom_results.table format)
     details_table = _generate_details_table(rows)
-    
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -100,7 +402,8 @@ def _generate_html_with_data(rows: List[Dict[str, str]], time_range_str: str) ->
 <body>
     <div class="container">
         <header>
-            <h1>OOM / CrashLoopBackOff Detection Report</h1>
+            <div class="report-org-line">- Performance and Scale Engineering -</div>
+            <h1>{title_text}</h1>
             <div class="metadata">
                 <span class="badge badge-danger">Total Findings: {total_findings}</span>
                 <span class="badge badge-warning">OOMKilled: {oom_count}</span>
@@ -109,6 +412,8 @@ def _generate_html_with_data(rows: List[Dict[str, str]], time_range_str: str) ->
             </div>
         </header>
         <main>
+            {graph_section}
+            {per_cluster_section}
             <section class="summary-section">
                 <h2>Summary</h2>
                 {summary_table}
@@ -249,6 +554,52 @@ def _get_css_styles() -> str:
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             overflow: hidden;
         }
+
+        .graph-section {
+            margin-bottom: 32px;
+        }
+
+        .graph-section .chart-container {
+            position: relative;
+            min-height: 388px;
+            padding: 0 20px;
+        }
+
+        .chart-scroll-wrap {
+            max-width: 100%;
+            overflow-x: auto;
+            overflow-y: visible;
+        }
+
+        .chart-container-svg {
+            display: block;
+        }
+
+        .inline-chart-svg {
+            display: block;
+        }
+
+        .chart-x-label, .chart-y-label {
+            fill: #6b7280;
+        }
+
+        .chart-x-label-vertical {
+            white-space: nowrap;
+        }
+
+        .chart-value-label {
+            font-weight: 600;
+            fill: #374151;
+        }
+
+        .chart-legend {
+            font-family: inherit;
+        }
+
+        .chart-empty {
+            color: #6b7280;
+            padding: 20px;
+        }
         
         header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -257,8 +608,14 @@ def _get_css_styles() -> str:
             text-align: center;
         }
         
+        header .report-org-line {
+            font-size: 2.25em;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        
         header h1 {
-            font-size: 2em;
+            font-size: 1.75em;
             margin-bottom: 15px;
         }
         
@@ -346,7 +703,7 @@ def _get_css_styles() -> str:
         }
         
         .summary-table th {
-            background-color: #f9fafb;
+            background-color: #dbeafe;
             font-weight: 600;
             color: #374151;
         }
@@ -376,7 +733,7 @@ def _get_css_styles() -> str:
         }
         
         .details-table th {
-            background-color: #f9fafb;
+            background-color: #e0e7ff;
             font-weight: 600;
             color: #374151;
             position: sticky;
@@ -392,7 +749,7 @@ def _get_css_styles() -> str:
         }
         
         .sortable-header:hover {
-            background-color: #e5e7eb !important;
+            background-color: #c7d2fe !important;
         }
         
         .sort-indicator {
