@@ -1712,9 +1712,12 @@ def export_results(
         try:
             historical_series = None
             historical_series_by_cluster = {}
+            historical_html_links = []
             if output_dir is not None and plot_range_seconds is not None:
                 historical_series = build_historical_series_from_output_dir(output_dir, plot_range_seconds)
                 historical_series_by_cluster = build_historical_series_by_cluster_from_output_dir(output_dir, plot_range_seconds)
+            if output_dir is not None:
+                historical_html_links = get_historical_html_links(output_dir)
             generate_html_report(
                 rows,
                 time_range_str,
@@ -1722,6 +1725,7 @@ def export_results(
                 report_generated_est=report_generated_est(),
                 historical_series=historical_series,
                 historical_series_by_cluster=historical_series_by_cluster,
+                historical_html_links=historical_html_links,
                 plot_range_str=plot_range_str,
             )
             print(color(f"HTML written → {html_path}", GREEN))
@@ -1950,9 +1954,6 @@ def build_historical_series_from_output_dir(
     """
     resolved_dir = output_dir.resolve()
     files = sorted(resolved_dir.glob("oom_results_*_*.csv"))
-    # Diagnostic (stdout so it shows in normal command output)
-    print(f"[oom-historical] output_dir={resolved_dir}")
-    print(f"[oom-historical] glob found {len(files)} CSV(s)")
     series: List[Tuple[str, int, int, date]] = []
     for path in files:
         try:
@@ -1972,9 +1973,7 @@ def build_historical_series_from_output_dir(
             series.append((label, oom, crash, run_date))
         except (OSError, csv.Error) as e:
             logging.debug(f"Skip {path.name}: {e}")
-            print(f"[oom-historical] skip {path.name}: {e}")
             continue
-    print(f"[oom-historical] after first pass: {len(series)} run(s)")
     if not series:
         return []
     # Cutoff relative to latest run in this directory (avoids dependence on system clock)
@@ -1983,7 +1982,6 @@ def build_historical_series_from_output_dir(
     cutoff_date = datetime.fromtimestamp(cutoff_ts, tz=timezone.utc).date()
     series = [(label, oom, crash, run_d) for (label, oom, crash, run_d) in series if run_d >= cutoff_date]
     series.sort(key=lambda x: (x[3], x[0]))
-    print(f"[oom-historical] latest={latest}, cutoff_date={cutoff_date}, in range: {len(series)} run(s)")
     return [(label, oom, crash) for label, oom, crash, _ in series]
 
 
@@ -2046,6 +2044,25 @@ def build_historical_series_by_cluster_from_output_dir(
     }
 
 
+def get_historical_html_links(output_dir: Path) -> List[Tuple[str, str]]:
+    """
+    Return list of (label, filename) for timestamped oom_results_*_*.html in output_dir,
+    sorted by run date descending (most recent first). Use relative filename so links work with file://.
+    """
+    resolved_dir = output_dir.resolve()
+    candidates: List[Tuple[date, str, str]] = []
+    for path in resolved_dir.glob("oom_results_*_*.html"):
+        # Reuse CSV basename helpers by pretending .html is .csv for date/label parsing
+        fake_csv_name = path.name.replace(".html", ".csv")
+        run_date = _run_date_from_timestamped_csv_basename(fake_csv_name)
+        if run_date is None:
+            run_date = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).date()
+        label = _label_from_timestamped_csv_basename(fake_csv_name) or path.stem
+        candidates.append((run_date, label, path.name))
+    candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    return [(label, filename) for (_, label, filename) in candidates]
+
+
 def _normalize_type(t: str) -> str:
     """Normalize type to OOMKilled or CrashLoopBackOff."""
     u = (t or "").strip().lower()
@@ -2057,7 +2074,9 @@ def _normalize_type(t: str) -> str:
 
 
 def _read_csv_rows_with_date(csv_path: Path, date_str: str) -> List[Dict[str, str]]:
-    """Read CSV and return list of row dicts with cluster, namespace, pod, type, date (added)."""
+    """Read CSV and return list of row dicts with all columns (cluster, namespace, pod, type,
+    timestamps, sources, description_file, pod_log_file, time_range, date). Preserves full row
+    so HTML/details table and summaries get description_file and pod_log_file links when present."""
     rows: List[Dict[str, str]] = []
     try:
         with csv_path.open(newline="", encoding="utf-8", errors="replace") as f:
@@ -2067,13 +2086,19 @@ def _read_csv_rows_with_date(csv_path: Path, date_str: str) -> List[Dict[str, st
                 if not pod:
                     continue
                 raw_type = (row.get("type") or "").strip()
-                rows.append({
+                out = {
                     "cluster": (row.get("cluster") or "").strip(),
                     "namespace": (row.get("namespace") or "").strip(),
                     "pod": pod,
                     "type": _normalize_type(raw_type),
+                    "timestamps": (row.get("timestamps") or "").strip(),
+                    "sources": (row.get("sources") or "").strip(),
+                    "description_file": (row.get("description_file") or "").strip(),
+                    "pod_log_file": (row.get("pod_log_file") or "").strip(),
+                    "time_range": (row.get("time_range") or "").strip(),
                     "date": date_str,
-                })
+                }
+                rows.append(out)
     except (IOError, OSError) as e:
         logging.warning(f"Failed to read CSV {csv_path}: {e}")
     return rows
@@ -2621,6 +2646,7 @@ def main() -> None:
         if generate_html_report is not None:
             historical_series = build_historical_series_from_output_dir(out_dir, plot_range_seconds)
             historical_series_by_cluster = build_historical_series_by_cluster_from_output_dir(out_dir, plot_range_seconds)
+            historical_html_links = get_historical_html_links(out_dir)
             if historical_series:
                 print(color(f"Historical graph: {len(historical_series)} run(s) in plot range.", BLUE))
             else:
@@ -2634,6 +2660,7 @@ def main() -> None:
                     report_generated_est=report_generated_est(),
                     historical_series=historical_series,
                     historical_series_by_cluster=historical_series_by_cluster,
+                    historical_html_links=historical_html_links,
                     plot_range_str=plot_range_str,
                 )
                 print(color(f"HTML report written → {html_path}", GREEN))
