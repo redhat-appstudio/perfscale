@@ -1947,14 +1947,15 @@ def build_historical_series_from_output_dir(
     plot_range_seconds: int,
 ) -> List[Tuple[str, int, int]]:
     """
-    Build historical (label, oom_count, crash_count) from timestamped CSVs in output_dir.
+    Build historical (label, oom_count, crash_count) from timestamped CSVs in output_dir,
+    plus the current run from oom_results.csv if present (so today's run appears on the graph).
     Uses run date from filename (DD-Mon-YYYY); fallback to file mtime date if parse fails.
-    Cutoff is relative to the **latest run in the directory** (not "now") so system date
-    does not exclude files. Sorted by run date so the graph is chronological.
+    Cutoff is relative to the **latest run in the directory** (not "now"). Sorted by run date.
     """
     resolved_dir = output_dir.resolve()
-    files = sorted(resolved_dir.glob("oom_results_*_*.csv"))
     series: List[Tuple[str, int, int, date]] = []
+    # 1) Timestamped backup CSVs
+    files = sorted(resolved_dir.glob("oom_results_*_*.csv"))
     for path in files:
         try:
             run_date = _run_date_from_timestamped_csv_basename(path.name)
@@ -1974,6 +1975,25 @@ def build_historical_series_from_output_dir(
         except (OSError, csv.Error) as e:
             logging.debug(f"Skip {path.name}: {e}")
             continue
+    # 2) Current run (oom_results.csv) so today's run appears on the graph
+    main_csv = resolved_dir / "oom_results.csv"
+    if main_csv.is_file():
+        try:
+            mtime = main_csv.stat().st_mtime
+            run_date = datetime.fromtimestamp(mtime, tz=timezone.utc).date()
+            label = datetime.fromtimestamp(mtime).strftime("%d-%b-%Y %H:%M")  # local time for display
+            oom, crash = 0, 0
+            with main_csv.open(newline="", encoding="utf-8", errors="replace") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    t = _normalize_type(row.get("type", ""))
+                    if t == "OOMKilled":
+                        oom += 1
+                    elif t == "CrashLoopBackOff":
+                        crash += 1
+            series.append((label, oom, crash, run_date))
+        except (OSError, csv.Error) as e:
+            logging.debug(f"Skip {main_csv.name}: {e}")
     if not series:
         return []
     # Cutoff relative to latest run in this directory (avoids dependence on system clock)
@@ -2022,6 +2042,30 @@ def build_historical_series_by_cluster_from_output_dir(
         except (OSError, csv.Error) as e:
             logging.debug(f"Skip {path.name}: {e}")
             continue
+    # Include current run (oom_results.csv) so today's run appears on per-cluster graphs
+    main_csv = resolved_dir / "oom_results.csv"
+    if main_csv.is_file():
+        try:
+            mtime = main_csv.stat().st_mtime
+            run_date = datetime.fromtimestamp(mtime, tz=timezone.utc).date()
+            label = datetime.fromtimestamp(mtime).strftime("%d-%b-%Y %H:%M")  # local time for display
+            cluster_counts = {}
+            with main_csv.open(newline="", encoding="utf-8", errors="replace") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    cluster = (row.get("cluster") or "").strip() or "unknown"
+                    if cluster not in cluster_counts:
+                        cluster_counts[cluster] = (0, 0)
+                    oom, crash = cluster_counts[cluster]
+                    t = _normalize_type(row.get("type", ""))
+                    if t == "OOMKilled":
+                        oom += 1
+                    elif t == "CrashLoopBackOff":
+                        crash += 1
+                    cluster_counts[cluster] = (oom, crash)
+            run_data.append((label, run_date, cluster_counts))
+        except (OSError, csv.Error) as e:
+            logging.debug(f"Skip {main_csv.name}: {e}")
     if not run_data:
         return {}
     latest = max(rd[1] for rd in run_data)
