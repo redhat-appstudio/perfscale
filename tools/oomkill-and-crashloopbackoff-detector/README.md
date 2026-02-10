@@ -12,6 +12,7 @@ A high-performance, parallel OOMKilled / CrashLoopBackOff detector for OpenShift
   - **CrashLoopBackOff pods** (via events and pod status)
 - Configurable **time range filtering** (default: 1 day)
   - Format: `1h`, `6h`, `1d`, `7d`, `1M` (30 days), etc.
+  - Events and **pod-status findings** (OOMKilled/CrashLoopBackOff) are filtered by this range; when a termination timestamp (e.g. `finishedAt`) exists, only findings within the window are included.
 - Uses multiple detection methods:
   - Kubernetes **events** (optimized: single API call per namespace)
   - **Pod status** (direct check for OOMKilled/CrashLoopBackOff)
@@ -199,22 +200,24 @@ Structured format perfect for automation, scripting, and integration with other 
 
 ### 3. HTML (`oom_results.html`)
 
-**Standalone visual report** that can be opened directly in any web browser. Perfect for:
-- Sharing findings with team members
-- Quick visual overview
-- Presentation-ready reports
-- Clickable links to artifact files
+**Standalone visual report** that can be opened directly in any web browser (no server required; use `file://` or double-click). Perfect for sharing findings, quick visual overview, and presentation-ready reports.
 
 **Features:**
-- **Summary statistics** - Total findings, OOM vs CrashLoopBackOff counts
-- **Cluster-level grouping** - Organized by cluster for easy navigation
-- **Namespace drilldown** - Expandable namespace sections
-- **Color-coded badges** - Visual indicators for issue types
-- **Clickable artifact links** - Direct links to description and log files
-- **Responsive design** - Works on desktop and mobile devices
-- **No external dependencies** - Fully self-contained HTML file
+- **Report header** – Performance and Scale Engineering; report title with generation timestamp (EST).
+- **Historical trend graphs (all Konflux clusters)** – Two separate line charts:
+  - **OOM** – Count of OOMKilled per run over time (red).
+  - **CrashLoopBackOffs** – Count of CrashLoopBackOff per run over time (blue).
+  - Dates on the X-axis (vertical labels), value labels above each point, horizontal scroll when there are many runs. Plot range is configurable (default 2 months) via `--plot-range` (e.g. `2M`, `7d`).
+- **Table of total OOMs & CrashLoopBackOffs** – Historical trend table under the charts (Date (run), OOMKilled, CrashLoopBackOff) for the same plot range.
+- **Per-cluster historical trend charts** – One combined chart per cluster (OOM + CrashLoopBackOff in the same graph), ordered by total occurrences (highest first). Heading format: *OOM & CrashLoopBackOffs - Historical trend (cluster: &lt;name&gt;) — Plot range: …*
+- **Clusterwise Summary** – Table of findings by cluster (OOMKilled, CrashLoopBackOff, Total) with report timestamp in the section header.
+- **PODs, Namespaces & Clusters Detailed Findings** – Sortable table with cluster, namespace, pod, type, timestamps, sources, Description File, Pod Log File, time range. Section header includes report timestamp. Table is horizontally scrollable so all columns (including log/description links) remain visible.
+- **Historical HTML reports** – Table at the end listing past timestamped HTML reports; each row has a date (run) and an “Open report” link so you can open any previous run’s HTML from the current page.
+- **Color-coded badges** – OOMKilled (red), CrashLoopBackOff (orange).
+- **Clickable artifact links** – Description File and Pod Log File columns link to `file://` paths when present.
+- **No external dependencies** – Fully self-contained HTML (inline SVG charts, no CDN).
 
-Simply **double-click** `oom_results.html` in Finder (macOS) or File Explorer (Windows/Linux) to open it in your default browser.
+The same HTML report is produced whether you run a full cluster scan or regenerate from existing data with `--print-summary-from-dir output` (see below). Simply **double-click** `oom_results.html` or open it via `file://` in your browser.
 
 ### 4. TABLE (`oom_results.table`)
 
@@ -334,6 +337,8 @@ Filter events by time range (default: 1 day):
 - `d` = days (e.g., `1d`, `7d`, `30d`)
 - `M` = months (30 days, e.g., `1M`, `2M`)
 
+**Plot range for HTML historical graphs:** The HTML report’s trend charts show runs within a time window (default 2 months). Set it with `--plot-range` (same format as `--time-range`), e.g. `--plot-range 2M` or `--plot-range 7d`. This applies to both the full run and `--print-summary-from-dir`.
+
 ### Namespace Filtering
 
 #### Include only specific namespaces
@@ -433,6 +438,20 @@ cat oom_results.table
 ```
 
 **Note:** If you ran the tool previously, your old files are automatically backed up with timestamps (e.g., `oom_results_13-Jan-2026_12-10-22-EDT.csv`). You can access historical data by opening the timestamped backup files.
+
+#### Regenerating the HTML report without a cluster run
+
+You can regenerate the full HTML report (including historical trend graphs and per-cluster charts) from existing CSV files in the output directory, without running against clusters:
+
+```bash
+./oc_get_ooms.py --print-summary-from-dir output
+```
+
+- Reads `oom_results.csv` as the “current run” and all `oom_results_*_*.csv` timestamped files for historical series and per-cluster data.
+- Writes an updated `oom_results.html` with the same structure as when you run a full scan: trend graphs, Clusterwise Summary, PODs/Namespaces/Clusters Detailed Findings, and Historical HTML reports links.
+- Requires no cluster access; useful for viewing trends after copying the `output/` directory elsewhere or when you only want to refresh the report from existing data.
+
+You can pass a different directory, e.g. `--print-summary-from-dir /path/to/output`.
 
 The **HTML report** (`oom_results.html`) is particularly useful for:
 - Quick visual overview
@@ -731,16 +750,14 @@ Use cases:
 
 ### 📊 6. Enhanced HTML Reports (✅ Implemented)
 
-HTML report generation is now available! The tool automatically generates `oom_results.html` with:
-- Summary statistics
-- Cluster-level grouping
-- Namespace drilldowns
-- Clickable artifact links
-- Responsive design
+HTML report generation is implemented. The tool generates `oom_results.html` with:
+- Summary statistics (Clusterwise Summary) and Detailed Findings (PODs, Namespaces & Clusters) with report timestamp in headers
+- Historical trend line charts (all Konflux clusters): separate OOM and CrashLoopBackOff charts; per-cluster combined charts ordered by total occurrences
+- Table of total OOMs & CrashLoopBackOffs and Historical HTML reports (links to past timestamped reports)
+- Clickable artifact links (Description File, Pod Log File); horizontally scrollable details table
+- Self-contained HTML (inline SVG, no external deps); works with `file://`
 
-Future enhancements could include:
-- Interactive charts and graphs
-- Trend visualization
+Possible future enhancements:
 - Export to PDF
 - Customizable themes
 
