@@ -103,10 +103,10 @@ A high-performance, parallel OOMKilled / CrashLoopBackOff detector for OpenShift
 
 ## 📂 Artifact Storage Layout
 
-Artifacts are stored **per cluster**:
+Artifacts are stored **per cluster** under the output directory so behavior is consistent on Mac and CI (e.g. Jenkins):
 
 ```
-/tmp/<cluster_name>/
+output/logs_and_description_files/<cluster_name>/
   <namespace>__<pod>__<timestamp>__desc.txt
   <namespace>__<pod>__<timestamp>__log.txt
 ```
@@ -114,9 +114,15 @@ Artifacts are stored **per cluster**:
 Example:
 
 ```
-/tmp/kflux-prd-es01/
+output/logs_and_description_files/kflux-prd-es01/
   clusters-a53fda0e...__catalog-operator__2025-12-12T05-25-40Z__desc.txt
   clusters-a53fda0e...__catalog-operator__2025-12-12T05-25-40Z__log.txt
+```
+
+**One-time migration:** If you have existing artifacts under `/private/tmp/<cluster_name>/` (or `/tmp/<cluster_name>/`), run the migration script once to move them and repair paths in existing CSVs and HTMLs:
+
+```bash
+python migrate_artifacts_from_private_tmp.py [--output-dir output] [--dry-run]
 ```
 
 The tool saves **both** log sources into one file (so you get logs from the crashed run and the current run):
@@ -183,8 +189,8 @@ Structured format perfect for automation, scripting, and integration with other 
           "2025-12-12T05:25:40Z"
         ],
         "sources": ["events"],
-        "description_file": "/tmp/kflux-prd-es01/...__desc.txt",
-        "pod_log_file": "/tmp/kflux-prd-es01/...__log.txt"
+        "description_file": ".../output/logs_and_description_files/kflux-prd-es01/...__desc.txt",
+        "pod_log_file": ".../output/logs_and_description_files/kflux-prd-es01/...__log.txt"
       }
     }
   }
@@ -473,6 +479,7 @@ The **HTML report** (`oom_results.html`) is particularly useful for:
 
 ## 🛡️ Resilience & Safety
 
+- **Cluster connectivity check before run:** The tool checks connectivity to each cluster and prints a report (✓/✗ per cluster). It does **not** wait for user confirmation: if **at least one** cluster is connected, it proceeds with data collection; if **none** are connected, it aborts. No "Proceed with data collection? [y/N]:" prompt.
 - Retries on TLS / API failures
 - Configurable timeouts
 - Graceful skipping of unreachable clusters
@@ -534,7 +541,7 @@ If users report OOMs in a namespace (e.g. `preflight-dev-tenant`) but the tool r
 | `oom_results.json` | Structured automation input | JSON |
 | `oom_results.html` | Visual report (open in browser) | HTML |
 | `oom_results.table` | Human-readable text table | Plain text |
-| `/tmp/<cluster>/*.txt` | Pod forensic artifacts | Text files |
+| `output/logs_and_description_files/<cluster>/*.txt` | Pod forensic artifacts | Text files |
 
 **Note:** All output files are generated automatically in the current directory. The HTML file is fully self-contained and can be opened directly in any web browser by double-clicking it.
 
@@ -622,7 +629,9 @@ CrashLoopBackOff: 0 instances (no occurrences in date-wise CSVs)
 
 > **Fast, safe, forensic-grade, and cluster-scale.**
 
-**Recent Enhancements:**
+**Recent Enhancements (including Feb 12, 2026):**
+- **Artifact path:** Pod logs and description files are saved under `output/logs_and_description_files/<cluster>/` (same on Mac and Jenkins). One-time migration from `/private/tmp/` is available via `migrate_artifacts_from_private_tmp.py`.
+- **Cluster connectivity:** No user confirmation prompt. The tool checks connectivity to all clusters, prints a report, then proceeds automatically if at least one cluster is connected, or aborts if none are.
 - **Constant Parallelism**: Maintains optimal resource utilization across all clusters
 - **Performance Optimized**: Single event API call per namespace (3x faster)
 - **Comprehensive Detection**: Events + pod status checks ensure no OOM/CrashLoop pods are missed
