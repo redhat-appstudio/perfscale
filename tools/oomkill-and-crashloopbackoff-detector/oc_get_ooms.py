@@ -9,7 +9,7 @@ New in this version:
 - When a pod is detected as OOMKilled or CrashLoopBackOff, save:
     - `oc describe pod <pod>` output
     - One log file with `oc logs <pod> --previous` (crashed container) then `oc logs <pod>` (current), appended
-  into per-cluster directories under /private/tmp/<cluster>/
+  into per-cluster directories under output/logs_and_description_files/<cluster>/
   Filenames include namespace, pod name, and timestamp to avoid collisions.
 - CSV and JSON now include the absolute paths to the description and pod log files:
     description_file, pod_log_file
@@ -452,12 +452,10 @@ def check_all_clusters_connectivity(
     return all_connected, report
 
 
-def prompt_user_confirmation(connectivity_report: List[Tuple[str, bool, str]]) -> bool:
+def print_connectivity_report_summary(connectivity_report: List[Tuple[str, bool, str]]) -> None:
     """
-    Prompt user for confirmation after showing connectivity report.
-    
-    Returns:
-        bool: True if user confirms, False otherwise
+    Print the Cluster Connectivity Report summary (second block).
+    Does not prompt for user input.
     """
     print(color("\nCluster Connectivity Report:", BLUE))
     for cluster, connected, message in connectivity_report:
@@ -465,28 +463,16 @@ def prompt_user_confirmation(connectivity_report: List[Tuple[str, bool, str]]) -
             print(color(f"  ✓ {cluster}: {message}", GREEN))
         else:
             print(color(f"  ✗ {cluster}: {message}", RED))
-    
+
     all_connected = all(connected for _, connected, _ in connectivity_report)
-    if not all_connected:
+    if all_connected:
+        print(color("\n✓ All clusters are accessible", GREEN))
+    else:
         print(color("\nWARNING: Some clusters are not accessible.", YELLOW))
         print(color("  Data collection may fail for these clusters.", YELLOW))
         print(color("  Continuing with accessible clusters only...", YELLOW))
-    else:
-        print(color("\n✓ All clusters are accessible", GREEN))
-    
+
     print(color("="*80, BLUE))
-    
-    while True:
-        sys.stdout.flush()
-        sys.stderr.flush()
-        response = input("\nProceed with data collection? [y/N]: ").strip().lower()
-        if response in ('y', 'yes'):
-            print()
-            return True
-        elif response in ('n', 'no', ''):
-            return False
-        else:
-            print(color("Please enter 'y' or 'n'", YELLOW))
 
 
 # ---------------------------
@@ -964,8 +950,8 @@ def get_namespaces_for_context(
 
 
 # ---------------------------
-# Save pod artifacts (describe + logs) into per-cluster directory under /private/tmp/<cluster>/
-# Returns (description_path, log_path)
+# Save pod artifacts (describe + logs) into per-cluster directory under artifacts_root/<cluster>/
+# Returns (description_path, log_path) as absolute paths
 # ---------------------------
 def save_pod_artifacts(
     context: str,
@@ -974,15 +960,16 @@ def save_pod_artifacts(
     pod: str,
     retries: int,
     oc_timeout_seconds: int,
+    artifacts_root: Path,
 ) -> Tuple[str, str]:
     """
-    Save 'oc describe pod' and pod logs into files under /private/tmp/<cluster>/.
+    Save 'oc describe pod' and pod logs into files under artifacts_root/<cluster>/.
     Log file contains: first --previous (crashed container), then current logs, in one file.
     Filenames include namespace, pod name and timestamp to avoid collisions.
-    Returns absolute file paths (description_file, pod_log_file)
+    Returns absolute file paths (description_file, pod_log_file).
     """
     ts = now_ts_for_filename()
-    cluster_dir = Path("/private/tmp") / cluster
+    cluster_dir = (artifacts_root / cluster).resolve()
     cluster_dir.mkdir(parents=True, exist_ok=True)
 
     # safe filename parts
@@ -1191,6 +1178,7 @@ def query_context(
     ns_workers: int = DEFAULT_NS_WORKERS,
     time_range_seconds: Optional[int] = None,
     exclude_ephemeral: bool = True,
+    artifacts_root: Optional[Path] = None,
 ) -> Tuple[str, Dict[str, Any], Optional[str]]:
     cluster = short_cluster_name(context)
     print(color(f"\n→ Processing cluster: {cluster}", BLUE))
@@ -1254,11 +1242,16 @@ def query_context(
                         # Save artifacts for each pod found in this namespace
                         out_ns_with_artifacts: Dict[str, Dict[str, Any]] = {}
                         for p, info in res.items():
-                            desc_file, log_file = save_pod_artifacts(
-                                context, cluster, ns, p, retries, oc_timeout_seconds
-                            )
-                            info["description_file"] = desc_file
-                            info["pod_log_file"] = log_file
+                            if artifacts_root is not None:
+                                desc_file, log_file = save_pod_artifacts(
+                                    context, cluster, ns, p, retries, oc_timeout_seconds,
+                                    artifacts_root=artifacts_root,
+                                )
+                                info["description_file"] = desc_file
+                                info["pod_log_file"] = log_file
+                            else:
+                                info["description_file"] = ""
+                                info["pod_log_file"] = ""
                             out_ns_with_artifacts[p] = info
                         cluster_result[ns] = out_ns_with_artifacts
                         print(
@@ -1270,12 +1263,15 @@ def query_context(
                 except Exception as e:
                     print(color(f"    Error processing namespace {ns}: {e}", RED))
 
-    # write per-cluster log
-    try:
-        outfile = Path("/private/tmp") / f"{cluster}.log"
-        outfile.write_text(json.dumps(cluster_result, indent=2))
-    except Exception:
-        pass
+    # write per-cluster log under artifacts_root/<cluster>/ if available
+    if artifacts_root:
+        try:
+            cluster_dir = (artifacts_root / cluster).resolve()
+            cluster_dir.mkdir(parents=True, exist_ok=True)
+            outfile = cluster_dir / f"{cluster}.log"
+            outfile.write_text(json.dumps(cluster_result, indent=2))
+        except Exception:
+            pass
 
     return cluster, cluster_result, None
 
@@ -1292,6 +1288,7 @@ def run_batches(
     ns_workers: int,
     time_range_seconds: Optional[int] = None,
     exclude_ephemeral: bool = True,
+    output_dir: Optional[Path] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, str]]:
     """
     Run cluster processing with constant parallelism.
@@ -1299,6 +1296,7 @@ def run_batches(
     Instead of processing in fixed batches, maintains constant parallelism:
     when one cluster finishes, immediately start the next one.
     """
+    artifacts_root = (output_dir if output_dir is not None else Path("output")).resolve() / "logs_and_description_files"
     results: Dict[str, Any] = {}
     skipped: Dict[str, str] = {}
     total = len(contexts)
@@ -1319,6 +1317,7 @@ def run_batches(
                 ns_workers,
                 time_range_seconds,
                 exclude_ephemeral,
+                artifacts_root,
             )
             active_futures[fut] = ctx
             print(
@@ -1358,6 +1357,7 @@ def run_batches(
                         ns_workers,
                         time_range_seconds,
                         exclude_ephemeral,
+                        artifacts_root,
                     )
                     active_futures[next_fut] = next_ctx
                     print(
@@ -2778,14 +2778,16 @@ def main() -> None:
             )
         )
 
-    # Check cluster connectivity and prompt user for confirmation
-    all_connected, connectivity_report = check_all_clusters_connectivity(
+    # Check cluster connectivity; proceed only if at least one cluster is connected
+    _all_connected, connectivity_report = check_all_clusters_connectivity(
         contexts, retries=retries, oc_timeout_seconds=oc_timeout_seconds
     )
-    
-    if not prompt_user_confirmation(connectivity_report):
-        print(color("Aborted by user.", YELLOW))
-        sys.exit(0)
+    print_connectivity_report_summary(connectivity_report)
+
+    at_least_one_connected = any(connected for _, connected, _ in connectivity_report)
+    if not at_least_one_connected:
+        print(color("No clusters are accessible. Aborting.", RED))
+        sys.exit(1)
 
     # Move existing output files to output directory (one-time migration)
     move_existing_output_files()
@@ -2802,6 +2804,7 @@ def main() -> None:
         ns_workers,
         time_range_seconds,
         exclude_ephemeral,
+        output_dir=output_dir,
     )
 
     # All output files go to 'output' subdirectory
@@ -2837,7 +2840,7 @@ def main() -> None:
 
     print(
         color(
-            "\nPer-cluster logs written to /private/tmp/<cluster>/ (if any findings were found)",
+            "\nPer-cluster logs written to output/logs_and_description_files/<cluster>/ (if any findings were found)",
             GREEN,
         )
     )
