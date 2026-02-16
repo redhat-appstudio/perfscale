@@ -1373,27 +1373,29 @@ def run_batches(
 # ---------------------------
 # output directory management
 # ---------------------------
-def ensure_output_directory() -> Path:
+def ensure_output_directory(path_str: str = "output") -> Path:
     """
-    Ensure the 'output' subdirectory exists, creating it if necessary.
+    Ensure the output subdirectory exists, creating it if necessary.
     
     Returns:
         Path to the output directory
     """
-    output_dir = Path("output")
-    output_dir.mkdir(exist_ok=True)
+    output_dir = Path(path_str)
+    output_dir.mkdir(parents=True, exist_ok=True)
     return output_dir
 
 
-def move_existing_output_files() -> int:
+def move_existing_output_files(target_dir: Path) -> int:
     """
     Move all existing output files (oom_results.* and timestamped versions)
-    from current directory to 'output' subdirectory.
+    from current directory to target directory.
     
     Returns:
         Number of files moved
     """
-    output_dir = ensure_output_directory()
+    output_dir = target_dir
+    # Ensure it exists
+    output_dir.mkdir(parents=True, exist_ok=True)
     moved_count = 0
     
     # Pattern to match output files
@@ -1421,6 +1423,11 @@ def move_existing_output_files() -> int:
             if file_path.exists() and file_path.is_file():
                 try:
                     dest_path = output_dir / file_path.name
+                    
+                    # If source and destination are the same (e.g. output_dir is current dir), skip
+                    if file_path.resolve() == dest_path.resolve():
+                        continue
+
                     # If file already exists in output dir, skip (don't overwrite)
                     if not dest_path.exists():
                         file_path.rename(dest_path)
@@ -2352,6 +2359,7 @@ Resilience & Timeouts:
   --timeout S              OC request timeout in seconds used as --request-timeout (default: 45)
 
 Output:
+  --output DIR             Directory to save output files (default: output)
   All output formats are generated automatically:
   - oom_results.json       Structured JSON with metadata
   - oom_results.csv        Spreadsheet-friendly CSV format
@@ -2423,7 +2431,7 @@ def compile_patterns(csv_patterns: Optional[str]) -> Optional[List[Pattern]]:
 
 def parse_args(
     argv: List[str],
-) -> Tuple[List[str], int, int, int, int, Optional[int], str, int, str, bool, bool, bool, Optional[str], Optional[str]]:
+) -> Tuple[List[str], int, int, int, int, Optional[int], str, int, str, bool, bool, bool, Optional[str], Optional[str], str]:
     args = list(argv)
     if "--help" in args or "-h" in args:
         print_usage_and_exit()
@@ -2443,13 +2451,21 @@ def parse_args(
     list_namespaces = False
     codeowners_dir: Optional[str] = None
     print_summary_from_dir: Optional[str] = None
+    output_dir_str = "output"
+
+    if "--output" in args:
+        i = args.index("--output")
+        if i + 1 >= len(args):
+            print(color("ERROR: missing argument for --output", RED))
+            print_usage_and_exit()
+        output_dir_str = args[i + 1]
 
     if "--print-summary-from-dir" in args:
         i = args.index("--print-summary-from-dir")
         if i + 1 < len(args) and not args[i + 1].startswith("-"):
             print_summary_from_dir = args[i + 1].strip()
         else:
-            print_summary_from_dir = "output"
+            print_summary_from_dir = output_dir_str
 
     if "--current" in args:
         cur = get_current_context(
@@ -2631,6 +2647,7 @@ def parse_args(
         list_namespaces,
         codeowners_dir,
         print_summary_from_dir,
+        output_dir_str,
     )
 
 
@@ -2661,6 +2678,7 @@ def main() -> None:
         list_namespaces,
         codeowners_dir,
         print_summary_from_dir,
+        output_dir_str,
     ) = parse_args(sys.argv[1:])
 
     # --print-summary-from-dir: print summary and generate HTML from existing CSVs (no cluster run)
@@ -2789,11 +2807,11 @@ def main() -> None:
         print(color("No clusters are accessible. Aborting.", RED))
         sys.exit(1)
 
-    # Move existing output files to output directory (one-time migration)
-    move_existing_output_files()
-    
     # Ensure output directory exists
-    output_dir = ensure_output_directory()
+    output_dir = ensure_output_directory(output_dir_str)
+    
+    # Move existing output files to output directory (one-time migration)
+    move_existing_output_files(output_dir)
     
     results, skipped = run_batches(
         contexts,
