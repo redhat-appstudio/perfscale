@@ -127,26 +127,26 @@ _CLI_TOOL: Optional[str] = None  # Cached CLI tool (kubectl or oc)
 def detect_cli_tool() -> str:
     """
     Detect which CLI tool to use: kubectl (preferred) or oc (fallback).
-    
+
     Returns:
         "kubectl" if available, "oc" if kubectl not available, or raises error if neither found
     """
     global _CLI_TOOL
     if _CLI_TOOL:
         return _CLI_TOOL
-    
+
     # Try kubectl first (works with any Kubernetes cluster)
     rc, _, _ = run_cmd_with_retries(["kubectl", "version", "--client", "--short"], retries=1, timeout=5)
     if rc == 0:
         _CLI_TOOL = "kubectl"
         return _CLI_TOOL
-    
+
     # Fallback to oc (OpenShift)
     rc, _, _ = run_cmd_with_retries(["oc", "version", "--client"], retries=1, timeout=5)
     if rc == 0:
         _CLI_TOOL = "oc"
         return _CLI_TOOL
-    
+
     # Neither found
     raise RuntimeError(
         "Neither 'kubectl' nor 'oc' CLI tool found. "
@@ -334,7 +334,7 @@ def now_ts_for_filename() -> str:
 
 def timestamp_for_backup() -> str:
     """Generate a readable timestamp string for backup filenames.
-    
+
     Returns format like: '12-Jan-2026_12-05-57-EST'
     """
     now = datetime.now()
@@ -353,7 +353,7 @@ def timestamp_for_backup() -> str:
     except Exception:
         # If all else fails, use UTC
         tz_abbr = "UTC"
-    
+
     # Format: DD-MMM-YYYY_HH-MM-SS-TZ
     return now.strftime(f"%d-%b-%Y_%H-%M-%S-{tz_abbr}")
 
@@ -398,7 +398,7 @@ def check_cluster_connectivity(
 ) -> Tuple[bool, str]:
     """Check cluster connectivity using appropriate method for the CLI tool."""
     cli_tool = detect_cli_tool()
-    
+
     # oc has 'whoami', kubectl doesn't - use 'get ns' for kubectl
     if cli_tool == "oc":
         rc, out, err = run_cli_subcommand(
@@ -410,7 +410,7 @@ def check_cluster_connectivity(
         rc, out, err = run_cli_subcommand(
             context, ["get", "ns"], retries=retries, cli_timeout_seconds=oc_timeout_seconds
         )
-    
+
     if rc == 0:
         return True, ""
     return False, err or out or "unknown error"
@@ -421,7 +421,7 @@ def check_all_clusters_connectivity(
 ) -> Tuple[bool, List[Tuple[str, bool, str]]]:
     """
     Check connectivity to all clusters.
-    
+
     Returns:
         tuple: (all_connected, connectivity_report)
         - all_connected: True if all clusters are accessible
@@ -429,11 +429,11 @@ def check_all_clusters_connectivity(
     """
     report = []
     all_connected = True
-    
+
     print(color("\n" + "="*80, BLUE))
     print(color("Checking Cluster Connectivity", BLUE))
     print(color("="*80, BLUE))
-    
+
     for ctx in contexts:
         cluster = short_cluster_name(ctx)
         connected, error_msg = check_cluster_connectivity(
@@ -446,9 +446,9 @@ def check_all_clusters_connectivity(
             report.append((cluster, False, error_msg))
             print(color(f"  ✗ {cluster}: {error_msg}", RED))
             all_connected = False
-    
+
     print(color("="*80, BLUE))
-    
+
     return all_connected, report
 
 
@@ -590,7 +590,7 @@ def oomkilled_via_pods_oc(
     time_range_seconds: Optional[int] = None,
 ) -> List[Dict[str, str]]:
     """Find pods that were OOMKilled by querying pod status.
-    
+
     Enhanced detection checks multiple states:
     - lastState.terminated.reason == "OOMKilled" (previous OOM kill)
     - state.terminated.reason == "OOMKilled" (current/just OOM killed)
@@ -620,12 +620,12 @@ def oomkilled_via_pods_oc(
         pod_name = item.get("metadata", {}).get("name")
         if not pod_name:
             continue
-            
+
         # Check both regular containers and init containers
         container_statuses = item.get("status", {}).get("containerStatuses", []) or []
         init_container_statuses = item.get("status", {}).get("initContainerStatuses", []) or []
         all_statuses = container_statuses + init_container_statuses
-        
+
         for cs in all_statuses:
             # Check current state.terminated (just OOM killed)
             terminated = cs.get("state", {}).get("terminated", {})
@@ -646,7 +646,7 @@ def oomkilled_via_pods_oc(
                     )
                     seen_pods.add(key)
                 continue
-            
+
             # Check lastState.terminated.reason for OOMKilled (previous OOM kill)
             last_state = cs.get("lastState", {})
             last_terminated = last_state.get("terminated", {})
@@ -666,7 +666,7 @@ def oomkilled_via_pods_oc(
                         }
                     )
                     seen_pods.add(key)
-    
+
     return res
 
 
@@ -678,7 +678,7 @@ def crashloop_via_pods_oc(
     time_range_seconds: Optional[int] = None,
 ) -> List[Dict[str, str]]:
     """Find pods in CrashLoopBackOff state by querying pod status.
-    
+
     Enhanced detection checks multiple states:
     - state.waiting.reason == "CrashLoopBackOff" (current waiting state)
     - state.terminated.reason == "CrashLoopBackOff" (just crashed)
@@ -711,12 +711,12 @@ def crashloop_via_pods_oc(
         pod_name = item.get("metadata", {}).get("name")
         if not pod_name:
             continue
-            
+
         # Check both regular containers and init containers
         container_statuses = item.get("status", {}).get("containerStatuses", []) or []
         init_container_statuses = item.get("status", {}).get("initContainerStatuses", []) or []
         all_statuses = container_statuses + init_container_statuses
-        
+
         for cs in all_statuses:
             # Check current state.waiting (no finishedAt; include if no time filter or by policy)
             waiting = cs.get("state", {}).get("waiting")
@@ -728,7 +728,7 @@ def crashloop_via_pods_oc(
                     )
                     seen_pods.add(pod_name)
                 continue
-            
+
             # Check current state.terminated (container just crashed)
             terminated = cs.get("state", {}).get("terminated")
             if terminated and terminated.get("reason") == "CrashLoopBackOff":
@@ -745,7 +745,7 @@ def crashloop_via_pods_oc(
                     )
                     seen_pods.add(pod_name)
                 continue
-            
+
             # Check lastState.terminated (previous crash)
             last_state = cs.get("lastState", {})
             last_terminated = last_state.get("terminated", {})
@@ -763,7 +763,7 @@ def crashloop_via_pods_oc(
                     )
                     seen_pods.add(pod_name)
                 continue
-            
+
             # Check restart count as indicator of crash loops
             # Only flag if restart count is high (>= 3) AND there's evidence of crashes
             restart_count = cs.get("restartCount", 0)
@@ -789,7 +789,7 @@ def crashloop_via_pods_oc(
                     )
                     seen_pods.add(pod_name)
                     continue
-        
+
         # Also check pod phase - Failed or Pending might indicate issues
         pod_phase = item.get("status", {}).get("phase", "")
         if pod_phase == "Failed":
@@ -804,7 +804,7 @@ def crashloop_via_pods_oc(
                         {"pod": pod_name, "reason": "CrashLoopBackOff", "timestamp": ""}
                     )
                     seen_pods.add(pod_name)
-    
+
     return res
 
 
@@ -843,7 +843,7 @@ def is_ephemeral_namespace(namespace_name: str, namespace_metadata: Optional[Dic
             # konflux-ci.dev/namespace-type: eaas
             if labels.get("konflux-ci.dev/namespace-type") == "eaas":
                 return True
-            
+
             # Check for other ephemeral namespace label indicators
             # Look for labels that suggest ephemeral/test namespaces
             ephemeral_label_indicators = {
@@ -851,11 +851,11 @@ def is_ephemeral_namespace(namespace_name: str, namespace_metadata: Optional[Dic
                 "namespace-type": ["eaas", "ephemeral", "test"],
                 "ephemeral": ["true", "yes"],
             }
-            
+
             for label_key, label_value in labels.items():
                 label_key_lower = label_key.lower()
                 label_value_lower = str(label_value).lower()
-                
+
                 # Check if label key matches known ephemeral indicators
                 for indicator_key, indicator_values in ephemeral_label_indicators.items():
                     if indicator_key in label_key_lower:
@@ -925,7 +925,7 @@ def get_namespaces_for_context(
         ns_name = metadata.get("name")
         if ns_name:
             namespaces_with_metadata.append((ns_name, metadata))
-    
+
     filtered: List[str] = []
     for ns_name, ns_metadata in namespaces_with_metadata:
         # Exclude ephemeral namespaces if enabled (check both labels and name patterns)
@@ -1376,7 +1376,7 @@ def run_batches(
 def ensure_output_directory(path_str: str = "output") -> Path:
     """
     Ensure the output subdirectory exists, creating it if necessary.
-    
+
     Returns:
         Path to the output directory
     """
@@ -1389,7 +1389,7 @@ def move_existing_output_files(target_dir: Path) -> int:
     """
     Move all existing output files (oom_results.* and timestamped versions)
     from current directory to target directory.
-    
+
     Returns:
         Number of files moved
     """
@@ -1397,7 +1397,7 @@ def move_existing_output_files(target_dir: Path) -> int:
     # Ensure it exists
     output_dir.mkdir(parents=True, exist_ok=True)
     moved_count = 0
-    
+
     # Pattern to match output files
     output_patterns = [
         "oom_results.csv",
@@ -1409,7 +1409,7 @@ def move_existing_output_files(target_dir: Path) -> int:
         "oom_results_*.html",
         "oom_results_*.table",
     ]
-    
+
     current_dir = Path(".")
     for pattern in output_patterns:
         # Handle wildcard patterns
@@ -1417,13 +1417,13 @@ def move_existing_output_files(target_dir: Path) -> int:
             files = glob.glob(str(current_dir / pattern))
         else:
             files = [str(current_dir / pattern)] if (current_dir / pattern).exists() else []
-        
+
         for file_path_str in files:
             file_path = Path(file_path_str)
             if file_path.exists() and file_path.is_file():
                 try:
                     dest_path = output_dir / file_path.name
-                    
+
                     # If source and destination are the same (e.g. output_dir is current dir), skip
                     if file_path.resolve() == dest_path.resolve():
                         continue
@@ -1443,10 +1443,10 @@ def move_existing_output_files(target_dir: Path) -> int:
                         moved_count += 1
                 except Exception as e:
                     logging.warning(f"Failed to move {file_path} to output directory: {e}")
-    
+
     if moved_count > 0:
         print(color(f"Moved {moved_count} existing output file(s) to 'output' directory", YELLOW))
-    
+
     return moved_count
 
 
@@ -1455,16 +1455,16 @@ def move_existing_output_files(target_dir: Path) -> int:
 # ---------------------------
 def backup_existing_file(file_path: Path) -> Optional[Path]:
     """Backup an existing file by renaming it with a timestamp.
-    
+
     Args:
         file_path: Path to the file to backup
-        
+
     Returns:
         Path to the backup file if backup was successful, None otherwise
     """
     if not file_path.exists():
         return None
-    
+
     try:
         # Use file's last modified time for backup name (same format: DD-MMM-YYYY_HH-MM-SS-TZ)
         timestamp = timestamp_for_backup_from_file(file_path)
@@ -1489,12 +1489,12 @@ def backup_output_files(
 ) -> None:
     """Backup existing output files before generating new ones."""
     backups = []
-    
+
     for file_path in [json_path, csv_path, table_path, html_path]:
         backup_path = backup_existing_file(file_path)
         if backup_path:
             backups.append(backup_path)
-    
+
     if backups:
         print(color(f"\nBacked up {len(backups)} existing file(s):", YELLOW))
         for backup_path in backups:
@@ -1618,7 +1618,7 @@ def export_table(rows: List[Dict[str, str]], table_path: Path) -> None:
     # Build header row first to calculate exact width
     header_parts = [f" {col:<{widths[col]}} " for col in columns]
     header_row = "|" + "|".join(header_parts) + "|"
-    
+
     # Calculate total width: length of the header row
     total_width = len(header_row)
 
@@ -2809,10 +2809,10 @@ def main() -> None:
 
     # Ensure output directory exists
     output_dir = ensure_output_directory(output_dir_str)
-    
+
     # Move existing output files to output directory (one-time migration)
     move_existing_output_files(output_dir)
-    
+
     results, skipped = run_batches(
         contexts,
         batch_size,
@@ -2830,10 +2830,10 @@ def main() -> None:
     csv_path = output_dir / "oom_results.csv"
     table_path = output_dir / "oom_results.table"
     html_path = output_dir / "oom_results.html"
-    
+
     # Backup existing files before generating new ones
     backup_output_files(json_path, csv_path, table_path, html_path)
-    
+
     export_results(
         results,
         json_path,
