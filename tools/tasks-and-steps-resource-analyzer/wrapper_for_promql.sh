@@ -143,6 +143,14 @@ fi
 # Batch size - keep it small to avoid URL length limits (50 is safe)
 BATCH_SIZE=50
 
+# Escape a pod name for use in PromQL regex (pod=~"...").
+# Prevents . | ( ) [ ] * + ? etc. in pod names from matching wrong pods.
+escape_pod_regex() {
+    echo "$1" | sed -e 's/\\/\\\\/g' -e 's/\./\\\./g' -e 's/\*/\\*/g' -e 's/+/\\+/g' \
+        -e 's/?/\\?/g' -e 's/\[/\\[/g' -e 's/\]/\\]/g' -e 's/(/\\(/g' -e 's/)/\\)/g' \
+        -e 's/{/\\{/g' -e 's/}/\\}/g' -e 's/\^/\\^/g' -e 's/\$/\\$/g' -e 's/|/\\|/g'
+}
+
 # Global accumulators
 max_overall=0
 max_overall_pod=""
@@ -168,9 +176,18 @@ while [ "$start" -lt "$total" ]; do
     end=$(( start + BATCH_SIZE ))
     [ "$end" -gt "$total" ] && end=$total
     
-    # Create regex for this batch
-    batch_pods=$(printf "%s|" "${pods[@]:$start:$((end-start))}")
-    batch_pods="${batch_pods%|}"
+    # Create regex for this batch: escape each pod name so literal chars (e.g. . | ( )) don't match wrong pods
+    batch_pods_escaped=""
+    idx=0
+    while [ "$idx" -lt "$(( end - start ))" ]; do
+        p="${pods[$(( start + idx ))]}"
+        [ -n "$p" ] || { idx=$(( idx + 1 )); continue; }
+        escaped="$(escape_pod_regex "$p")"
+        [ -n "$batch_pods_escaped" ] && batch_pods_escaped="${batch_pods_escaped}|"
+        batch_pods_escaped="${batch_pods_escaped}${escaped}"
+        idx=$(( idx + 1 ))
+    done
+    batch_pods="$batch_pods_escaped"
     batch_count=$((end - start))
     log "Processing batch $((start/BATCH_SIZE + 1)): pods $start to $((end-1)) ($batch_count pods)"
     
@@ -215,12 +232,13 @@ while [ "$start" -lt "$total" ]; do
     fi
     
     # ------------------------------------------------------------
-    # MEMORY - Percentiles
+    # MEMORY - Percentiles (actual percentile over all pod values, not max)
     # ------------------------------------------------------------
     for q in 0.95 0.90 0.50; do
-        p_query="max(quantile_over_time($q,container_memory_working_set_bytes{container=\"$STEP\",pod=~\"($batch_pods)\",namespace=~\".*-tenant\"}[$RANGE]))"
+        p_query="quantile_over_time($q,container_memory_working_set_bytes{container=\"$STEP\",pod=~\"($batch_pods)\",namespace=~\".*-tenant\"}[$RANGE])"
         p_json="$(query "$p_query")"
-        p_bytes="$(echo "$p_json" | jq -r '[.data.result[]?.values[][1] | tonumber | floor | select(. > 0)] | max // 0')"
+        # Compute actual percentile: collect all values, sort, take element at (length-1)*q
+        p_bytes="$(echo "$p_json" | jq --argjson pct "$q" -r '[.data.result[]?.values[][1] | tonumber | select(. > 0)] | sort | if length > 0 then .[(((length - 1) * $pct) | floor)] else 0 end')"
         p_mb=$(( p_bytes / 1024 / 1024 ))
         
         case "$q" in
@@ -274,12 +292,12 @@ while [ "$start" -lt "$total" ]; do
     fi
     
     # ------------------------------------------------------------
-    # CPU - Percentiles
+    # CPU - Percentiles (actual percentile over all pod values, not max)
     # ------------------------------------------------------------
     for q in 0.95 0.90 0.50; do
-        cpu_p_query="max(quantile_over_time($q,rate(container_cpu_usage_seconds_total{container=\"$STEP\",pod=~\"($batch_pods)\",namespace=~\".*-tenant\"}[5m])[$RANGE:5m]))"
+        cpu_p_query="quantile_over_time($q,rate(container_cpu_usage_seconds_total{container=\"$STEP\",pod=~\"($batch_pods)\",namespace=~\".*-tenant\"}[5m])[$RANGE:5m])"
         cpu_p_json="$(query "$cpu_p_query")"
-        cpu_p_cores="$(echo "$cpu_p_json" | jq -r '[.data.result[]?.values[][1] | tonumber | select(. > 0)] | max // 0')"
+        cpu_p_cores="$(echo "$cpu_p_json" | jq --argjson pct "$q" -r '[.data.result[]?.values[][1] | tonumber | select(. > 0)] | sort | if length > 0 then .[(((length - 1) * $pct) | floor)] else 0 end')"
         # Convert to millicores, handling empty values
         cpu_p_millicores=0
         if [ -n "$cpu_p_cores" ] && [ "$cpu_p_cores" != "0" ]; then

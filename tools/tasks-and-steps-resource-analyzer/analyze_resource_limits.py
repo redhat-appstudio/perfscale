@@ -488,587 +488,30 @@ def get_cluster_display_name(cluster_ctx):
 
 
 def _spinner_thread(stop_event, progress_data=None, progress_lock=None, total_clusters=0):
-    """Display a spinning wheel with percentage progress while processing clusters.
-    
-    Args:
-        stop_event: threading.Event to signal when to stop spinning
-        progress_data: dict with 'completed' list (optional, for percentage calculation)
-        progress_lock: threading.Lock for thread-safe access to progress_data (optional)
-        total_clusters: total number of clusters being processed (for percentage calculation)
-    """
+    """Display a spinning wheel with percentage progress while collecting data from clusters."""
     spinner_chars = ['|', '/', '-', '\\']
     idx = 0
-    
     while not stop_event.is_set():
-        # Calculate percentage if we have progress data
         percentage = 0
-        if progress_data and total_clusters > 0:
-            if progress_lock:
-                with progress_lock:
-                    completed_count = len(progress_data.get('completed', []))
-            else:
+        if progress_data and total_clusters > 0 and progress_lock:
+            with progress_lock:
                 completed_count = len(progress_data.get('completed', []))
             percentage = int((completed_count / total_clusters) * 100)
-        
-        # Build message with percentage and spinner
-        if percentage > 0:
-            message = f"Getting information from all clusters: (Completed No. of clusters: {percentage}%) {spinner_chars[idx % len(spinner_chars)]}"
-        else:
-            message = f"Getting information from all clusters: {spinner_chars[idx % len(spinner_chars)]}"
-        
-        # Print spinner on the same line, overwriting previous output
+        message = (
+            f"Getting information from all clusters: (Completed No. of clusters: {percentage}%) {spinner_chars[idx % len(spinner_chars)]}"
+            if percentage > 0
+            else f"Getting information from all clusters: {spinner_chars[idx % len(spinner_chars)]}"
+        )
         print(f"\r{message}", end='', file=sys.stderr)
         sys.stderr.flush()
         idx += 1
-        time.sleep(0.2)  # Update spinner every 200ms
-    
-    # Clear the spinner line when done
-    print("\r\033[K", end='', file=sys.stderr)  # Clear the entire line
+        time.sleep(0.2)
+    print("\r\033[K", end='', file=sys.stderr)
     sys.stderr.flush()
 
 
-def process_single_cluster(cluster_ctx, temp_wrapper_path, days, steps_str, task_name):
-    """Process a single cluster and return CSV data.
-    
-    Args:
-        cluster_ctx: Cluster context name
-        temp_wrapper_path: Path to temporary wrapper script
-        days: Number of days
-        steps_str: Space-separated step names (with 'step-' prefix)
-        task_name: Task name being processed
-        progress_lock: Lock for thread-safe progress updates
-        progress_lines: Dict to track progress lines {cluster_index: line_content}
-        cluster_index: Index of this cluster (0-based) for progress line tracking
-        total_clusters: Total number of clusters being processed
-    
-    Returns:
-        tuple: (cluster_ctx, csv_data, error_message)
-    """
-    try:
-        # Extract cluster display name (for user-facing messages only)
-        cluster_name = get_cluster_display_name(cluster_ctx)
-        
-        # Create cluster-specific wrapper that only processes this cluster
-        cluster_wrapper = temp_wrapper_path.parent / f'.temp_wrapper_{cluster_ctx.replace("/", "_").replace(":", "_")}.sh'
-        with open(temp_wrapper_path, 'r') as f:
-            wrapper_content = f.read()
-        
-        # Replace CONTEXTS to only include this cluster
-        wrapper_content = re.sub(
-            r'CONTEXTS="[^"]*"',
-            f'CONTEXTS="{cluster_ctx}"',
-            wrapper_content
-        )
-        
-        # CRITICAL FIX for parallel execution:
-        # When running in parallel, multiple processes calling 'kubectl config use-context'
-        # will interfere with each other because they modify the shared ~/.kube/config file.
-        # Solution: Use a lock file or ensure context is set atomically, OR better:
-        # Set KUBECONFIG to a process-specific location or use --context flag.
-        # Since oc/kubectl commands read from current context, we need to ensure
-        # each parallel process has its own context isolation.
-        # 
-        # For now, we'll add a small delay and ensure context is set right before use
-        # But better: modify to use kubectl --context flag in all commands
-        # Actually, wrapper_for_promql.sh uses 'oc config current-context' which reads
-        # from the shared config, so we need to ensure context is set correctly.
-        #
-        # Best approach: Set context right before the loop and add a lock mechanism
-        # OR use process-specific kubeconfig files
-        #
-        # CRITICAL FIX: When running in parallel, multiple processes calling 'kubectl config use-context'
-        # interfere because they modify the shared ~/.kube/config file.
-        # Solution: Create a process-specific kubeconfig file for this cluster
-        
-        # Create a temporary kubeconfig file for this process
-        original_kubeconfig = os.environ.get('KUBECONFIG', os.path.expanduser('~/.kube/config'))
-        temp_kubeconfig = temp_wrapper_path.parent / f'.kubeconfig_{cluster_ctx.replace("/", "_").replace(":", "_")}'
-        
-        # Copy the original kubeconfig to temp location
-        if os.path.exists(original_kubeconfig):
-            shutil.copy2(original_kubeconfig, temp_kubeconfig)
-        else:
-            # Create empty kubeconfig if it doesn't exist
-            temp_kubeconfig.parent.mkdir(parents=True, exist_ok=True)
-            temp_kubeconfig.touch()
-        
-        # Modify wrapper to use the temp kubeconfig and set context once at start
-        wrapper_content = re.sub(
-            r'for ctx in \$\{CONTEXTS\}; do',
-            f'export KUBECONFIG="{temp_kubeconfig}"\nfor ctx in ${{CONTEXTS}}; do',
-            wrapper_content
-        )
-        
-        # Set context once before the loop (since we only have one cluster)
-        wrapper_content = re.sub(
-            r'kubectl config use-context "\$\{ctx\}" >/dev/null 2>&1 \|\| continue',
-            'kubectl config use-context "${ctx}" >/dev/null 2>&1 || continue',
-            wrapper_content
-        )
-        
-        with open(cluster_wrapper, 'w') as f:
-            f.write(wrapper_content)
-        os.chmod(cluster_wrapper, 0o755)
-        
-        # Run the wrapper for this cluster (it processes all steps internally)
-        # Set KUBECONFIG environment variable to use the process-specific config
-        env = os.environ.copy()
-        env['KUBECONFIG'] = str(temp_kubeconfig)
-        
-        result = subprocess.run(
-            [str(cluster_wrapper), str(days), '--raw'],
-            capture_output=True,
-            text=True,
-            cwd=temp_wrapper_path.parent,
-            env=env,
-            timeout=10800  # 3 hours timeout per cluster
-        )
-        
-        # Clean up temporary kubeconfig
-        if temp_kubeconfig.exists():
-            temp_kubeconfig.unlink()
-        
-        # Clean up cluster-specific wrapper
-        if cluster_wrapper.exists():
-            cluster_wrapper.unlink()
-        
-        if result.returncode != 0:
-            error_msg = result.stderr[:200] if result.stderr else f"Exit code: {result.returncode}"
-            return (cluster_ctx, None, error_msg)
-        
-        # Return CSV data (skip header if present, we'll add it once)
-        csv_lines = result.stdout.strip().split('\n')
-        # Filter out header line and empty lines
-        data_lines = [line for line in csv_lines if line.strip() and not line.strip().startswith('"cluster"')]
-        
-        # Debug: check if we got any data
-        if not data_lines:
-            # Check if stdout has any content at all
-            if result.stdout.strip():
-                # Has content but no data lines - check if it's just the header
-                header_line = '"cluster", "task", "step", "pod_max_mem", "namespace_max_mem", "component_max_mem", "application_max_mem", "mem_max_mb", "mem_p95_mb", "mem_p90_mb", "mem_median_mb", "pod_max_cpu", "namespace_max_cpu", "component_max_cpu", "application_max_cpu", "cpu_max", "cpu_p95", "cpu_p90", "cpu_median"'
-                stdout_clean = result.stdout.strip()
-                if stdout_clean == header_line or stdout_clean == header_line + '\n' or stdout_clean == header_line + '\r\n':
-                    return (cluster_ctx, None, "No data rows (only CSV header - no pods found)")
-                else:
-                    return (cluster_ctx, None, f"No data rows in CSV output")
-            else:
-                return (cluster_ctx, None, "Empty CSV output from wrapper script")
-        
-        return (cluster_ctx, '\n'.join(data_lines), None)
-    
-    except subprocess.TimeoutExpired:
-        return (cluster_ctx, None, "Timeout after 3 hours")
-    except Exception as e:
-        return (cluster_ctx, None, str(e)[:200])
-
-
-def run_data_collection(task_name, steps, days=7, show_table=True, dry_run=False, use_wrapper_values=False, parallel_clusters=None):
-    """Run the wrapper script to collect data.
-    
-    Args:
-        task_name: Task name to use
-        steps: List of step names (without 'step-' prefix)
-        days: Number of days for data collection
-        show_table: Whether to show table output
-        dry_run: If True, don't actually run data collection
-        use_wrapper_values: If True, use wrapper's TASK_NAME/STEPS (don't replace)
-        parallel_clusters: If set to N, process clusters in parallel with N workers
-    """
-    script_path = Path(__file__).parent / 'wrapper_for_promql_for_all_clusters.sh'
-    if not script_path.exists():
-        print(f"Error: wrapper script not found: {script_path}", file=sys.stderr)
-        sys.exit(1)
-    
-    if dry_run:
-        print("DRY-RUN: Would collect data for:", file=sys.stderr)
-        print(f"  Task: {task_name}", file=sys.stderr)
-        print(f"  Steps: {', '.join(steps)}", file=sys.stderr)
-        print(f"  Days: {days}", file=sys.stderr)
-        return None
-    
-    # Create a temporary wrapper that sets TASK_NAME and STEPS
-    temp_wrapper = script_path.parent / '.temp_wrapper.sh'
-    try:
-        with open(script_path, 'r') as f:
-            wrapper_content = f.read()
-        
-        if not use_wrapper_values:
-            # Replace hardcoded TASK_NAME and STEPS (including commented lines)
-            # Steps in CSV are "step-{name}", so ensure we use that format
-            # Match TASK_NAME="..." even if commented out (we'll uncomment if needed)
-            task_name_pattern = re.compile(
-                r'^(\s*)(#?\s*)TASK_NAME="[^"]*"',
-                flags=re.MULTILINE
-            )
-            if task_name_pattern.search(wrapper_content):
-                wrapper_content = task_name_pattern.sub(
-                    r'\1TASK_NAME="' + task_name + '"',
-                    wrapper_content
-                )
-            else:
-                # TASK_NAME not found, add it after the LAST_DAYS line or at the top
-                wrapper_content = re.sub(
-                    r'^(LAST_DAYS="[^"]*")',
-                    r'\1\nTASK_NAME="' + task_name + '"',
-                    wrapper_content,
-                    flags=re.MULTILINE
-                )
-            
-            # Convert step names to "step-{name}" format for the wrapper
-            steps_str = ' '.join(f'step-{s}' if not s.startswith('step-') else s for s in steps)
-            steps_pattern = re.compile(
-                r'^(\s*)(#?\s*)STEPS="[^"]*"',
-                flags=re.MULTILINE
-            )
-            if steps_pattern.search(wrapper_content):
-                wrapper_content = steps_pattern.sub(
-                    r'\1STEPS="' + steps_str + '"',
-                    wrapper_content
-                )
-            else:
-                # STEPS not found, add it after TASK_NAME
-                wrapper_content = re.sub(
-                    r'^(TASK_NAME="[^"]*")',
-                    r'\1\nSTEPS="' + steps_str + '"',
-                    wrapper_content,
-                    flags=re.MULTILINE
-                )
-        
-        with open(temp_wrapper, 'w') as f:
-            f.write(wrapper_content)
-        os.chmod(temp_wrapper, 0o755)
-        
-        # Verify the temp wrapper has correct TASK_NAME and STEPS (only in debug mode)
-        # Skip this check in normal mode to avoid garbled output during parallel execution
-        # The warnings can interfere with progress display when running in parallel
-        
-        # Check if parallel processing is requested
-        if parallel_clusters and parallel_clusters > 0:
-            # Extract cluster list
-            clusters_raw = extract_cluster_list(script_path)
-            if not clusters_raw:
-                print("Warning: Could not extract cluster list, falling back to serial processing", file=sys.stderr)
-                parallel_clusters = None
-            else:
-                # CRITICAL: Deduplicate IMMEDIATELY after extraction, before any other operations
-                # Use dict.fromkeys() which preserves order and removes duplicates in one pass
-                # Also normalize whitespace and filter empty strings
-                clusters_normalized = [c.strip() for c in clusters_raw if c and c.strip()]
-                clusters = list(dict.fromkeys(clusters_normalized))  # Remove duplicates, preserve order
-                num_clusters = len(clusters)  # Set num_clusters IMMEDIATELY after deduplication
-                
-                # CRITICAL: Final verification - ensure we have exactly num_clusters unique clusters
-                # This is a safety check to catch any edge cases
-                unique_set = set(clusters)
-                if len(unique_set) != num_clusters:
-                    # Force re-deduplication if there's a mismatch
-                    clusters = list(dict.fromkeys(clusters))
-                    num_clusters = len(clusters)
-                
-                # CRITICAL: At this point, clusters MUST have exactly num_clusters unique items
-                # If not, something is seriously wrong - log and fix
-                assert len(clusters) == num_clusters, f"Cluster count mismatch: {len(clusters)} != {num_clusters}"
-                assert len(set(clusters)) == num_clusters, f"Duplicate clusters found: {len(set(clusters))} != {num_clusters}"
-                
-                # Process clusters in parallel with progress spinner
-                steps_str = ' '.join(f'step-{s}' if not s.startswith('step-') else s for s in steps)
-                all_results = []
-                errors = []
-                
-                # Track progress for spinner
-                progress_data = {'completed': []}
-                progress_lock = Lock()
-                total_clusters = len(clusters)
-                
-                # Start spinner thread with progress tracking
-                spinner_stop = Event()
-                spinner_thread_obj = Thread(target=_spinner_thread, args=(spinner_stop, progress_data, progress_lock, total_clusters), daemon=True)
-                spinner_thread_obj.start()
-                
-                try:
-                    with ThreadPoolExecutor(max_workers=parallel_clusters) as executor:
-                        # Submit all cluster processing tasks
-                        futures = {}
-                        for cluster in clusters:
-                            future = executor.submit(
-                                process_single_cluster,
-                                cluster,
-                                temp_wrapper,
-                                days,
-                                steps_str,
-                                task_name
-                            )
-                            futures[future] = cluster
-                        
-                        # Collect results as they complete
-                        for future in as_completed(futures):
-                            cluster_ctx, csv_data, error = future.result()
-                            cluster_name = get_cluster_display_name(cluster_ctx)
-                            
-                            # Update progress: mark cluster as completed
-                            with progress_lock:
-                                if cluster_name not in progress_data['completed']:
-                                    progress_data['completed'].append(cluster_name)
-                            
-                            if error:
-                                errors.append((cluster_name, error))
-                            elif csv_data and csv_data.strip():
-                                all_results.append(csv_data)
-                            else:
-                                # No error but also no data
-                                errors.append((cluster_name, "Wrapper completed but returned no CSV data"))
-                finally:
-                    # Stop spinner and wait for it to finish
-                    spinner_stop.set()
-                    spinner_thread_obj.join(timeout=1.0)  # Wait up to 1 second for spinner to stop
-                
-                # Print final progress message and separator before summary
-                print("="*80, file=sys.stderr)
-                print("Getting information from all clusters: (Completed No. of clusters: 100%)", file=sys.stderr)
-                print("="*80, file=sys.stderr)
-                
-                # Print summary of results on clean lines (no interference from progress lines)
-                print("Data Collection Summary", file=sys.stderr)
-                print("="*80, file=sys.stderr)
-                
-                successful_clusters = len(all_results)
-                failed_clusters = len(errors)
-                total_clusters = num_clusters  # Use num_clusters (after deduplication) instead of len(clusters)
-                
-                print(f"Total clusters processed: {total_clusters}", file=sys.stderr)
-                print(f"Successful: {successful_clusters}", file=sys.stderr)
-                if failed_clusters > 0:
-                    print(f"Failed: {failed_clusters}", file=sys.stderr)
-                print("="*80, file=sys.stderr)
-                
-                # Report any errors with clean formatting
-                if errors:
-                    print(f"\nWarning: {len(errors)} cluster(s) had issues:", file=sys.stderr)
-                    for cluster, error in errors:
-                        # Truncate long error messages for cleaner output
-                        error_display = error[:150] + "..." if len(error) > 150 else error
-                        print(f"  • {cluster}: {error_display}", file=sys.stderr)
-                    print("\nNote: Cluster failures typically occur when:", file=sys.stderr)
-                    print("  - No pods found for the specified task/steps in the given time period", file=sys.stderr)
-                    print("  - Task/step names don't match what's actually running in that cluster", file=sys.stderr)
-                    print("  - Time period is too short (try increasing --days)", file=sys.stderr)
-                    print(file=sys.stderr)
-                
-                # Debug: show what we collected (only if successful)
-                if all_results:
-                    total_lines = sum(len(r.split('\n')) for r in all_results)
-                    print(f"Collected data from {len(all_results)} cluster(s), total CSV lines: {total_lines}", file=sys.stderr)
-                    print(file=sys.stderr)
-                
-                if not all_results:
-                    print("\nError: No data collected from any cluster", file=sys.stderr)
-                    print("\nThis usually means:", file=sys.stderr)
-                    print("  1. No pods found for the specified task/steps in the given time period", file=sys.stderr)
-                    print("  2. Task/step names don't match what's actually running in clusters", file=sys.stderr)
-                    print("  3. Time period too short (try increasing --days)", file=sys.stderr)
-                    print(file=sys.stderr)
-                    sys.exit(1)
-                
-                # Combine all CSV results (add header once)
-                csv_header = '"cluster", "task", "step", "pod_max_mem", "namespace_max_mem", "component_max_mem", "application_max_mem", "mem_max_mb", "mem_p95_mb", "mem_p90_mb", "mem_median_mb", "pod_max_cpu", "namespace_max_cpu", "component_max_cpu", "application_max_cpu", "cpu_max", "cpu_p95", "cpu_p90", "cpu_median"'
-                combined_csv = csv_header + '\n' + '\n'.join(all_results)
-                
-                # If show_table, format and display as CSV (with single space after comma)
-                if show_table:
-                    # Convert CSV to formatted output with single space after comma
-                    # Use csv module to properly parse quoted fields
-                    import io
-                    csv_reader = csv.reader(io.StringIO(combined_csv))
-                    for row in csv_reader:
-                        if row:  # Skip empty rows
-                            # Strip whitespace from each field and join with comma + single space
-                            cleaned_row = [field.strip() for field in row]
-                            formatted_line = ', '.join(cleaned_row)
-                            print(formatted_line)
-                    print(file=sys.stderr)
-                
-                return combined_csv
-        
-        # Serial processing (default or fallback) - now matches parallel mode behavior
-        if not parallel_clusters:
-            # Extract cluster list (same as parallel mode)
-            clusters_raw = extract_cluster_list(script_path)
-            if not clusters_raw:
-                print("Warning: Could not extract cluster list, falling back to simple wrapper execution", file=sys.stderr)
-                # Fallback to old behavior if cluster extraction fails
-                if show_table:
-                    result = subprocess.run(
-                        [str(temp_wrapper), str(days), '--table'],
-                        capture_output=True,
-                        text=True,
-                        cwd=script_path.parent
-                    )
-                    if result.stdout:
-                        print(result.stdout)
-                    if result.stderr:
-                        print(result.stderr, file=sys.stderr)
-                    if result.returncode != 0:
-                        print(f"Warning: Wrapper script exited with code {result.returncode}", file=sys.stderr)
-                    
-                    result_csv = subprocess.run(
-                        [str(temp_wrapper), str(days), '--raw'],
-                        capture_output=True,
-                        text=True,
-                        cwd=script_path.parent
-                    )
-                    
-                    if result_csv.returncode != 0:
-                        print(f"Error running wrapper script (CSV collection):", file=sys.stderr)
-                        print(f"Exit code: {result_csv.returncode}", file=sys.stderr)
-                        if result_csv.stderr:
-                            print("STDERR:", file=sys.stderr)
-                            print(result_csv.stderr, file=sys.stderr)
-                        sys.exit(1)
-                    
-                    if not result_csv.stdout or not result_csv.stdout.strip():
-                        print("Error: Wrapper script produced no CSV output", file=sys.stderr)
-                        sys.exit(1)
-                    
-                    print(file=sys.stderr)
-                    return result_csv.stdout
-                else:
-                    result = subprocess.run(
-                        [str(temp_wrapper), str(days), '--csv'],
-                        capture_output=True,
-                        text=True,
-                        cwd=script_path.parent
-                    )
-                    
-                    if result.returncode != 0:
-                        print(f"Error running wrapper script:", file=sys.stderr)
-                        print(result.stderr, file=sys.stderr)
-                        sys.exit(1)
-                    
-                    return result.stdout
-            else:
-                # Normalize and deduplicate clusters (same as parallel mode)
-                clusters_normalized = [c.strip() for c in clusters_raw if c and c.strip()]
-                clusters = list(dict.fromkeys(clusters_normalized))
-                num_clusters = len(clusters)
-                
-                # Process clusters serially with progress indicator
-                steps_str = ' '.join(f'step-{s}' if not s.startswith('step-') else s for s in steps)
-                all_results = []
-                errors = []
-                
-                # Track progress for spinner
-                progress_data = {'completed': []}
-                progress_lock = Lock()
-                total_clusters = len(clusters)
-                
-                # Start spinner thread with progress tracking
-                spinner_stop = Event()
-                spinner_thread_obj = Thread(target=_spinner_thread, args=(spinner_stop, progress_data, progress_lock, total_clusters), daemon=True)
-                spinner_thread_obj.start()
-                
-                try:
-                    # Process clusters one by one
-                    for cluster in clusters:
-                        cluster_ctx, csv_data, error = process_single_cluster(
-                            cluster,
-                            temp_wrapper,
-                            days,
-                            steps_str,
-                            task_name
-                        )
-                        cluster_name = get_cluster_display_name(cluster_ctx)
-                        
-                        # Update progress: mark cluster as completed
-                        with progress_lock:
-                            if cluster_name not in progress_data['completed']:
-                                progress_data['completed'].append(cluster_name)
-                        
-                        if error:
-                            errors.append((cluster_name, error))
-                        elif csv_data and csv_data.strip():
-                            all_results.append(csv_data)
-                        else:
-                            # No error but also no data
-                            errors.append((cluster_name, "Wrapper completed but returned no CSV data"))
-                finally:
-                    # Stop spinner and wait for it to finish
-                    spinner_stop.set()
-                    spinner_thread_obj.join(timeout=1.0)
-                
-                # Print final progress message and separator before summary
-                print("="*80, file=sys.stderr)
-                print("Getting information from all clusters: (Completed No. of clusters: 100%)", file=sys.stderr)
-                print("="*80, file=sys.stderr)
-                
-                # Print summary of results on clean lines (matching parallel mode)
-                print("Data Collection Summary", file=sys.stderr)
-                print("="*80, file=sys.stderr)
-                
-                successful_clusters = len(all_results)
-                failed_clusters = len(errors)
-                total_clusters = num_clusters
-                
-                print(f"Total clusters processed: {total_clusters}", file=sys.stderr)
-                print(f"Successful: {successful_clusters}", file=sys.stderr)
-                if failed_clusters > 0:
-                    print(f"Failed: {failed_clusters}", file=sys.stderr)
-                print("="*80, file=sys.stderr)
-                
-                # Report any errors with clean formatting (matching parallel mode)
-                if errors:
-                    print(f"\nWarning: {len(errors)} cluster(s) had issues:", file=sys.stderr)
-                    for cluster, error in errors:
-                        # Truncate long error messages for cleaner output
-                        error_display = error[:150] + "..." if len(error) > 150 else error
-                        print(f"  • {cluster}: {error_display}", file=sys.stderr)
-                    print("\nNote: Cluster failures typically occur when:", file=sys.stderr)
-                    print("  - No pods found for the specified task/steps in the given time period", file=sys.stderr)
-                    print("  - Task/step names don't match what's actually running in that cluster", file=sys.stderr)
-                    print("  - Time period is too short (try increasing --days)", file=sys.stderr)
-                    print(file=sys.stderr)
-                
-                # Debug: show what we collected (only if successful)
-                if all_results:
-                    total_lines = sum(len(r.split('\n')) for r in all_results)
-                    print(f"Collected data from {len(all_results)} cluster(s), total CSV lines: {total_lines}", file=sys.stderr)
-                    print(file=sys.stderr)
-                
-                if not all_results:
-                    print("\nError: No data collected from any cluster", file=sys.stderr)
-                    print("\nThis usually means:", file=sys.stderr)
-                    print("  1. No pods found for the specified task/steps in the given time period", file=sys.stderr)
-                    print("  2. Task/step names don't match what's actually running in clusters", file=sys.stderr)
-                    print("  3. Time period too short (try increasing --days)", file=sys.stderr)
-                    print(file=sys.stderr)
-                    sys.exit(1)
-                
-                # Combine all CSV results (add header once)
-                csv_header = '"cluster", "task", "step", "pod_max_mem", "namespace_max_mem", "component_max_mem", "application_max_mem", "mem_max_mb", "mem_p95_mb", "mem_p90_mb", "mem_median_mb", "pod_max_cpu", "namespace_max_cpu", "component_max_cpu", "application_max_cpu", "cpu_max", "cpu_p95", "cpu_p90", "cpu_median"'
-                combined_csv = csv_header + '\n' + '\n'.join(all_results)
-                
-                # If show_table, format and display as CSV (with single space after comma)
-                if show_table:
-                    # Convert CSV to formatted output with single space after comma
-                    # Use csv module to properly parse quoted fields
-                    import io
-                    csv_reader = csv.reader(io.StringIO(combined_csv))
-                    for row in csv_reader:
-                        if row:  # Skip empty rows
-                            # Strip whitespace from each field and join with comma + single space
-                            cleaned_row = [field.strip() for field in row]
-                            formatted_line = ', '.join(cleaned_row)
-                            print(formatted_line)
-                    print(file=sys.stderr)
-                
-                return combined_csv
-    finally:
-        if temp_wrapper.exists():
-            temp_wrapper.unlink()
-
-
 def parse_csv_data(csv_text):
-    """Parse CSV data from the wrapper script output."""
+    """Parse CSV data (same format as wrapper script or detailed_executions_to_csv output)."""
     data = []
     lines = [line for line in csv_text.strip().split('\n') if line.strip()]
     if not lines:
@@ -1180,6 +623,160 @@ def parse_cpu_value(cpu_str):
     if cpu_str.endswith('m'):
         return float(cpu_str[:-1]) / 1000.0
     return float(cpu_str)
+
+
+def _percentile(sorted_values, p):
+    """Return the value at percentile p (0..1) from a sorted list. Empty -> 0."""
+    if not sorted_values:
+        return 0
+    idx = int((len(sorted_values) - 1) * p)
+    idx = max(0, min(idx, len(sorted_values) - 1))
+    return sorted_values[idx]
+
+
+def detailed_executions_to_csv(executions):
+    """Build main pipeline CSV from detailed per-pod executions (single source of truth).
+    
+    Groups by (cluster, task, step); computes max, p95, p90, median for memory and CPU;
+    outputs one row per group in the same format as the wrapper CSV for parse_csv_data.
+    Step names in output are without 'step-' prefix (e.g. prefetch-dependencies).
+    
+    Returns:
+        str: CSV string with header and data rows, or empty string if no executions.
+    """
+    if not executions:
+        return ''
+    header = ('"cluster", "task", "step", "pod_max_mem", "namespace_max_mem", "component_max_mem", "application_max_mem", '
+              '"mem_max_mb", "mem_p95_mb", "mem_p90_mb", "mem_median_mb", '
+              '"pod_max_cpu", "namespace_max_cpu", "component_max_cpu", "application_max_cpu", '
+              '"cpu_max", "cpu_p95", "cpu_p90", "cpu_median"')
+    by_key = defaultdict(list)
+    for e in executions:
+        cluster = e.get('cluster', '')
+        task = e.get('task', '')
+        step = e.get('step', '')  # already without step- prefix
+        if not step:
+            continue
+        key = (cluster, task, step)
+        by_key[key].append(e)
+    rows = []
+    for (cluster, task, step) in sorted(by_key.keys()):
+        group = by_key[(cluster, task, step)]
+        mem_vals = sorted([float(x.get('memory_mb', 0)) for x in group])
+        cpu_vals = sorted([float(x.get('cpu_cores', 0)) for x in group])
+        mem_max = max(mem_vals) if mem_vals else 0
+        mem_p95 = _percentile(mem_vals, 0.95)
+        mem_p90 = _percentile(mem_vals, 0.90)
+        mem_median = _percentile(mem_vals, 0.50)
+        cpu_max = max(cpu_vals) if cpu_vals else 0
+        cpu_p95 = _percentile(cpu_vals, 0.95)
+        cpu_p90 = _percentile(cpu_vals, 0.90)
+        cpu_median = _percentile(cpu_vals, 0.50)
+        # Pod/namespace/component/application for max mem
+        max_mem_exec = max(group, key=lambda x: float(x.get('memory_mb', 0)))
+        pod_max_mem = max_mem_exec.get('pod', '')
+        namespace_max_mem = max_mem_exec.get('namespace', '')
+        component_max_mem = max_mem_exec.get('component', 'N/A')
+        application_max_mem = max_mem_exec.get('application', 'N/A')
+        # Pod/namespace/component/application for max cpu
+        max_cpu_exec = max(group, key=lambda x: float(x.get('cpu_cores', 0)))
+        pod_max_cpu = max_cpu_exec.get('pod', '')
+        namespace_max_cpu = max_cpu_exec.get('namespace', '')
+        component_max_cpu = max_cpu_exec.get('component', 'N/A')
+        application_max_cpu = max_cpu_exec.get('application', 'N/A')
+        cpu_max_m = f"{int(round(cpu_max * 1000))}m"
+        cpu_p95_m = f"{int(round(cpu_p95 * 1000))}m"
+        cpu_p90_m = f"{int(round(cpu_p90 * 1000))}m"
+        cpu_median_m = f"{int(round(cpu_median * 1000))}m"
+        row = (f'"{cluster}", "{task}", "{step}", "{pod_max_mem}", "{namespace_max_mem}", "{component_max_mem}", "{application_max_mem}", '
+               f'"{int(round(mem_max))}", "{int(round(mem_p95))}", "{int(round(mem_p90))}", "{int(round(mem_median))}", '
+               f'"{pod_max_cpu}", "{namespace_max_cpu}", "{component_max_cpu}", "{application_max_cpu}", '
+               f'"{cpu_max_m}", "{cpu_p95_m}", "{cpu_p90_m}", "{cpu_median_m}"')
+        rows.append(row)
+    return header + '\n' + '\n'.join(rows)
+
+
+def _parse_cpu_millicores_for_verify(s):
+    """Parse CPU from main CSV e.g. '1194m' -> 1194."""
+    s = (s or '').strip().rstrip('m')
+    if not s:
+        return 0
+    try:
+        return int(float(s))
+    except ValueError:
+        return 0
+
+
+def verify_aggregates_against_detailed(detailed_executions, aggregated_rows):
+    """Verify that aggregated rows (from main CSV) match recomputation from detailed per-pod executions.
+
+    Used for single-source sanity check: the main table is derived from the same executions
+    as the detailed files; this recomputes per (cluster, step) from executions and compares.
+
+    Args:
+        detailed_executions: List of execution dicts (cluster, step, memory_mb, cpu_cores, ...)
+        aggregated_rows: List of parsed CSV rows (from parse_csv_data) with mem_max_mb, mem_p95_mb, etc.
+
+    Returns:
+        tuple: (all_ok: bool, messages: list of str)
+    """
+    if not detailed_executions or not aggregated_rows:
+        return True, []
+    by_key = defaultdict(list)
+    for e in detailed_executions:
+        cluster = e.get('cluster', '')
+        step = e.get('step', '')
+        if not step:
+            continue
+        key = (cluster, step)
+        by_key[key].append(e)
+    main_by_key = {}
+    for row in aggregated_rows:
+        cluster = (row.get('cluster') or '').strip()
+        step = (row.get('step') or '').strip()
+        if not cluster or not step:
+            continue
+        key = (cluster, step)
+        main_by_key[key] = {
+            'mem_max_mb': int(float(row.get('mem_max_mb') or 0)),
+            'mem_p95_mb': int(float(row.get('mem_p95_mb') or 0)),
+            'mem_p90_mb': int(float(row.get('mem_p90_mb') or 0)),
+            'mem_median_mb': int(float(row.get('mem_median_mb') or 0)),
+            'cpu_max_m': _parse_cpu_millicores_for_verify(row.get('cpu_max')),
+            'cpu_p95_m': _parse_cpu_millicores_for_verify(row.get('cpu_p95')),
+            'cpu_p90_m': _parse_cpu_millicores_for_verify(row.get('cpu_p90')),
+            'cpu_median_m': _parse_cpu_millicores_for_verify(row.get('cpu_median')),
+        }
+    messages = []
+    all_ok = True
+    for key in sorted(by_key.keys()):
+        cluster, step = key
+        group = by_key[key]
+        mem_vals = sorted([float(x.get('memory_mb', 0)) for x in group])
+        cpu_vals = sorted([float(x.get('cpu_cores', 0)) for x in group])
+        comp = {
+            'mem_max_mb': int(round(max(mem_vals))) if mem_vals else 0,
+            'mem_p95_mb': int(round(_percentile(mem_vals, 0.95))),
+            'mem_p90_mb': int(round(_percentile(mem_vals, 0.90))),
+            'mem_median_mb': int(round(_percentile(mem_vals, 0.50))),
+            'cpu_max_m': int(round(max(cpu_vals) * 1000)) if cpu_vals else 0,
+            'cpu_p95_m': int(round(_percentile(cpu_vals, 0.95) * 1000)),
+            'cpu_p90_m': int(round(_percentile(cpu_vals, 0.90) * 1000)),
+            'cpu_median_m': int(round(_percentile(cpu_vals, 0.50) * 1000)),
+        }
+        main_vals = main_by_key.get(key)
+        if not main_vals:
+            messages.append(f"Verify: main has no row for cluster={cluster} step={step}")
+            all_ok = False
+            continue
+        mismatches = []
+        for k in comp:
+            if main_vals[k] != comp[k]:
+                mismatches.append(f"{k}: main={main_vals[k]} recomputed={comp[k]}")
+        if mismatches:
+            all_ok = False
+            messages.append(f"Verify MISMATCH cluster={cluster} step={step} (n={len(group)} pods): " + "; ".join(mismatches))
+    return all_ok, messages
 
 
 def analyze_step_data(step_name, step_rows, margin_pct=10, base='max'):
@@ -2181,6 +1778,244 @@ def save_analyzed_data(task_name, csv_data, date_str):
     return html_path, json_path
 
 
+def _write_one_step_detailed_files(cache_dir, task_name, step_name, step_executions, date_str, timestamp_suffix=None):
+    """Write HTML, JSON, and CSV for a single step (one table per file). Used by save_detailed_per_step_data.
+    Column order: Cluster, Namespace, Task, Step, Component, Application, Pod,
+    Final Memory Usage (MB), Current Mem requests, Current Mem Limits,
+    Final CPU Usage (Cores), Current CPU requests, Current CPU Limits, Timestamp.
+    Step name is displayed without 'step-' prefix. Current * values are Kubernetes format (e.g. 512Mi, 1000m).
+    
+    Returns:
+        tuple: (html_path, json_path, csv_path)
+    """
+    safe_task_name = re.sub(r'[^a-zA-Z0-9_-]', '_', task_name)
+    safe_step_name = re.sub(r'[^a-zA-Z0-9_-]', '_', step_name)
+    if timestamp_suffix:
+        base = f"{safe_task_name}_analyzed_data_detailed_step_{safe_step_name}_{date_str}_{timestamp_suffix}"
+    else:
+        base = f"{safe_task_name}_analyzed_data_detailed_step_{safe_step_name}_{date_str}"
+    html_path = cache_dir / f"{base}.html"
+    json_path = cache_dir / f"{base}.json"
+    csv_path = cache_dir / f"{base}.csv"
+
+    table_id = f"table_{safe_step_name}"
+    # Numeric columns for sort: 7 = Final Memory, 10 = Final CPU
+    html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detailed Resource Usage - {task_name} / {step_name}</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }}
+        h1 {{ color: #333; margin-bottom: 10px; }}
+        .info {{ margin-bottom: 20px; color: #666; }}
+        .table-wrapper {{ overflow-x: auto; width: 100%; }}
+        table {{ border-collapse: collapse; min-width: 100%; background-color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+        th {{ background-color: #4CAF50; color: white; padding: 12px; text-align: left; cursor: pointer; user-select: none; position: relative; white-space: normal; word-wrap: break-word; max-width: 120px; }}
+        th:hover {{ background-color: #45a049; }}
+        th::after {{ content: ' ↕'; opacity: 0.5; margin-left: 5px; }}
+        th.sorted-asc::after {{ content: ' ↑'; opacity: 1; }}
+        th.sorted-desc::after {{ content: ' ↓'; opacity: 1; }}
+        td {{ padding: 10px; border-bottom: 1px solid #ddd; }}
+        tr:hover {{ background-color: #f5f5f5; }}
+        tr:nth-child(even) {{ background-color: #f9f9f9; }}
+    </style>
+    <script>
+        function sortTable(tableId, columnIndex) {{
+            const table = document.getElementById(tableId);
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            const header = table.querySelectorAll('th')[columnIndex];
+            const isAscending = header.classList.contains('sorted-asc');
+            const isNumeric = (columnIndex === 7 || columnIndex === 10);
+            table.querySelectorAll('th').forEach(th => th.classList.remove('sorted-asc', 'sorted-desc'));
+            rows.sort((a, b) => {{
+                const aText = a.cells[columnIndex].textContent.trim();
+                const bText = b.cells[columnIndex].textContent.trim();
+                if (isNumeric) {{
+                    const aNum = parseFloat(aText); const bNum = parseFloat(bText);
+                    if (!isNaN(aNum) && !isNaN(bNum)) return isAscending ? bNum - aNum : aNum - bNum;
+                }}
+                return isAscending ? bText.localeCompare(aText) : aText.localeCompare(bText);
+            }});
+            rows.forEach(row => tbody.appendChild(row));
+            header.classList.add(isAscending ? 'sorted-desc' : 'sorted-asc');
+        }}
+    </script>
+</head>
+<body>
+    <h1>Historical Resource Utilization: {task_name} &ndash; {step_name}</h1>
+    <div class="info">Task: {task_name}</div>
+    <div class="info">Step: {step_name}</div>
+    <div class="info">Pod Executions: {len(step_executions)}</div>
+    <div class="info">Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
+    <div class="table-wrapper">
+    <table id="{table_id}">
+        <thead>
+            <tr>
+                <th onclick="sortTable('{table_id}', 0)">Cluster</th>
+                <th onclick="sortTable('{table_id}', 1)">Namespace</th>
+                <th onclick="sortTable('{table_id}', 2)">Task</th>
+                <th onclick="sortTable('{table_id}', 3)">Step</th>
+                <th onclick="sortTable('{table_id}', 4)">Component</th>
+                <th onclick="sortTable('{table_id}', 5)">Application</th>
+                <th onclick="sortTable('{table_id}', 6)">Pod</th>
+                <th onclick="sortTable('{table_id}', 7)">Final Memory Usage (MB)</th>
+                <th onclick="sortTable('{table_id}', 8)">Current Mem requests</th>
+                <th onclick="sortTable('{table_id}', 9)">Current Mem Limits</th>
+                <th onclick="sortTable('{table_id}', 10)">Final CPU Usage (Cores)</th>
+                <th onclick="sortTable('{table_id}', 11)">Current CPU requests</th>
+                <th onclick="sortTable('{table_id}', 12)">Current CPU Limits</th>
+                <th onclick="sortTable('{table_id}', 13)">Timestamp</th>
+            </tr>
+        </thead>
+        <tbody>
+"""
+    for exec_data in sorted(step_executions, key=lambda x: (x.get('cluster', ''), x.get('namespace', ''), x.get('timestamp', ''))):
+        app = exec_data.get('application', 'N/A')
+        mem_req = exec_data.get('mem_requests_k8s', 'N/A')
+        mem_lim = exec_data.get('mem_limits_k8s', 'N/A')
+        cpu_req = exec_data.get('cpu_requests_k8s', 'N/A')
+        cpu_lim = exec_data.get('cpu_limits_k8s', 'N/A')
+        html_content += f"""        <tr>
+            <td>{exec_data.get('cluster', 'N/A')}</td>
+            <td>{exec_data.get('namespace', 'N/A')}</td>
+            <td>{exec_data.get('task', 'N/A')}</td>
+            <td>{exec_data.get('step', 'N/A')}</td>
+            <td>{exec_data.get('component', 'N/A')}</td>
+            <td>{app}</td>
+            <td>{exec_data.get('pod', 'N/A')}</td>
+            <td>{exec_data.get('memory_mb', 0)}</td>
+            <td>{mem_req}</td>
+            <td>{mem_lim}</td>
+            <td>{exec_data.get('cpu_cores', 0)}</td>
+            <td>{cpu_req}</td>
+            <td>{cpu_lim}</td>
+            <td>{exec_data.get('timestamp', 'N/A')}</td>
+        </tr>
+"""
+    html_content += """        </tbody>
+    </table>
+    </div>
+</body>
+</html>
+"""
+    with open(html_path, 'w', encoding='utf-8') as f:
+        f.write(html_content)
+
+    json_data = {
+        'task_name': task_name,
+        'step_name': step_name,
+        'date': date_str,
+        'timestamp': datetime.now().isoformat(),
+        'executions_count': len(step_executions),
+        'executions': step_executions
+    }
+    with open(json_path, 'w', encoding='utf-8') as f:
+        json.dump(json_data, f, indent=2)
+
+    csv_header = ('"cluster","namespace","task","step","component","application","pod",'
+                  '"final_memory_mb","current_mem_requests","current_mem_limits",'
+                  '"final_cpu_cores","current_cpu_requests","current_cpu_limits","timestamp"')
+    csv_lines = [csv_header]
+    for exec_data in step_executions:
+        csv_lines.append(
+            f'"{exec_data.get("cluster", "")}",'
+            f'"{exec_data.get("namespace", "")}",'
+            f'"{exec_data.get("task", "")}",'
+            f'"{exec_data.get("step", "")}",'
+            f'"{exec_data.get("component", "N/A")}",'
+            f'"{exec_data.get("application", "N/A")}",'
+            f'"{exec_data.get("pod", "")}",'
+            f'{exec_data.get("memory_mb", 0)},'
+            f'"{exec_data.get("mem_requests_k8s", "N/A")}",'
+            f'"{exec_data.get("mem_limits_k8s", "N/A")}",'
+            f'{exec_data.get("cpu_cores", 0)},'
+            f'"{exec_data.get("cpu_requests_k8s", "N/A")}",'
+            f'"{exec_data.get("cpu_limits_k8s", "N/A")}",'
+            f'"{exec_data.get("timestamp", "")}"'
+        )
+    with open(csv_path, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(csv_lines))
+
+    return html_path, json_path, csv_path
+
+
+def save_detailed_per_step_data(task_name, executions_data, date_str):
+    """Save detailed per-step pod execution data as one HTML, JSON, and CSV per step.
+    
+    Filenames: {task}_analyzed_data_detailed_step_{step_name}_{date}[_{time}].html/json/csv
+    
+    Args:
+        task_name: Task name
+        executions_data: List of pod execution dictionaries
+        date_str: Date string in YYYYMMDD format
+    
+    Returns:
+        list of tuples: [(html_path, json_path, csv_path), ...] one per step
+    """
+    script_dir = Path(__file__).parent
+    cache_dir = script_dir / '.analyze_cache'
+    cache_dir.mkdir(exist_ok=True)
+    safe_task_name = re.sub(r'[^a-zA-Z0-9_-]', '_', task_name)
+
+    by_step = defaultdict(list)
+    for exec_data in executions_data:
+        step = exec_data.get('step', '')
+        if step:
+            by_step[step].append(exec_data)
+
+    # Decide timestamp suffix: if any step's files already exist for this date, add timestamp
+    timestamp_suffix = None
+    for step_name in by_step:
+        safe_step = re.sub(r'[^a-zA-Z0-9_-]', '_', step_name)
+        base = f"{safe_task_name}_analyzed_data_detailed_step_{safe_step}_{date_str}"
+        if (cache_dir / f"{base}.html").exists() or (cache_dir / f"{base}.json").exists():
+            # Time only (date already in base) to avoid ..._20260217_20260217_180906
+            timestamp_suffix = datetime.now().strftime('%H%M%S')
+            break
+
+    result_paths = []
+    for step_name in sorted(by_step.keys()):
+        step_executions = by_step[step_name]
+        html_path, json_path, csv_path = _write_one_step_detailed_files(
+            cache_dir, task_name, step_name, step_executions, date_str, timestamp_suffix
+        )
+        result_paths.append((html_path, json_path, csv_path))
+    return result_paths
+
+
+def split_existing_detailed_per_step_json_to_per_step_files(json_path):
+    """One-time helper: read a combined detailed_per_step JSON and write one HTML/JSON/CSV per step.
+    
+    Args:
+        json_path: Path to existing {task}_analyzed_data_detailed_per_step_{date}.json
+    
+    Returns:
+        list of (html_path, json_path, csv_path) per step
+    """
+    path = Path(json_path)
+    if not path.exists():
+        raise FileNotFoundError(json_path)
+    cache_dir = path.parent
+    with open(path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    task_name = data.get('task_name', '')
+    date_str = data.get('date', '')
+    executions_by_step = data.get('executions_by_step', {})
+    if not task_name or not date_str or not executions_by_step:
+        raise ValueError("JSON missing task_name, date, or executions_by_step")
+    result_paths = []
+    for step_name in sorted(executions_by_step.keys()):
+        step_executions = executions_by_step[step_name]
+        html_path, json_path, csv_path = _write_one_step_detailed_files(
+            cache_dir, task_name, step_name, step_executions, date_str, timestamp_suffix=None
+        )
+        result_paths.append((html_path, json_path, csv_path))
+    return result_paths
+
+
 def save_comparison_data_all_bases(task_name, all_recommendations_by_base, current_resources, margin_pct, date_str, use_timestamp=False):
     """Save comparison data for all base metrics as HTML and JSON.
     
@@ -2486,6 +2321,367 @@ def find_latest_analysis_date(task_name):
     
     # Return the latest date (already in YYYYMMDD format, so lexicographic sort works)
     return max(dates)
+
+
+def extract_component_from_pod(pod_name, namespace, token, prom_host, end_time, days):
+    """Extract component and application from pod labels or namespace/pod name.
+    
+    Args:
+        pod_name: Pod name
+        namespace: Namespace
+        token: Prometheus token
+        prom_host: Prometheus host
+        end_time: End time for query
+        days: Number of days
+    
+    Returns:
+        Tuple (component, application); each is a string or "N/A"
+    """
+    try:
+        # Try using get_component_for_pod.py script first
+        script_dir = Path(__file__).parent
+        component_script = script_dir / 'get_component_for_pod.py'
+        
+        if component_script.exists():
+            result = subprocess.run(
+                [sys.executable, str(component_script), token, prom_host, pod_name, namespace or "N/A", str(end_time), str(days)],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode == 0:
+                try:
+                    component_data = json.loads(result.stdout)
+                    component = component_data.get('component', 'N/A')
+                    application = component_data.get('application', 'N/A')
+                    if component and component != 'N/A':
+                        return (component, application if application else 'N/A')
+                except (json.JSONDecodeError, KeyError):
+                    pass
+        
+        # Fallback: Try to extract from namespace/pod name
+        component_fallback = "N/A"
+        if namespace and namespace != 'N/A':
+            if namespace.endswith('-tenant'):
+                potential_component = namespace[:-7]  # Remove "-tenant"
+                if potential_component:
+                    component_fallback = potential_component
+        if component_fallback == "N/A" and pod_name:
+            parts = pod_name.split('-')
+            if len(parts) >= 2:
+                potential_component = parts[0]
+                if potential_component and len(potential_component) > 1:
+                    component_fallback = potential_component
+        
+        return (component_fallback, "N/A")
+    except Exception as e:
+        if args.debug if 'args' in globals() else False:
+            print(f"DEBUG: Error extracting component for pod {pod_name}: {e}", file=sys.stderr)
+        return ("N/A", "N/A")
+
+
+def collect_individual_pod_executions(task_name, steps, days=7, parallel_clusters=None, debug=False, current_resources=None):
+    """Collect individual pod execution data from all clusters.
+    
+    Each pod execution represents one pod run. For each pod, we get:
+    - Max memory usage during pod lifetime
+    - Max CPU usage during pod lifetime  
+    - Pod start timestamp (or first metric timestamp)
+    - Current requests/limits from YAML when current_resources is provided
+    
+    Args:
+        task_name: Task name
+        steps: List of step names (without 'step-' prefix)
+        days: Number of days for data collection
+        parallel_clusters: Number of parallel workers (None for serial)
+        debug: Enable debug output
+        current_resources: Optional dict step_name -> {requests: {memory, cpu}, limits: {memory, cpu}}
+                          from extract_task_info(); used to add mem_requests_k8s, etc. to each execution.
+    
+    Returns:
+        List of dictionaries, each representing one pod execution with:
+        - task, step, component, application, cluster, pod, namespace, timestamp
+        - memory_mb, cpu_cores
+        - mem_requests_k8s, cpu_requests_k8s, mem_limits_k8s, cpu_limits_k8s (when current_resources provided)
+    """
+    script_dir = Path(__file__).parent
+    wrapper_path = script_dir / 'wrapper_for_promql_for_all_clusters.sh'
+    
+    if not wrapper_path.exists():
+        return []
+    
+    all_executions = []
+    
+    # Extract cluster list
+    clusters_raw = extract_cluster_list(wrapper_path)
+    if not clusters_raw:
+        return []
+    
+    clusters = list(dict.fromkeys([c.strip() for c in clusters_raw if c and c.strip()]))
+    
+    def process_cluster_for_detailed_data(cluster_ctx):
+        """Process a single cluster to get detailed pod execution data."""
+        try:
+            cluster_name = get_cluster_display_name(cluster_ctx)
+            
+            # Get token and prometheus host for this cluster
+            original_kubeconfig = os.environ.get('KUBECONFIG', os.path.expanduser('~/.kube/config'))
+            temp_kubeconfig = script_dir / f'.kubeconfig_detailed_{cluster_ctx.replace("/", "_").replace(":", "_")}'
+            
+            try:
+                if os.path.exists(original_kubeconfig):
+                    shutil.copy2(original_kubeconfig, temp_kubeconfig)
+                
+                env = os.environ.copy()
+                env['KUBECONFIG'] = str(temp_kubeconfig)
+                
+                # Switch to cluster context
+                subprocess.run(
+                    ['kubectl', 'config', 'use-context', cluster_ctx],
+                    capture_output=True,
+                    env=env,
+                    timeout=10
+                )
+                
+                # Get token and prometheus host
+                token_result = subprocess.run(
+                    ['oc', 'whoami', '--show-token'],
+                    capture_output=True,
+                    text=True,
+                    env=env,
+                    timeout=10
+                )
+                if token_result.returncode != 0:
+                    return []
+                
+                token = token_result.stdout.strip()
+                
+                prom_result = subprocess.run(
+                    ['oc', '-n', 'openshift-monitoring', 'get', 'route', 'prometheus-k8s', '--no-headers', '-o', 'custom-columns=HOST:.spec.host'],
+                    capture_output=True,
+                    text=True,
+                    env=env,
+                    timeout=10
+                )
+                if prom_result.returncode != 0:
+                    return []
+                
+                prom_host = prom_result.stdout.strip()
+                if not prom_host:
+                    return []
+                
+                # Calculate time range
+                end_time = int(time.time())
+                start_time = end_time - (days * 86400)
+                range_str = f"{days}d"
+                
+                cluster_executions = []
+                
+                # Process each step
+                for step in steps:
+                    step_name = f'step-{step}' if not step.startswith('step-') else step
+                    
+                    # List all pods for this task and step
+                    list_pods_script = script_dir / 'list_pods_for_a_particular_task.py'
+                    if not list_pods_script.exists():
+                        continue
+                    
+                    list_result = subprocess.run(
+                        [sys.executable, str(list_pods_script), token, prom_host, task_name, str(end_time), str(days)],
+                        capture_output=True,
+                        text=True,
+                        env=env,
+                        timeout=60
+                    )
+                    
+                    if list_result.returncode != 0:
+                        continue
+                    
+                    try:
+                        pods_data = json.loads(list_result.stdout)
+                        pods = []
+                        if 'data' in pods_data and 'result' in pods_data['data']:
+                            for result in pods_data['data']['result']:
+                                pod_name = result.get('metric', {}).get('pod', '')
+                                namespace = result.get('metric', {}).get('namespace', '')
+                                if pod_name:
+                                    pods.append((pod_name, namespace))
+                    except (json.JSONDecodeError, KeyError):
+                        continue
+                    
+                    if debug:
+                        print(f"DEBUG: Found {len(pods)} pods for step {step} in cluster {cluster_name}", file=sys.stderr)
+                    
+                    # For each pod, get max memory and CPU usage during its lifetime
+                    for pod_name, namespace in pods:
+                        # Query max memory for this pod over the time range
+                        mem_query = f'max_over_time(container_memory_working_set_bytes{{container="{step_name}",pod="{pod_name}",namespace=~".*-tenant"}}[{range_str}])'
+                        # Query max CPU for this pod over the time range
+                        cpu_query = f'max_over_time(rate(container_cpu_usage_seconds_total{{container="{step_name}",pod="{pod_name}",namespace=~".*-tenant"}}[5m])[{range_str}:5m])'
+                        
+                        query_script = script_dir / 'query_prometheus_range.py'
+                        if not query_script.exists():
+                            continue
+                        
+                        # Query memory max
+                        mem_result = subprocess.run(
+                            [sys.executable, str(query_script), token, prom_host, mem_query, str(start_time), str(end_time)],
+                            capture_output=True,
+                            text=True,
+                            env=env,
+                            timeout=60
+                        )
+                        
+                        # Query CPU max
+                        cpu_result = subprocess.run(
+                            [sys.executable, str(query_script), token, prom_host, cpu_query, str(start_time), str(end_time)],
+                            capture_output=True,
+                            text=True,
+                            env=env,
+                            timeout=60
+                        )
+                        
+                        if mem_result.returncode != 0 or cpu_result.returncode != 0:
+                            continue
+                        
+                        try:
+                            mem_data = json.loads(mem_result.stdout)
+                            cpu_data = json.loads(cpu_result.stdout)
+                            
+                            # Get max values and first timestamp
+                            mem_max = 0
+                            cpu_max = 0
+                            first_timestamp = None
+                            
+                            mem_series = mem_data.get('data', {}).get('result', [])
+                            cpu_series = cpu_data.get('data', {}).get('result', [])
+                            
+                            # Extract max memory and first timestamp
+                            if mem_series:
+                                for series in mem_series:
+                                    metric = series.get('metric', {})
+                                    if metric.get('pod') == pod_name:
+                                        values = series.get('values', [])
+                                        if values:
+                                            # Get first timestamp
+                                            if first_timestamp is None:
+                                                first_timestamp = float(values[0][0])
+                                            # Get max memory value
+                                            for ts, val in values:
+                                                mem_bytes = float(val) if val else 0
+                                                if mem_bytes > mem_max:
+                                                    mem_max = mem_bytes
+                            
+                            # Extract max CPU
+                            if cpu_series:
+                                for series in cpu_series:
+                                    metric = series.get('metric', {})
+                                    if metric.get('pod') == pod_name:
+                                        values = series.get('values', [])
+                                        for ts, val in values:
+                                            cpu_val = float(val) if val else 0
+                                            if cpu_val > cpu_max:
+                                                cpu_max = cpu_val
+                            
+                            # If no data found, skip this pod
+                            if mem_max == 0 and first_timestamp is None:
+                                continue
+                            
+                            # Extract component and application
+                            component, application = extract_component_from_pod(pod_name, namespace, token, prom_host, end_time, days)
+                            
+                            # Convert memory from bytes to MB
+                            mem_mb = mem_max / (1024 * 1024)
+                            
+                            # Use first timestamp or current time as fallback
+                            if first_timestamp:
+                                exec_timestamp = datetime.fromtimestamp(first_timestamp).strftime('%Y-%m-%d %H:%M:%S')
+                            else:
+                                exec_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                            
+                            # Current requests/limits from YAML (Kubernetes format e.g. 512Mi, 1000m)
+                            res = (current_resources or {}).get(step, {}) or {}
+                            req = res.get('requests') or {}
+                            lim = res.get('limits') or {}
+                            mem_req_k8s = req.get('memory') if req.get('memory') else 'N/A'
+                            cpu_req_k8s = req.get('cpu') if req.get('cpu') else 'N/A'
+                            mem_lim_k8s = lim.get('memory') if lim.get('memory') else 'N/A'
+                            cpu_lim_k8s = lim.get('cpu') if lim.get('cpu') else 'N/A'
+                            
+                            cluster_executions.append({
+                                'task': task_name,
+                                'step': step,
+                                'component': component,
+                                'application': application,
+                                'cluster': cluster_name,
+                                'pod': pod_name,
+                                'namespace': namespace,
+                                'timestamp': exec_timestamp,
+                                'memory_mb': round(mem_mb, 2),
+                                'cpu_cores': round(cpu_max, 4),
+                                'mem_requests_k8s': mem_req_k8s,
+                                'cpu_requests_k8s': cpu_req_k8s,
+                                'mem_limits_k8s': mem_lim_k8s,
+                                'cpu_limits_k8s': cpu_lim_k8s,
+                            })
+                            
+                        except (json.JSONDecodeError, KeyError, ValueError) as e:
+                            if debug:
+                                print(f"DEBUG: Error processing pod {pod_name}: {e}", file=sys.stderr)
+                            continue
+                
+                return cluster_executions
+                
+            finally:
+                if temp_kubeconfig.exists():
+                    temp_kubeconfig.unlink()
+                    
+        except Exception as e:
+            if debug:
+                print(f"DEBUG: Error processing cluster {cluster_ctx}: {e}", file=sys.stderr)
+            return []
+    
+    # Progress spinner during collection
+    total_clusters = len(clusters)
+    progress_data = {'completed': []}
+    progress_lock = Lock()
+    spinner_stop = Event()
+    spinner_thread = Thread(
+        target=_spinner_thread,
+        args=(spinner_stop, progress_data, progress_lock, total_clusters),
+        daemon=True
+    )
+    spinner_thread.start()
+    try:
+        if parallel_clusters and parallel_clusters > 0:
+            with ThreadPoolExecutor(max_workers=parallel_clusters) as executor:
+                futures = {executor.submit(process_cluster_for_detailed_data, cluster): cluster for cluster in clusters}
+                for future in as_completed(futures):
+                    cluster_ctx = futures[future]
+                    executions = future.result()
+                    with progress_lock:
+                        if get_cluster_display_name(cluster_ctx) not in progress_data['completed']:
+                            progress_data['completed'].append(get_cluster_display_name(cluster_ctx))
+                    all_executions.extend(executions)
+        else:
+            for cluster in clusters:
+                executions = process_cluster_for_detailed_data(cluster)
+                with progress_lock:
+                    if get_cluster_display_name(cluster) not in progress_data['completed']:
+                        progress_data['completed'].append(get_cluster_display_name(cluster))
+                all_executions.extend(executions)
+    finally:
+        spinner_stop.set()
+        spinner_thread.join(timeout=1.0)
+        print("=" * 80, file=sys.stderr)
+        print("Getting information from all clusters: (Completed No. of clusters: 100%)", file=sys.stderr)
+        print("=" * 80, file=sys.stderr)
+        if all_executions:
+            print(f"Collected data from {len(progress_data['completed'])} cluster(s), total pod executions: {len(all_executions)}", file=sys.stderr)
+        print(file=sys.stderr)
+
+    return all_executions
 
 
 def generate_diff_patch(original_yaml, updated_yaml, file_path_or_url):
@@ -3357,21 +3553,47 @@ Examples:
             print("="*80, file=sys.stderr)
             sys.exit(0)
         
-        # Convert final_steps to list without 'step-' prefix for run_data_collection
+        # Convert final_steps to list without 'step-' prefix for collection (step names in reports stay without prefix)
         steps_for_collection = [
             s.replace('step-', '') if s.startswith('step-') else s 
             for s in final_steps
         ]
         
-        # Run data collection (show table format)
-        # Only use parallel processing during analysis (not during --update)
+        # Single source of truth: collect detailed per-pod data, then derive CSV for analysis
         parallel_workers = args.pll_clusters if args.pll_clusters and not args.update else None
-        csv_data = run_data_collection(final_task_name, steps_for_collection, args.days, show_table=True, dry_run=False, use_wrapper_values=use_wrapper_values, parallel_clusters=parallel_workers)
-        # Track task_name for caching
+        detailed_executions = collect_individual_pod_executions(
+            final_task_name, steps_for_collection, days=args.days,
+            parallel_clusters=parallel_workers, debug=args.debug,
+            current_resources=current_resources
+        )
+        csv_data = detailed_executions_to_csv(detailed_executions)
+        if not csv_data or not csv_data.strip() or csv_data.count('\n') < 1:
+            print("Error: No data from detailed collection (no pods or no metrics).", file=sys.stderr)
+            if steps_for_collection:
+                print(f"\nTask: {final_task_name}", file=sys.stderr)
+                print(f"Steps: {', '.join(steps_for_collection)}", file=sys.stderr)
+                print(f"Days: {args.days}", file=sys.stderr)
+            sys.exit(1)
+        # Show table (same as wrapper path)
+        format_script = Path(__file__).parent / 'format_csv_table.py'
+        if format_script.exists():
+            try:
+                result = subprocess.run(
+                    [sys.executable, str(format_script)],
+                    input=csv_data,
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                if result.returncode == 0 and result.stdout:
+                    print(result.stdout)
+            except (subprocess.TimeoutExpired, Exception):
+                pass
         task_name = final_task_name
         steps = steps_for_collection
     else:
-        # Read from stdin
+        # Read from stdin (e.g. user ran wrapper and piped CSV)
+        detailed_executions = None
         if sys.stdin.isatty():
             print("Error: No input provided. Use --file or pipe CSV data.", file=sys.stderr)
             sys.exit(1)
@@ -3446,6 +3668,29 @@ Examples:
         print(f"  - {comparison_html_path}", file=sys.stderr)
         print(f"  - {comparison_json_path}", file=sys.stderr)
     
+    # Save detailed per-step data (one HTML/JSON/CSV per step); use already-collected executions when from --file (single source)
+    if file_path_or_url and task_name and steps and detailed_executions:
+        detailed_paths = save_detailed_per_step_data(task_name, detailed_executions, date_str)
+        print(f"\nSaved detailed per-step data (one file per step):", file=sys.stderr)
+        for html_path, json_path, csv_path in detailed_paths:
+            print(f"  - {html_path}", file=sys.stderr)
+            print(f"  - {json_path}", file=sys.stderr)
+            print(f"  - {csv_path}", file=sys.stderr)
+
+    # In-memory verification: aggregated main table vs recomputation from detailed executions (only when we have both)
+    if detailed_executions and data:
+        verify_ok, verify_messages = verify_aggregates_against_detailed(detailed_executions, data)
+        if verify_messages:
+            print("\n" + "=" * 80, file=sys.stderr)
+            print("Aggregate verification (main table vs detailed data):", file=sys.stderr)
+            print("=" * 80, file=sys.stderr)
+            for msg in verify_messages:
+                print(f"  {msg}", file=sys.stderr)
+        if verify_ok:
+            print("\n✓ Aggregate verification passed: main table matches recomputation from detailed executions.", file=sys.stderr)
+        else:
+            print("\n✗ Aggregate verification found mismatches (see above). Please report if this persists.", file=sys.stderr)
+
     # Print analysis for default base (max) for display (skip HTML saving since we already saved it)
     if all_recommendations_by_base.get('max'):
         print_analysis(all_recommendations_by_base['max'], args.margin, 'max', current_resources, task_name, save_comparison_html=False)
