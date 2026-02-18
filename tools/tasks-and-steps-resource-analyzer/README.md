@@ -4,19 +4,14 @@ Scripts for extracting Memory and CPU Usage Metrics
 This directory contains scripts for extracting memory and CPU usage metrics (Max, P95, P90, Median) for each `task` and `step` executed inside Konflux clusters. These scripts were created while addressing: https://issues.redhat.com/browse/KONFLUX-6712.
 
 The workflow supports:
-- **Multi-cluster execution** - Automatically iterates over all configured clusters
-- **Memory metrics** - Max, P95, P90, and Median memory usage per task/step
-- **CPU metrics** - Max, P95, P90, and Median CPU usage per task/step (NEW)
-- **Optimized batching** - Handles unlimited pods efficiently using intelligent batching (NEW)
-- **Long time ranges** - Supports 1 day to 30+ days with adaptive query optimization (NEW)
-- **Task-scoped queries** - Ensures metrics are only from pods belonging to the specified task (NEW)
-- **CSV / JSON / Colorized text output** - Multiple output formats
-- **Per-pod attribution** - Identifies the specific pod with max memory and max CPU usage
-- **Automatic metadata retrieval** - Namespace, Component, Application (where available)
-- **Parallel cluster processing** - Process multiple clusters concurrently with `--pll-clusters N` flag (NEW)
-- **Progress indicators** - Real-time progress spinner during data collection for both serial and parallel modes (NEW)
-- **Cluster connectivity validation** - Pre-flight check to validate all clusters before data collection (NEW)
-- **Unified execution modes** - Serial and parallel modes now have consistent output formatting and summary reports (NEW)
+- **Multi-cluster execution** - Iterates over all configured clusters
+- **Memory and CPU metrics** - Max, P95, P90, and Median per task/step
+- **Optimized batching** - Handles unlimited pods with intelligent batching; 1–30+ days with adaptive query resolution
+- **Task-scoped queries** - Metrics only from pods belonging to the specified task
+- **CSV / JSON / colorized text** - Multiple output formats; per-pod attribution (max memory / max CPU pod)
+- **Metadata** - Namespace, component, application where available
+- **Parallel clusters** - `--pll-clusters N` for concurrent cluster processing
+- **Cluster connectivity validation** - Pre-flight check before data collection
 
 Architecture Overview (ASCII Diagram)
 ===================================
@@ -189,9 +184,10 @@ The CSV output includes both memory and CPU metrics with separate pod attributio
 
 CSV Output Example
 ===================================
+(Step values may appear with or without `step-` prefix. Data rows illustrate the shape; full CSV has 19 columns as in the header.)
 ```
-"cluster","task","step","pod_max_memory","pod_namespace_mem","component","application","mem_max_mb","mem_p95_mb","mem_p90_mb","mem_median_mb","pod_max_cpu","pod_namespace_cpu","cpu_max","cpu_p95","cpu_p90","cpu_median"
-"stone-prd-rh01","buildah","step-build","maestro-on-pull-request-wtpkk-build-container-pod","maestro-rhtap-tenant","N/A","N/A","8192","8191","8190","8183","operator-on-pull-request-45m69-build-container-pod","vp-operator-release-tenant","3569m","3569m","3569m","3569m"
+"cluster","task","step","pod_max_mem","namespace_max_mem","component_max_mem","application_max_mem","mem_max_mb","mem_p95_mb","mem_p90_mb","mem_median_mb","pod_max_cpu","namespace_max_cpu","component_max_cpu","application_max_cpu","cpu_max","cpu_p95","cpu_p90","cpu_median"
+"stone-prd-rh01","buildah","step-build","maestro-on-pull-request-wtpkk-build-container-pod","maestro-rhtap-tenant","N/A","N/A","8192","8191","8190","8183","operator-on-pull-request-45m69-build-container-pod","vp-operator-release-tenant","N/A","N/A","3569m","3569m","3569m","3569m"
 "kflux-prd-rh02","buildah","step-push","175","rhobs-observato8863c7ac646c45ff10fb9046c502710ae37ef8bf870e-pod","rhobs-mco-tenant","N/A","N/A","0","0","0"
 "kflux-prd-rh02","buildah","step-sbom-syft-generate","10","rhobs-observatoee6e952803459989d848471898dd7a5ad76331c37d9f-pod","rhobs-mco-tenant","N/A","N/A","0","0","0"
 "kflux-prd-rh02","buildah","step-prepare-sboms","10","crc-binary-on-pull-request-6kgk9-build-container-pod","crc-tenant","N/A","N/A","0","0","0"
@@ -460,9 +456,9 @@ The `analyze_resource_limits.py` script analyzes resource consumption data and p
 
 **Command-line Options:**
 
-- **`--file FILE`** - YAML file path or GitHub URL to analyze (auto-runs data collection)
+- **`--file FILE`** - YAML file path or GitHub URL to analyze
   - Can be a local file path or a GitHub URL
-  - When provided, automatically extracts task/step info and runs data collection
+  - When provided, extracts task/step info and runs per-pod data collection (single source), then analysis
   - Required for initial analysis, optional when using `--update` with cache
 
 - **`--update`** - Phase 2: View recommendations for all base metrics
@@ -530,19 +526,14 @@ The `analyze_resource_limits.py` script analyzes resource consumption data and p
 1. **With `--file` (local or GitHub URL):**
    - Validates wrapper-defined steps against YAML file steps before proceeding
    - Checks cluster connectivity and displays connectivity report with short cluster names (e.g., "stone-stg-rh01")
-   - Extracts task name and step names from Tekton Task YAML
-   - Extracts current resource limits for comparison
-   - Automatically runs `wrapper_for_promql_for_all_clusters.sh` to collect data
-   - Shows progress spinner during data collection (for both serial and parallel modes)
-   - Displays Data Collection Summary with cluster processing statistics and error details
-   - Shows data collection output in table format
-   - Analyzes data across all clusters for each step
+   - Extracts task name, step names, and current resource limits from Tekton Task YAML
+   - Collects per-pod metrics from all clusters (single source); derives max/p95/p90/median CSV for analysis
+   - Shows data collection output in table format and analyzes data across all clusters for each step
    - **Generates recommendations for ALL base metrics** (max, p95, p90, median) - `--base` flag is ignored
    - Calculates recommendations using each base metric + safety margin
    - Rounds values to standard Kubernetes resource sizes
-   - Saves analyzed data files:
-     - First analysis: `{task_name}_analyzed_data_{YYYYMMDD}.html/json`
-     - Re-analysis: `{task_name}_analyzed_data_{YYYYMMDD_HHMMSS}.html/json` (preserves old files)
+   - Saves analyzed data files (sortable HTML + JSON)
+   - Saves detailed per-step files (one HTML/JSON/CSV per step): `{task_name}_analyzed_data_detailed_step_{step-name}_{YYYYMMDD}.html/json/csv` (step names without `step-` prefix, e.g. `prefetch-dependencies`)
    - Saves comparison data files with margin in filename:
      - First analysis: `{task_name}_comparison_data_margin-{margin}_{YYYYMMDD}.html/json`
      - Re-analysis: `{task_name}_comparison_data_margin-{margin}_{YYYYMMDD_HHMMSS}.html/json` (preserves old files)
@@ -562,23 +553,12 @@ The `analyze_resource_limits.py` script analyzes resource consumption data and p
    - Can be run multiple times with different `--margin` values, creating separate files for each margin
    - Multiple margin files can coexist for the same analysis date, allowing easy comparison
    
-   **Parallel Processing:**
-   - When `--pll-clusters N` is specified, clusters are processed concurrently with N workers
-   - Each cluster uses a process-specific kubeconfig to avoid conflicts
-   - Progress spinner shows during parallel execution
-   - Results are aggregated and displayed in a unified summary at the end
-   
-   **Serial Processing:**
-   - Default mode processes clusters one by one
-   - Now matches parallel mode behavior with progress indicators and summary output
-   - Consistent output formatting ensures same user experience regardless of execution mode
-
 3. **With piped input:**
    - Reads CSV data from stdin
    - Analyzes and provides recommendations for all base metrics
    - Does not save files (no file reference)
 
-5. **With `--dry-run`:**
+4. **With `--dry-run`:**
    - Validates wrapper-defined steps against YAML file steps
    - Checks connectivity to all configured clusters
    - Displays cluster connectivity report with short cluster names
@@ -708,8 +688,8 @@ Apply with: patch <original_file> < buildah_20241219_141358.patch
 - **Analyzed Data Files**:
   - First analysis on a date: `{task_name}_analyzed_data_{YYYYMMDD}.html/json`
   - Re-running on same date: `{task_name}_analyzed_data_{YYYYMMDD_HHMMSS}.html/json` (preserves old files)
-  - Sortable HTML table of all collected CSV data
-  - JSON format of CSV data
+  - Sortable HTML table and JSON of aggregated CSV data
+- **Detailed per-step files** (one HTML/JSON/CSV per step): `{task_name}_analyzed_data_detailed_step_{step-name}_{YYYYMMDD}.html/json/csv` — step names without `step-` prefix (e.g. `prefetch-dependencies`), sortable tables with current requests/limits in Kubernetes format
 - **Comparison Data Files** (margin-specific, created in both Phase 1 and Phase 2):
   - **Phase 1 (first analysis)**: `{task_name}_comparison_data_margin-{margin}_{YYYYMMDD}.html/json`
   - **Phase 1 (re-analysis)**: `{task_name}_comparison_data_margin-{margin}_{YYYYMMDD_HHMMSS}.html/json` (preserves old files)
