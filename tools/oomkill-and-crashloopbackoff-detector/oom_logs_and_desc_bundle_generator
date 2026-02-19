@@ -85,6 +85,84 @@ get_user_display() {
     fi
 }
 
+# Build curl auth options from env: REMOTE_USER/REMOTE_TOKEN or JENKINS_USER/JENKINS_TOKEN; else .netrc is used by curl
+build_curl_auth() {
+    CURL_AUTH_ARRAY=()
+    if [[ -n "${REMOTE_USER:-}" && -n "${REMOTE_TOKEN:-}" ]]; then
+        CURL_AUTH_ARRAY=(-u "${REMOTE_USER}:${REMOTE_TOKEN}")
+    elif [[ -n "${JENKINS_USER:-}" && -n "${JENKINS_TOKEN:-}" ]]; then
+        CURL_AUTH_ARRAY=(-u "${JENKINS_USER}:${JENKINS_TOKEN}")
+    fi
+}
+
+# Recursively download directory listing from base_url/path_prefix into dest_dir.
+# base_url has no trailing slash; path_prefix may be "" or "subdir/" (trailing slash for dirs).
+download_directory_from_url() {
+    local base_url="$1"
+    local path_prefix="$2"
+    local dest_dir="$3"
+    local full_url index_html dir_path
+    if [[ -z "$path_prefix" ]]; then
+        full_url="${base_url}/"
+    else
+        full_url="${base_url}/${path_prefix}"
+    fi
+    index_html=$(mktemp 2>/dev/null || mktemp -t oom_index)
+    trap 'rm -f "$index_html"' RETURN
+    if ! curl -s -f "${CURL_AUTH_ARRAY[@]}" -o "$index_html" "$full_url"; then
+        echo "Warning: could not fetch directory listing: $full_url" >&2
+        return 0
+    fi
+    grep -oE 'href="[^"]*"' "$index_html" 2>/dev/null | sed 's/^href="//;s/"$//' | while IFS= read -r href; do
+        [[ -z "$href" ]] && continue
+        href="${href#/}"
+        [[ -z "$href" ]] && continue
+        [[ "$href" == "#" || "$href" == "?"* || "$href" == "javascript:"* ]] && continue
+        [[ "$href" == "../"* || "$href" == ".." ]] && continue
+        [[ "$href" == "http://"* || "$href" == "https://"* ]] && continue
+        if [[ "$href" == */ ]]; then
+            download_directory_from_url "$base_url" "${path_prefix}${href}" "$dest_dir"
+        else
+            dir_path="${dest_dir}/${path_prefix}"
+            mkdir -p "$(dirname "${dir_path}${href}")"
+            if curl -s -f "${CURL_AUTH_ARRAY[@]}" -o "${dir_path}${href}" "${base_url}/${path_prefix}${href}"; then
+                echo "Downloaded: ${path_prefix}${href}"
+            fi
+        fi
+    done
+}
+
+# Download full remote directory (HTML index) into dest_dir. base_url has no trailing slash.
+download_from_url() {
+    local base_url="$1"
+    local dest_dir="$2"
+    mkdir -p "$dest_dir"
+    build_curl_auth
+    download_directory_from_url "$base_url" "" "$dest_dir"
+}
+
+# Upload all files under local_dir/tarballs/ to base_url/tarballs/ (PUT). base_url has no trailing slash.
+upload_tarballs_to_url() {
+    local base_url="$1"
+    local local_dir="$2"
+    local tarball_dir="${local_dir}/tarballs"
+    local upload_base="${base_url}/tarballs"
+    build_curl_auth
+    if [[ ! -d "$tarball_dir" ]]; then
+        echo "No tarballs to upload." >&2
+        return 0
+    fi
+    for f in "$tarball_dir"/*.tgz "$tarball_dir"/*.tar.gz; do
+        [[ -f "$f" ]] || continue
+        name=$(basename "$f")
+        if curl -s -f "${CURL_AUTH_ARRAY[@]}" -T "$f" "${upload_base}/${name}"; then
+            echo "Uploaded: ${upload_base}/${name}"
+        else
+            echo "Warning: upload failed: ${upload_base}/${name}" >&2
+        fi
+    done
+}
+
 print_help() {
     cat << EOF
 Usage: $0 -p POD_NAME [OPTIONS]
@@ -94,26 +172,34 @@ Required Arguments:
                             matches image-controller-image-pruner-cronjob-29439360-r9np8 (must appear in date-wise CSVs)
 
 Options:
-  -d, --output-dir DIR      Directory containing date-wise oom_results_*.csv files (default: output)
+  -d, --output-dir DIR      Directory containing date-wise oom_results_*.csv files (default: output).
+                            If DIR starts with http:// or https://, treats it as a URL: downloads the
+                            directory (HTML index listing) into a temp dir, runs the generator, then
+                            uploads new tarballs to <URL>/tarballs/. Auth: REMOTE_USER + REMOTE_TOKEN
+                            (or JENKINS_USER + JENKINS_TOKEN), or .netrc.
   -c, --codeowners-dir DIR  Path to konflux-release-data (contains CODEOWNERS, staging/CODEOWNERS).
                             If not set, script clones the repo to a temp dir, uses it, then deletes it.
                             Report always includes namespace owners (name + email via glab) when available.
   -h, --help                Show this help message
 
 Behavior:
+  When -d is a local directory: uses it as-is. When -d is an http(s) URL: downloads the
+  directory (HTML index) into a temp dir, runs steps 1–3 below, then uploads new tarballs to <URL>/tarballs/.
   1. Scans all date-wise CSV files in OUTPUT_DIR (oom_results_<DD>-<Mon>-<YYYY>_*.csv).
   2. For the given POD, reports how many OOMKilled and CrashLoopBackOff instances were
      detected and on which days.
-  3. Creates one tarball per (type, date), with pod name in the filename, e.g.:
-     output/OOMKilled-image-controller-image-pruner-cronjob-instance-28th-Jan-2026.tgz
-     output/CrashLoopBackOff-image-controller-image-pruner-cronjob-instance-29th-Jan-2026.tgz
-     Find all tarballs for a pod: ls output/*<pod-name>*.tgz
+  3. Creates one tarball per (type, date), with pod name in the filename, under output/tarballs/, e.g.:
+     output/tarballs/OOMKilled-image-controller-image-pruner-cronjob-instance-28th-Jan-2026.tgz
+     output/tarballs/CrashLoopBackOff-image-controller-image-pruner-cronjob-instance-29th-Jan-2026.tgz
+     Find all tarballs for a pod: ls output/tarballs/*<pod-name>*.tgz
      Each tarball contains logs and descriptions for that pod on that date.
 
 Examples:
   $0 -p loki-ingester-zone-a-0
   $0 --pod-name audit-exporter-2fzlc -d output
   $0 -p oom-stress-retry -c /path/to/konflux-release-data   # include namespace owners (name + email via glab)
+  $0 -p prefetch-dependencies -d output -c /path/to/konflux-release-data   # all options combined
+  REMOTE_USER=user REMOTE_TOKEN=token $0 -p my-pod -d https://jenkins.example.com/job/oom/ws/artifacts   # URL: download, generate, upload tarballs
 
 EOF
 }
@@ -151,13 +237,21 @@ if [[ -z "$POD_NAME" ]]; then
     exit 1
 fi
 
-if [[ ! -d "$OUTPUT_DIR" ]]; then
-    echo "ERROR: Output directory not found: $OUTPUT_DIR" >&2
-    exit 1
+REMOTE_URL=""
+if [[ "$OUTPUT_DIR" == http://* || "$OUTPUT_DIR" == https://* ]]; then
+    REMOTE_URL="${OUTPUT_DIR%/}"
+    TMP_DOWNLOAD=$(mktemp -d 2>/dev/null || mktemp -d -t oom_bundle_download)
+    echo "Downloading from $REMOTE_URL into $TMP_DOWNLOAD ..."
+    download_from_url "$REMOTE_URL" "$TMP_DOWNLOAD"
+    OUTPUT_DIR="$TMP_DOWNLOAD"
+else
+    if [[ ! -d "$OUTPUT_DIR" ]]; then
+        echo "ERROR: Output directory not found: $OUTPUT_DIR" >&2
+        exit 1
+    fi
+    # Resolve OUTPUT_DIR so we always use a consistent path (handles relative paths)
+    OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
 fi
-
-# Resolve OUTPUT_DIR so we always use a consistent path (handles relative paths)
-OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
 
 # Find date-wise CSVs (oom_results_DD-Mon-YYYY_*.csv) and main oom_results.csv
 DATEWISE_CSVS=()
@@ -185,14 +279,14 @@ for csv in "${DATEWISE_CSVS[@]}"; do
     date_key=$(date_key_from_csv_basename "$base" "$csv")
     [[ -z "$date_key" ]] && continue
 
-    # CSV columns: 1=cluster, 2=namespace, 3=pod, 4=type, 7=description_file, 8=pod_log_file
+    # CSV columns: 1=cluster, 2=namespace, 3=pod, 4=type, 5=application, 6=component, 7=timestamps, 8=sources, 9=description_file, 10=pod_log_file, 11=time_range
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
         cluster=$(echo "$line" | awk -F',' '{print $1}')
         namespace=$(echo "$line" | awk -F',' '{print $2}')
         type=$(echo "$line" | awk -F',' '{print $4}')
-        desc=$(echo "$line" | awk -F',' '{print $7}')
-        log=$(echo "$line" | awk -F',' '{print $8}')
+        desc=$(echo "$line" | awk -F',' '{print $9}')
+        log=$(echo "$line" | awk -F',' '{print $10}')
         [[ -z "$type" || -z "$desc" || -z "$log" ]] && continue
         # Normalize type
         case "$(echo "$type" | tr '[:upper:]' '[:lower:]')" in
@@ -284,10 +378,12 @@ fi
 POD_SANITIZED=$(echo "$POD_NAME" | sed 's/[^A-Za-z0-9_.-]/_/g' | sed 's/__*/_/g' | sed 's/^_\|_$//g')
 [[ -z "$POD_SANITIZED" ]] && POD_SANITIZED="pod"
 
-# Create one tarball per (type, date), with pod name in filename so different pods don't overwrite
-mkdir -p "$OUTPUT_DIR"
+# Create one tarball per (type, date), with pod name in filename so different pods don't overwrite.
+# Write all tarballs under <output_dir>/tarballs/ to avoid cluttering the main output directory.
+TARBALL_DIR="${OUTPUT_DIR}/tarballs"
+mkdir -p "$TARBALL_DIR"
 TMP_BASE=$(mktemp -d)
-trap 'rm -rf "$CODEOWNERS_TEMP_DIR" "$TMP_BASE"' EXIT
+trap 'rm -rf "$CODEOWNERS_TEMP_DIR" "$TMP_BASE" "${TMP_DOWNLOAD:-}"' EXIT
 
 for key in "${!FILES_BY_KEY[@]}"; do
     type="${key%%|*}"
@@ -304,9 +400,9 @@ for key in "${!FILES_BY_KEY[@]}"; do
     else
         date_label="$date_key"
     fi
-    # Include pod name in tarball filename so you can find with: ls *image-controller-image-pruner-cronjob*.tgz
+    # Include pod name in tarball filename so you can find with: ls tarballs/*image-controller-image-pruner-cronjob*.tgz
     tarball_name="${type}-${POD_SANITIZED}-instance-${date_label}.tgz"
-    tarball_path="${OUTPUT_DIR}/${tarball_name}"
+    tarball_path="${TARBALL_DIR}/${tarball_name}"
     tmpdir="${TMP_BASE}/${type}-${date_key}"
     mkdir -p "$tmpdir"
     for pair in $files_str; do
@@ -323,8 +419,17 @@ for key in "${!FILES_BY_KEY[@]}"; do
             echo "Warning: log file not found (skipped): $log" >&2
         fi
     done
-    tar -czf "$tarball_path" -C "$tmpdir" .
-    echo "Created: $tarball_path"
+    # Only create tarball if at least one file was copied (avoid empty tarballs)
+    if [[ -n "$(find "$tmpdir" -maxdepth 1 -type f 2>/dev/null)" ]]; then
+        tar -czf "$tarball_path" -C "$tmpdir" .
+        echo "Created: $tarball_path"
+    else
+        echo "Skipped (no files found): $tarball_path" >&2
+    fi
 done
 
-echo "Done. Tarballs written to $OUTPUT_DIR/"
+echo "Done. Tarballs written to $OUTPUT_DIR/tarballs/"
+if [[ -n "$REMOTE_URL" ]]; then
+    echo "Uploading tarballs to $REMOTE_URL/tarballs/ ..."
+    upload_tarballs_to_url "$REMOTE_URL" "$OUTPUT_DIR"
+fi

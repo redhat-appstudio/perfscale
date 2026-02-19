@@ -24,10 +24,11 @@ A high-performance, parallel OOMKilled / CrashLoopBackOff detector for OpenShift
   - `oc describe pod`
   - One log file with `oc logs --previous` (crashed run) then `oc logs` (current run)
 - Exports **multiple formats** with absolute paths to artifacts and time range metadata:
-  - **CSV** - Spreadsheet-friendly format
+  - **CSV** - Spreadsheet-friendly format (includes **Application** and **Component** from pod labels)
   - **JSON** - Structured automation input
   - **HTML** - Standalone visual report (open in browser)
   - **TABLE** - Human-readable text table
+- Enriches each finding with **Application** and **Component** from pod `metadata.labels` (e.g. `appstudio.openshift.io/application`, `tekton.dev/pipelineTask`) so you can see which app/component a pod belongs to—no extra API calls.
 - At the **end of each run**, prints a **per-pod summary** (same format as `oom_logs_and_desc_bundle_generator`): for each pod that had OOMKilled or CrashLoopBackOff in this run, one "Report for pod: …" block with instance counts per (type, cluster, namespace). Optional `-c` / `--codeowners-dir` shows namespace owner (name + email via `glab`).
 - Colorized terminal output
 
@@ -153,12 +154,18 @@ cluster,
 namespace,
 pod,
 type,
+application,
+component,
 timestamps,
 sources,
 description_file,
 pod_log_file,
 time_range
 ```
+
+**Application & Component:** Extracted from pod `metadata.labels` (no extra API calls). Used to identify which app and component a finding belongs to (e.g. Konflux/Tekton pipelines).
+- **Application:** `appstudio.openshift.io/application` (e.g. `acs`), then `app.kubernetes.io/part-of`, `app.kubernetes.io/name`, or `app`.
+- **Component:** `tekton.dev/pipelineTask` (e.g. `prefetch-dependencies`, `clone-repository`), then `tekton.dev/task`, `app.kubernetes.io/component`, or `component`. Empty if the pod has none of these labels.
 
 **Type values:**
 - `OOMKilled` - Pod was killed due to out-of-memory
@@ -189,6 +196,8 @@ Structured format perfect for automation, scripting, and integration with other 
           "2025-12-12T05:25:40Z"
         ],
         "sources": ["events"],
+        "application": "acs",
+        "component": "prefetch-dependencies",
         "description_file": ".../output/logs_and_description_files/kflux-prd-es01/...__desc.txt",
         "pod_log_file": ".../output/logs_and_description_files/kflux-prd-es01/...__log.txt"
       }
@@ -203,6 +212,8 @@ Structured format perfect for automation, scripting, and integration with other 
 - `oom_timestamps` - Array of OOMKilled event timestamps
 - `crash_timestamps` - Array of CrashLoopBackOff event timestamps
 - `sources` - Array of detection methods used
+- `application` - From pod labels (e.g. `appstudio.openshift.io/application`); empty if not set
+- `component` - From pod labels (e.g. `tekton.dev/pipelineTask`); empty if not set
 
 ### 3. HTML (`oom_results.html`)
 
@@ -217,7 +228,7 @@ Structured format perfect for automation, scripting, and integration with other 
 - **Table of total OOMs & CrashLoopBackOffs** – Historical trend table under the charts (Date (run), OOMKilled, CrashLoopBackOff) for the same plot range.
 - **Per-cluster historical trend charts** – One combined chart per cluster (OOM + CrashLoopBackOff in the same graph), ordered by total occurrences (highest first). Heading format: *OOM & CrashLoopBackOffs - Historical trend (cluster: &lt;name&gt;) — Plot range: …*
 - **Clusterwise Summary** – Table of findings by cluster (OOMKilled, CrashLoopBackOff, Total) with report timestamp in the section header.
-- **PODs, Namespaces & Clusters Detailed Findings** – Sortable table with cluster, namespace, pod, type, timestamps, sources, Description File, Pod Log File, time range. Section header includes report timestamp. Table is horizontally scrollable so all columns (including log/description links) remain visible.
+- **PODs, Namespaces & Clusters Detailed Findings** – Sortable table with cluster, namespace, pod, type, **Application**, **Component**, timestamps, sources, Description File, Pod Log File, time range. Application and Component are taken from pod labels (e.g. Konflux/Tekton). Section header includes report timestamp. Table is horizontally scrollable so all columns (including log/description links) remain visible.
 - **Historical HTML reports** – Table at the end listing past timestamped HTML reports; each row has a date (run) and an “Open report” link so you can open any previous run’s HTML from the current page.
 - **Color-coded badges** – OOMKilled (red), CrashLoopBackOff (orange).
 - **Clickable artifact links** – Description File and Pod Log File columns link to `file://` paths when present.
@@ -227,7 +238,7 @@ The same HTML report is produced whether you run a full cluster scan or regenera
 
 ### 4. TABLE (`oom_results.table`)
 
-Human-readable text table format, perfect for terminal viewing or plain text reports.
+Human-readable text table format, perfect for terminal viewing or plain text reports. Uses the same columns as the CSV (including Application and Component).
 
 ### 5. Per-pod summary (terminal, at end of run)
 
@@ -242,7 +253,7 @@ CrashLoopBackOff: 1 instance(s) on 03-Feb-2026, Namespace: openshift-machine-con
 ==============================================
 ```
 
-- **No tarballs** are created by `oc_get_ooms.py`; use `oom_logs_and_desc_bundle_generator -p <pod_name>` to generate pod-specific tarballs when needed.
+- **No tarballs** are created by `oc_get_ooms.py`; use `oom_logs_and_desc_bundle_generator -p <pod_name>` to generate pod-specific tarballs when needed. `oc_get_ooms.py` creates the `output/tarballs/` subdirectory so Jenkins or downstream runs can write tarballs there without cluttering the main output dir.
 - To show **namespace owner** (name + email from CODEOWNERS + GitLab) in each line, pass **`-c` / `--codeowners-dir`** with the path to konflux-release-data (directory containing `CODEOWNERS` and `staging/CODEOWNERS`). Requires `glab` to be installed and logged in.
 
 ```bash
@@ -344,6 +355,15 @@ Filter events by time range (default: 1 day):
 - `M` = months (30 days, e.g., `1M`, `2M`)
 
 **Plot range for HTML historical graphs:** The HTML report’s trend charts show runs within a time window (default 2 months). Set it with `--plot-range` (same format as `--time-range`), e.g. `--plot-range 2M` or `--plot-range 7d`. This applies to both the full run and `--print-summary-from-dir`.
+
+### Output directory
+
+By default, all generated files (CSV, JSON, HTML, TABLE, and `logs_and_description_files/`) are written under the `output/` directory. Use `--output DIR` to use a different directory:
+
+```bash
+./oc_get_ooms.py --output /path/to/reports
+./oc_get_ooms.py --current --output my-oom-run
+```
 
 ### Namespace Filtering
 
@@ -543,7 +563,7 @@ If users report OOMs in a namespace (e.g. `preflight-dev-tenant`) but the tool r
 | `oom_results.table` | Human-readable text table | Plain text |
 | `output/logs_and_description_files/<cluster>/*.txt` | Pod forensic artifacts | Text files |
 
-**Note:** All output files are generated automatically in the current directory. The HTML file is fully self-contained and can be opened directly in any web browser by double-clicking it.
+**Note:** All output files are written to the **output directory** (default: `output/`). You can change it with `--output DIR` (e.g. `./oc_get_ooms.py --output /path/to/reports`). The HTML file is fully self-contained and can be opened directly in any web browser by double-clicking it.
 
 ### Automatic File Backup
 
@@ -583,7 +603,7 @@ Backed up 4 existing file(s):
 
 ### Date-wise bundle generator (`oom_logs_and_desc_bundle_generator`)
 
-The script `oom_logs_and_desc_bundle_generator` builds **date-specific** log/description tarballs for a **single pod** you pass on the command line. It uses the **date-wise CSV files** in `output/` (e.g. `oom_results_28-Jan-2026_14-55-05-EDT.csv`).
+The script `oom_logs_and_desc_bundle_generator` builds **date-specific** log/description tarballs for a **single pod** you pass on the command line. It uses the **date-wise CSV files** in `output/` (e.g. `oom_results_28-Jan-2026_14-55-05-EDT.csv`). It expects CSVs produced by the current `oc_get_ooms.py` (with application and component columns); tarballs are written under `output/tarballs/`.
 
 **Usage:**
 ```bash
@@ -592,16 +612,17 @@ The script `oom_logs_and_desc_bundle_generator` builds **date-specific** log/des
 
 **Options:**
 - **`-p` / `--pod-name`** (required): Pod name or substring to match (e.g. `oom-stress-retry` matches `oom-stress-retry-mp275`).
-- **`-d` / `--output-dir`**: Directory containing date-wise CSVs (default: `output`).
+- **`-d` / `--output-dir`**: Directory containing date-wise CSVs (default: `output`). If it starts with `http://` or `https://`, it is treated as a **URL**: the script downloads the directory (by following HTML index listings), runs the generator in a temp dir, then uploads new tarballs to `<URL>/tarballs/`. **Auth:** set `REMOTE_USER` and `REMOTE_TOKEN` (or `JENKINS_USER` and `JENKINS_TOKEN`), or use `~/.netrc`. The server must expose directory listings and support PUT for uploads (e.g. Jenkins workspace).
 - **`-c` / `--codeowners-dir`**: Path to konflux-release-data (contains `CODEOWNERS`, `staging/CODEOWNERS`). If **not** set, the script clones `git@gitlab.cee.redhat.com:releng/konflux-release-data.git` to a temp dir, uses it for owner lookup, then deletes it.
 
 **Behavior:**
+- **Local `-d`:** uses the given directory as-is. **URL `-d`:** downloads the directory (HTML index listing) into a temp dir, runs the steps below, then uploads new tarballs to `<URL>/tarballs/` (auth via env or .netrc).
 1. Scans all date-wise CSVs (and `oom_results.csv`) in the output directory.
 2. **Report**: For each (type, date, cluster, namespace), prints one line with instance count, **namespace**, **cluster**, and **owner name + email** (from CODEOWNERS + GitLab via `glab`). If `-c` is not passed, the script clones konflux-release-data to a temp dir for this lookup.
-3. Creates **one tarball per (type, date)** with the **pod name in the filename**, e.g.:
-   - `output/OOMKilled-oom-stress-retry-instance-28th-Jan-2026.tgz`
-   - `output/CrashLoopBackOff-<pod>-instance-29th-Jan-2026.tgz`  
-   Find all tarballs for a pod: `ls output/*<pod-name>*.tgz`. Each tarball contains the description and log files for that pod on that date.
+3. Creates **one tarball per (type, date)** with the **pod name in the filename**, under `output/tarballs/`, e.g.:
+   - `output/tarballs/OOMKilled-oom-stress-retry-instance-28th-Jan-2026.tgz`
+   - `output/tarballs/CrashLoopBackOff-<pod>-instance-29th-Jan-2026.tgz`  
+   Find all tarballs for a pod: `ls output/tarballs/*<pod-name>*.tgz`. Each tarball contains the description and log files for that pod on that date.
 
 **Example report output:**
 ```
@@ -621,6 +642,9 @@ CrashLoopBackOff: 0 instances (no occurrences in date-wise CSVs)
 ./oom_logs_and_desc_bundle_generator -p oom-stress-retry
 ./oom_logs_and_desc_bundle_generator -p loki-ingester-zone-a-0 -d output
 ./oom_logs_and_desc_bundle_generator -p image-controller-image-pruner-cronjob -c /path/to/konflux-release-data
+# URL mode (e.g. Jenkins artifact URL): download → generate → upload tarballs to URL/tarballs/
+export REMOTE_USER=myuser REMOTE_TOKEN=mytoken
+./oom_logs_and_desc_bundle_generator -p my-pod -d https://jenkins.example.com/job/oom-reports/ws/artifacts
 ```
 
 ---
