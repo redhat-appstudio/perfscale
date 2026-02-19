@@ -556,6 +556,52 @@ def get_all_events_oc(
     return events
 
 
+def _application_component_from_labels(labels: Optional[Dict[str, str]]) -> Tuple[str, str]:
+    """Extract Application and Component from pod metadata.labels.
+
+    Application: appstudio.openshift.io/application (Konflux), then standard Kubernetes labels.
+    Component: tekton.dev/pipelineTask (Tekton step), tekton.dev/task, then standard labels.
+    """
+    if not labels:
+        return "", ""
+    application = (
+        labels.get("appstudio.openshift.io/application")
+        or labels.get("app.kubernetes.io/part-of")
+        or labels.get("app.kubernetes.io/name")
+        or labels.get("app")
+        or ""
+    ).strip()
+    component = (
+        labels.get("tekton.dev/pipelineTask")
+        or labels.get("tekton.dev/task")
+        or labels.get("app.kubernetes.io/component")
+        or labels.get("component")
+        or ""
+    ).strip()
+    return application, component
+
+
+def get_pods_items(
+    context: str,
+    namespace: str,
+    retries: int,
+    oc_timeout_seconds: int,
+) -> List[Dict[str, Any]]:
+    """Fetch pods in namespace as list of pod items (for reuse in OOM/Crash detection and labels)."""
+    subcmd = ["-n", namespace, "get", "pods", "-o", "json", "--ignore-not-found"]
+    rc, out, err = run_oc_subcommand(
+        context, subcmd, retries=retries, oc_timeout_seconds=oc_timeout_seconds
+    )
+    if rc != 0 or not out:
+        return []
+    try:
+        obj = json.loads(out)
+    except json.JSONDecodeError as e:
+        logging.warning(f"Failed to parse pods JSON for {namespace}: {e}")
+        return []
+    return obj.get("items", [])
+
+
 def find_events_by_reason_oc(
     context: str,
     namespace: str,
@@ -588,6 +634,7 @@ def oomkilled_via_pods_oc(
     retries: int,
     oc_timeout_seconds: int,
     time_range_seconds: Optional[int] = None,
+    items: Optional[List[Dict[str, Any]]] = None,
 ) -> List[Dict[str, str]]:
     """Find pods that were OOMKilled by querying pod status.
 
@@ -598,28 +645,21 @@ def oomkilled_via_pods_oc(
 
     When time_range_seconds is set, only include findings whose finishedAt
     is within the window (or include when finishedAt is missing).
+    If items is provided (from get_pods_items), uses it and adds application/component from labels.
     """
-    subcmd = ["-n", namespace, "get", "pods", "-o", "json", "--ignore-not-found"]
-    rc, out, err = run_oc_subcommand(
-        context, subcmd, retries=retries, oc_timeout_seconds=oc_timeout_seconds
-    )
-    if rc != 0 or not out:
-        return []
-    try:
-        obj = json.loads(out)
-    except json.JSONDecodeError as e:
-        logging.warning(f"Failed to parse pods JSON for {namespace}: {e}")
-        return []
+    if items is None:
+        items = get_pods_items(context, namespace, retries, oc_timeout_seconds)
     res: List[Dict[str, str]] = []
     seen_pods: Set[str] = set()  # Avoid duplicates with timestamps
     cutoff_time: Optional[float] = None
     if time_range_seconds is not None:
         cutoff_time = datetime.now(timezone.utc).timestamp() - time_range_seconds
 
-    for item in obj.get("items", []):
+    for item in items:
         pod_name = item.get("metadata", {}).get("name")
         if not pod_name:
             continue
+        app, comp = _application_component_from_labels(item.get("metadata", {}).get("labels"))
 
         # Check both regular containers and init containers
         container_statuses = item.get("status", {}).get("containerStatuses", []) or []
@@ -642,6 +682,8 @@ def oomkilled_via_pods_oc(
                             "timestamp": (
                                 parse_timestamp_to_iso(finished_at) if finished_at else ""
                             ),
+                            "application": app,
+                            "component": comp,
                         }
                     )
                     seen_pods.add(key)
@@ -663,6 +705,8 @@ def oomkilled_via_pods_oc(
                             "timestamp": (
                                 parse_timestamp_to_iso(finished_at) if finished_at else ""
                             ),
+                            "application": app,
+                            "component": comp,
                         }
                     )
                     seen_pods.add(key)
@@ -676,6 +720,7 @@ def crashloop_via_pods_oc(
     retries: int,
     oc_timeout_seconds: int,
     time_range_seconds: Optional[int] = None,
+    items: Optional[List[Dict[str, Any]]] = None,
 ) -> List[Dict[str, str]]:
     """Find pods in CrashLoopBackOff state by querying pod status.
 
@@ -689,28 +734,21 @@ def crashloop_via_pods_oc(
     When time_range_seconds is set, only include findings that fall within the
     window. If we have a finishedAt timestamp, filter by it; if no timestamp,
     include the finding (don't drop due to missing metadata).
+    If items is provided (from get_pods_items), uses it and adds application/component from labels.
     """
-    subcmd = ["-n", namespace, "get", "pods", "-o", "json", "--ignore-not-found"]
-    rc, out, err = run_oc_subcommand(
-        context, subcmd, retries=retries, oc_timeout_seconds=oc_timeout_seconds
-    )
-    if rc != 0 or not out:
-        return []
-    try:
-        obj = json.loads(out)
-    except json.JSONDecodeError as e:
-        logging.warning(f"Failed to parse pods JSON for {namespace}: {e}")
-        return []
+    if items is None:
+        items = get_pods_items(context, namespace, retries, oc_timeout_seconds)
     res: List[Dict[str, str]] = []
     seen_pods: Set[str] = set()  # Avoid duplicates
     cutoff_time: Optional[float] = None
     if time_range_seconds is not None:
         cutoff_time = datetime.now(timezone.utc).timestamp() - time_range_seconds
 
-    for item in obj.get("items", []):
+    for item in items:
         pod_name = item.get("metadata", {}).get("name")
         if not pod_name:
             continue
+        app, comp = _application_component_from_labels(item.get("metadata", {}).get("labels"))
 
         # Check both regular containers and init containers
         container_statuses = item.get("status", {}).get("containerStatuses", []) or []
@@ -724,7 +762,7 @@ def crashloop_via_pods_oc(
                 # No timestamp for waiting state; include when no time range or always include
                 if pod_name not in seen_pods:
                     res.append(
-                        {"pod": pod_name, "reason": "CrashLoopBackOff", "timestamp": ""}
+                        {"pod": pod_name, "reason": "CrashLoopBackOff", "timestamp": "", "application": app, "component": comp}
                     )
                     seen_pods.add(pod_name)
                 continue
@@ -741,6 +779,8 @@ def crashloop_via_pods_oc(
                             "pod": pod_name,
                             "reason": "CrashLoopBackOff",
                             "timestamp": parse_timestamp_to_iso(finished_at) if finished_at else "",
+                            "application": app,
+                            "component": comp,
                         }
                     )
                     seen_pods.add(pod_name)
@@ -759,6 +799,8 @@ def crashloop_via_pods_oc(
                             "pod": pod_name,
                             "reason": "CrashLoopBackOff",
                             "timestamp": parse_timestamp_to_iso(finished_at) if finished_at else "",
+                            "application": app,
+                            "component": comp,
                         }
                     )
                     seen_pods.add(pod_name)
@@ -785,6 +827,8 @@ def crashloop_via_pods_oc(
                             "pod": pod_name,
                             "reason": "CrashLoopBackOff",
                             "timestamp": parse_timestamp_to_iso(finished_at) if finished_at else "",
+                            "application": app,
+                            "component": comp,
                         }
                     )
                     seen_pods.add(pod_name)
@@ -801,7 +845,7 @@ def crashloop_via_pods_oc(
                 if has_restarts:
                     # No specific finishedAt for phase Failed; include (no timestamp)
                     res.append(
-                        {"pod": pod_name, "reason": "CrashLoopBackOff", "timestamp": ""}
+                        {"pod": pod_name, "reason": "CrashLoopBackOff", "timestamp": "", "application": app, "component": comp}
                     )
                     seen_pods.add(pod_name)
 
@@ -1104,6 +1148,14 @@ def namespace_worker_oc(
         elif "backoff" in reason_lower:
             backoff_events.append(event_data)
 
+    # Fetch pods once for both OOM/Crash detection and for application/component labels (incl. event-only pods)
+    pod_items = get_pods_items(context, namespace, retries, oc_timeout_seconds)
+    labels_map: Dict[str, Tuple[str, str]] = {}
+    for item in pod_items:
+        name = item.get("metadata", {}).get("name")
+        if name:
+            labels_map[name] = _application_component_from_labels(item.get("metadata", {}).get("labels"))
+
     # Also check pod status directly for OOMKilled and CrashLoopBackOff (same time range)
     oom_pods = oomkilled_via_pods_oc(
         context,
@@ -1111,6 +1163,7 @@ def namespace_worker_oc(
         retries=retries,
         oc_timeout_seconds=oc_timeout_seconds,
         time_range_seconds=time_range_seconds,
+        items=pod_items,
     )
     crash_pods = crashloop_via_pods_oc(
         context,
@@ -1118,41 +1171,50 @@ def namespace_worker_oc(
         retries=retries,
         oc_timeout_seconds=oc_timeout_seconds,
         time_range_seconds=time_range_seconds,
+        items=pod_items,
     )
 
     for e in oom_events:
         p = e["pod"]
         pod_map.setdefault(
             p,
-            {"pod": p, "oom_timestamps": [], "crash_timestamps": [], "sources": set()},
+            {"pod": p, "oom_timestamps": [], "crash_timestamps": [], "sources": set(), "application": "", "component": ""},
         )
         pod_map[p]["oom_timestamps"].append(e.get("timestamp", ""))
         pod_map[p]["sources"].add("events")
+        if p in labels_map:
+            pod_map[p]["application"], pod_map[p]["component"] = labels_map[p]
     for e in crash_events + backoff_events:
         p = e["pod"]
         pod_map.setdefault(
             p,
-            {"pod": p, "oom_timestamps": [], "crash_timestamps": [], "sources": set()},
+            {"pod": p, "oom_timestamps": [], "crash_timestamps": [], "sources": set(), "application": "", "component": ""},
         )
         pod_map[p]["crash_timestamps"].append(e.get("timestamp", ""))
         pod_map[p]["sources"].add("events")
-    # Add OOM pods found via pod status
+        if p in labels_map:
+            pod_map[p]["application"], pod_map[p]["component"] = labels_map[p]
+    # Add OOM pods found via pod status (they already have application/component in e)
     for e in oom_pods:
         p = e["pod"]
         pod_map.setdefault(
             p,
-            {"pod": p, "oom_timestamps": [], "crash_timestamps": [], "sources": set()},
+            {"pod": p, "oom_timestamps": [], "crash_timestamps": [], "sources": set(), "application": e.get("application", ""), "component": e.get("component", "")},
         )
         pod_map[p]["oom_timestamps"].append(e.get("timestamp", ""))
         pod_map[p]["sources"].add("oc_get_pods")
+        pod_map[p]["application"] = e.get("application", "") or pod_map[p].get("application", "")
+        pod_map[p]["component"] = e.get("component", "") or pod_map[p].get("component", "")
     for e in crash_pods:
         p = e["pod"]
         pod_map.setdefault(
             p,
-            {"pod": p, "oom_timestamps": [], "crash_timestamps": [], "sources": set()},
+            {"pod": p, "oom_timestamps": [], "crash_timestamps": [], "sources": set(), "application": e.get("application", ""), "component": e.get("component", "")},
         )
         pod_map[p]["crash_timestamps"].append(e.get("timestamp", ""))
         pod_map[p]["sources"].add("oc_get_pods")
+        pod_map[p]["application"] = e.get("application", "") or pod_map[p].get("application", "")
+        pod_map[p]["component"] = e.get("component", "") or pod_map[p].get("component", "")
 
     if pod_map:
         out_ns: Dict[str, Dict[str, Any]] = {}
@@ -1162,6 +1224,8 @@ def namespace_worker_oc(
                 "oom_timestamps": sorted(list(set(info.get("oom_timestamps", [])))),
                 "crash_timestamps": sorted(list(set(info.get("crash_timestamps", [])))),
                 "sources": sorted(list(info.get("sources", []))),
+                "application": info.get("application", ""),
+                "component": info.get("component", ""),
             }
         return out_ns
     return None
@@ -1376,12 +1440,19 @@ def run_batches(
 def ensure_output_directory(path_str: str = "output") -> Path:
     """
     Ensure the output subdirectory exists, creating it if necessary.
+    Also ensures the tarballs/ subdir exists (for oom_logs_and_desc_bundle_generator
+    when run from Jenkins or locally, so tarballs do not clutter the main output dir).
+
+    Uses mkdir(parents=True, exist_ok=True) (equivalent to 'mkdir -p'): creates
+    dirs only when missing; never removes or truncates existing dirs, so historical
+    data is preserved across runs.
 
     Returns:
         Path to the output directory
     """
     output_dir = Path(path_str)
     output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "tarballs").mkdir(parents=True, exist_ok=True)
     return output_dir
 
 
@@ -1394,7 +1465,7 @@ def move_existing_output_files(target_dir: Path) -> int:
         Number of files moved
     """
     output_dir = target_dir
-    # Ensure it exists
+    # Ensure it exists (mkdir -p style: create if missing, never truncate existing)
     output_dir.mkdir(parents=True, exist_ok=True)
     moved_count = 0
 
@@ -1527,6 +1598,8 @@ def collect_rows(
                     if info.get("sources")
                     else ""
                 )
+                application = info.get("application", "")
+                component = info.get("component", "")
                 # OOM rows
                 if info.get("oom_timestamps"):
                     rows.append(
@@ -1535,6 +1608,8 @@ def collect_rows(
                             "namespace": ns,
                             "pod": pod_name,
                             "type": "OOMKilled",
+                            "application": application,
+                            "component": component,
                             "timestamps": ";".join(info.get("oom_timestamps")),
                             "sources": sources,
                             "description_file": desc,
@@ -1550,6 +1625,8 @@ def collect_rows(
                             "namespace": ns,
                             "pod": pod_name,
                             "type": "CrashLoopBackOff",
+                            "application": application,
+                            "component": component,
                             "timestamps": ";".join(
                                 info.get("crash_timestamps")
                             ),
@@ -1599,6 +1676,8 @@ def export_table(rows: List[Dict[str, str]], table_path: Path) -> None:
         "namespace",
         "pod",
         "type",
+        "application",
+        "component",
         "timestamps",
         "sources",
         "description_file",
@@ -1685,6 +1764,8 @@ def export_results(
                     "namespace",
                     "pod",
                     "type",
+                    "application",
+                    "component",
                     "timestamps",
                     "sources",
                     "description_file",
@@ -1699,6 +1780,8 @@ def export_results(
                         row["namespace"],
                         row["pod"],
                         row["type"],
+                        row.get("application", ""),
+                        row.get("component", ""),
                         row["timestamps"],
                         row["sources"],
                         row["description_file"],
@@ -2126,8 +2209,9 @@ def _normalize_type(t: str) -> str:
 
 def _read_csv_rows_with_date(csv_path: Path, date_str: str) -> List[Dict[str, str]]:
     """Read CSV and return list of row dicts with all columns (cluster, namespace, pod, type,
-    timestamps, sources, description_file, pod_log_file, time_range, date). Preserves full row
-    so HTML/details table and summaries get description_file and pod_log_file links when present."""
+    application, component, timestamps, sources, description_file, pod_log_file, time_range, date).
+    Preserves full row so HTML/details table and summaries get all fields. Old CSVs without
+    application/component columns get empty strings."""
     rows: List[Dict[str, str]] = []
     try:
         with csv_path.open(newline="", encoding="utf-8", errors="replace") as f:
@@ -2142,6 +2226,8 @@ def _read_csv_rows_with_date(csv_path: Path, date_str: str) -> List[Dict[str, st
                     "namespace": (row.get("namespace") or "").strip(),
                     "pod": pod,
                     "type": _normalize_type(raw_type),
+                    "application": (row.get("application") or "").strip(),
+                    "component": (row.get("component") or "").strip(),
                     "timestamps": (row.get("timestamps") or "").strip(),
                     "sources": (row.get("sources") or "").strip(),
                     "description_file": (row.get("description_file") or "").strip(),
@@ -2391,6 +2477,10 @@ Examples:
   # Run on specific contexts using substrings
   ./oc_get_ooms.py --contexts kflux-prd-rh02,stone-prd-rh01
 
+  # Custom output directory (saves CSV/JSON/HTML/TABLE and artifacts under DIR)
+  ./oc_get_ooms.py --output /path/to/reports
+  ./oc_get_ooms.py --current --output my-oom-run
+
   # High-performance mode for large clusters
   ./oc_get_ooms.py --batch 4 --ns-batch-size 250 --ns-workers 250 --timeout 200
 
@@ -2403,8 +2493,17 @@ Examples:
   # Combine multiple options
   ./oc_get_ooms.py --contexts prod-cluster --time-range 1d --include-ns "tenant|prod" --batch 4
 
+  # Many options together: contexts, time range, ns filters, parallelism, output dir, codeowners
+  ./oc_get_ooms.py --contexts prod,staging --time-range 7d --include-ns tenant --exclude-ns test \\
+    --batch 4 --ns-batch-size 50 --ns-workers 20 --retries 5 --timeout 120 \\
+    --output my-reports -c /path/to/konflux-release-data --verbose
+
   # All contexts, last 7 days, with custom parallelism
   ./oc_get_ooms.py --time-range 7d --batch 8 --ns-batch-size 100 --ns-workers 50
+
+  # Regenerate HTML report from existing CSVs (no cluster run)
+  ./oc_get_ooms.py --print-summary-from-dir output
+  ./oc_get_ooms.py --print-summary-from-dir /path/to/output
 
   # Verify which namespaces will be scanned (e.g. check if preflight-dev-tenant is included)
   ./oc_get_ooms.py --contexts stone-stg-rh01 --list-namespaces | grep preflight

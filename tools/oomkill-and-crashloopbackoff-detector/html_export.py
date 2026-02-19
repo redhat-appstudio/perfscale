@@ -505,6 +505,8 @@ def _generate_details_table(rows: List[Dict[str, str]]) -> str:
         namespace = escape_html(row.get("namespace", ""))
         pod = escape_html(row.get("pod", ""))
         issue_type = row.get("type", "")
+        application = escape_html(row.get("application", ""))
+        component = escape_html(row.get("component", ""))
         timestamps = escape_html(row.get("timestamps", ""))
         sources = escape_html(row.get("sources", ""))
         desc_file = escape_html(row.get("description_file", ""))
@@ -525,6 +527,8 @@ def _generate_details_table(rows: List[Dict[str, str]]) -> str:
                 <td>{namespace}</td>
                 <td class="pod-name">{pod}</td>
                 <td class="pod-type">{type_badge}</td>
+                <td class="pod-application">{application}</td>
+                <td class="pod-component">{component}</td>
                 <td class="pod-timestamps">{timestamps}</td>
                 <td class="pod-sources">{sources}</td>
                 <td class="pod-files">{desc_link}</td>
@@ -540,6 +544,8 @@ def _generate_details_table(rows: List[Dict[str, str]]) -> str:
                     <th class="sortable-header" data-sort="text">Namespace <span class="sort-indicator">↕</span></th>
                     <th class="sortable-header" data-sort="text">Pod <span class="sort-indicator">↕</span></th>
                     <th class="sortable-header" data-sort="text">Type <span class="sort-indicator">↕</span></th>
+                    <th class="sortable-header" data-sort="text">Application <span class="sort-indicator">↕</span></th>
+                    <th class="sortable-header" data-sort="text">Component <span class="sort-indicator">↕</span></th>
                     <th class="sortable-header" data-sort="text">Timestamps <span class="sort-indicator">↕</span></th>
                     <th class="sortable-header" data-sort="text">Sources <span class="sort-indicator">↕</span></th>
                     <th class="sortable-header" data-sort="text">Description File <span class="sort-indicator">↕</span></th>
