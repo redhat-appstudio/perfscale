@@ -381,7 +381,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "avg_over_time(\n  (1 - node_memory_MemAvailable_bytes\n  /\n  node_memory_MemTotal_bytes)[$smoothening:]\n)\n*\n100\nand on (instance)\n  label_replace(\n    kube_node_labels{label_konflux_ci_dev_workload=\"$workload\"},\n    \"instance\",\n    \"$1\",\n    \"node\",\n    \"(.+)\"\n  )",
+          "expr": "avg_over_time(\n  ((node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes)\n  /\n  node_memory_MemTotal_bytes)[$smoothening:]\n)*100\nand on (instance)\n  label_replace(\n    kube_node_labels{label_konflux_ci_dev_workload=\"$workload\"},\n    \"instance\",\n    \"$1\",\n    \"node\",\n    \"(.+)\"\n  )",
           "instant": false,
           "legendFormat": "{{instance}}",
           "range": true,
