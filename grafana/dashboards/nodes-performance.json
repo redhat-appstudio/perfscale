@@ -195,7 +195,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "avg_over_time(avg(tekton_pipelines_controller_running_pipelineruns)[$smoothening:])",
+          "expr": "sum(rate(tekton_pipelines_controller_running_pipelineruns[$smoothening:]))",
           "instant": false,
           "legendFormat": "Count",
           "range": true,
