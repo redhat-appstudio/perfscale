@@ -29,7 +29,7 @@ A high-performance, parallel OOMKilled / CrashLoopBackOff detector for OpenShift
   - **HTML** - Standalone visual report (open in browser)
   - **TABLE** - Human-readable text table
 - Enriches each finding with **Application** and **Component** from pod `metadata.labels` (e.g. `appstudio.openshift.io/application`, `tekton.dev/pipelineTask`) so you can see which app/component a pod belongs to—no extra API calls.
-- At the **end of each run**, prints a **per-pod summary** (same format as `oom_logs_and_desc_bundle_generator`): for each pod that had OOMKilled or CrashLoopBackOff in this run, one "Report for pod: …" block with instance counts per (type, cluster, namespace). Optional `-c` / `--codeowners-dir` shows namespace owner (name + email via `glab`).
+- At the **end of each run**, prints a **per-pod summary** (same format as `oom_logs_and_desc_bundle_generator`): for each pod that had OOMKilled or CrashLoopBackOff in this run, one "Report for pod: …" block with instance counts per (type, cluster, namespace). Optional `-c` / `--codeowners-dir` shows namespace owner (name + email via `glab`). Then **generates per-pod tarballs** for each reported pod (use `--no-tarballs` to skip).
 - Colorized terminal output
 
 ---
@@ -253,7 +253,7 @@ CrashLoopBackOff: 1 instance(s) on 03-Feb-2026, Namespace: openshift-machine-con
 ==============================================
 ```
 
-- **No tarballs** are created by `oc_get_ooms.py`; use `oom_logs_and_desc_bundle_generator -p <pod_name>` to generate pod-specific tarballs when needed. `oc_get_ooms.py` creates the `output/tarballs/` subdirectory so Jenkins or downstream runs can write tarballs there without cluttering the main output dir.
+- **Per-pod tarballs:** After the per-pod summary, `oc_get_ooms.py` automatically runs `oom_logs_and_desc_bundle_generator` for each reported pod (using a match string derived from actual pod names so the bundle generator finds CSV rows). Tarballs are written under `output/tarballs/`. Use **`--no-tarballs`** to skip this step.
 - To show **namespace owner** (name + email from CODEOWNERS + GitLab) in each line, pass **`-c` / `--codeowners-dir`** with the path to konflux-release-data (directory containing `CODEOWNERS` and `staging/CODEOWNERS`). Requires `glab` to be installed and logged in.
 
 ```bash
@@ -598,8 +598,8 @@ Backed up 4 existing file(s):
 
 ### Per-pod summary from `oc_get_ooms.py` vs bundle generator
 
-- **`oc_get_ooms.py`** prints a per-pod summary **at the end of every run**: one "Report for pod: …" block per pod that had OOM/CrashLoop in that run. It uses only the data from the current run (one date = run date). No tarballs are created.
-- **`oom_logs_and_desc_bundle_generator`** is used when you want **date-wise** reports and **tarballs** for a **specific pod**: it scans all date-wise CSVs in `output/` and builds one tarball per (type, date) for that pod.
+- **`oc_get_ooms.py`** prints a per-pod summary **at the end of every run** (one "Report for pod: …" block per pod that had OOM/CrashLoop in that run), then **generates tarballs** for each of those pods by invoking `oom_logs_and_desc_bundle_generator` with a **match string** (longest common prefix of actual pod names) so the bundle generator finds the right rows in the CSV. Use `--no-tarballs` to skip tarball generation.
+- **`oom_logs_and_desc_bundle_generator`** is used when you want **date-wise** reports and **tarballs** for a **specific pod** (e.g. run manually for one pod): it scans all date-wise CSVs in `output/` and builds one tarball per (type, date) for that pod. It matches the CSV pod column by **substring** (pass a literal that appears in the pod name, not the display name with `*`).
 
 ### Date-wise bundle generator (`oom_logs_and_desc_bundle_generator`)
 
@@ -612,7 +612,7 @@ The script `oom_logs_and_desc_bundle_generator` builds **date-specific** log/des
 
 **Options:**
 - **`-p` / `--pod-name`** (required): Pod name or substring to match (e.g. `oom-stress-retry` matches `oom-stress-retry-mp275`).
-- **`-d` / `--output-dir`**: Directory containing date-wise CSVs (default: `output`). If it starts with `http://` or `https://`, it is treated as a **URL**: the script downloads the directory (by following HTML index listings), runs the generator in a temp dir, then uploads new tarballs to `<URL>/tarballs/`. **Auth:** set `REMOTE_USER` and `REMOTE_TOKEN` (or `JENKINS_USER` and `JENKINS_TOKEN`), or use `~/.netrc`. The server must expose directory listings and support PUT for uploads (e.g. Jenkins workspace).
+- **`-d` / `--output-dir`**: Directory containing date-wise CSVs (default: `output`). If it starts with `http://` or `https://`, it is treated as a **URL**: the script downloads the directory (by following HTML index listings), runs the generator in a temp dir, then uploads new tarballs to `<URL>/tarballs/`. **Auth:** set `REMOTE_TOKEN` only (Cookie auth, e.g. Jenkins session), or `REMOTE_USER` and `REMOTE_TOKEN`, or `JENKINS_USER` and `JENKINS_TOKEN`, or use `~/.netrc`. The server must expose directory listings and support PUT for uploads (e.g. Jenkins workspace). When using a URL, download/upload details are written to **`tarball_generation.log`** in the current directory; stdout shows a single-line progress. Parallel downloads use **20** workers by default (edit `DOWNLOAD_PARALLEL_JOBS` in the script to change).
 - **`-c` / `--codeowners-dir`**: Path to konflux-release-data (contains `CODEOWNERS`, `staging/CODEOWNERS`). If **not** set, the script clones `git@gitlab.cee.redhat.com:releng/konflux-release-data.git` to a temp dir, uses it for owner lookup, then deletes it.
 
 **Behavior:**
@@ -637,14 +637,22 @@ CrashLoopBackOff: 0 instances (no occurrences in date-wise CSVs)
 
 **Requirements for owner name + email:** `git` (and SSH access to gitlab.cee.redhat.com) and `glab` (logged in). If clone or glab fails, the report still runs; owner part is omitted or shows "(no CODEOWNERS repo available)".
 
+**Remote (URL) mode — short summary:**
+- **Auth:** `REMOTE_TOKEN` only (Cookie) is enough for many Jenkins setups; no `REMOTE_USER` required. Or use `REMOTE_USER`+`REMOTE_TOKEN` or `JENKINS_USER`+`JENKINS_TOKEN`.
+- **Log:** Download/upload details go to `tarball_generation.log` in the current directory; stdout shows a single-line progress (e.g. `Progress: 480/480 files (done)`).
+- **Parallel downloads:** Default 20 workers; edit `DOWNLOAD_PARALLEL_JOBS` in the script to change.
+- **Path handling:** The script normalizes Jenkins-style hrefs (base path stripped) to avoid duplicate-path warnings, and rewrites CSV artifact paths to local paths so tarballs are built from downloaded files.
+- **Upload:** Uses HTTP PUT. If the server returns **405 Method Not Allowed**, uploads will fail (server does not allow PUT); the rest of the run (download, report, tarball creation) still succeeds.
+
 **Examples:**
 ```bash
 ./oom_logs_and_desc_bundle_generator -p oom-stress-retry
 ./oom_logs_and_desc_bundle_generator -p loki-ingester-zone-a-0 -d output
 ./oom_logs_and_desc_bundle_generator -p image-controller-image-pruner-cronjob -c /path/to/konflux-release-data
 # URL mode (e.g. Jenkins artifact URL): download → generate → upload tarballs to URL/tarballs/
-export REMOTE_USER=myuser REMOTE_TOKEN=mytoken
-./oom_logs_and_desc_bundle_generator -p my-pod -d https://jenkins.example.com/job/oom-reports/ws/artifacts
+# REMOTE_TOKEN only (Cookie) is enough for many Jenkins setups:
+REMOTE_TOKEN='your-cookie-or-token' ./oom_logs_and_desc_bundle_generator -p my-pod -d https://jenkins.example.com/job/oom-reports/ws/artifacts
+# Or: export REMOTE_USER=myuser REMOTE_TOKEN=mytoken
 ```
 
 ---
@@ -656,13 +664,15 @@ export REMOTE_USER=myuser REMOTE_TOKEN=mytoken
 **Recent Enhancements (including Feb 12, 2026):**
 - **Artifact path:** Pod logs and description files are saved under `output/logs_and_description_files/<cluster>/` (same on Mac and Jenkins). One-time migration from `/private/tmp/` is available via `migrate_artifacts_from_private_tmp.py`.
 - **Cluster connectivity:** No user confirmation prompt. The tool checks connectivity to all clusters, prints a report, then proceeds automatically if at least one cluster is connected, or aborts if none are.
-- **Constant Parallelism**: Maintains optimal resource utilization across all clusters
-- **Performance Optimized**: Single event API call per namespace (3x faster)
-- **Comprehensive Detection**: Events + pod status checks ensure no OOM/CrashLoop pods are missed
-- **Time Range Filtering**: Focus on recent events with configurable lookback window
-- **Multi-Format Output**: CSV, JSON, HTML, and TABLE formats for maximum flexibility
-- **HTML Reports**: Standalone visual reports with clickable artifact links
-- **Consistent Output**: All formats are synchronized and include metadata
+- **Constant Parallelism**: Maintains optimal resource utilization across all clusters.
+- **Performance Optimized**: Single event API call per namespace (3x faster).
+- **Comprehensive Detection**: Events + pod status checks ensure no OOM/CrashLoop pods are missed.
+- **Time Range Filtering**: Focus on recent events with configurable lookback window.
+- **Multi-Format Output**: CSV, JSON, HTML, and TABLE formats for maximum flexibility.
+- **HTML Reports**: Standalone visual reports with clickable artifact links.
+- **Consistent Output**: All formats are synchronized and include metadata.
+- **Automatic per-pod tarballs:** After the per-pod summary, `oc_get_ooms.py` generates date-wise tarballs for each reported pod (via `oom_logs_and_desc_bundle_generator`), using a match string (longest common prefix of actual pod names) so the bundle generator finds CSV rows. Use `--no-tarballs` to skip.
+- **Bundle generator (remote mode):** `REMOTE_TOKEN`-only Cookie auth; `tarball_generation.log` for details; single-line download progress; parallel downloads (`DOWNLOAD_PARALLEL_JOBS`); path normalization and CSV path rewriting for Jenkins-style URLs. Upload requires server to accept PUT (405 = not supported).
 
 ---
 
@@ -677,6 +687,8 @@ Adapt as needed.
 
 The following enhancements are **intentionally planned** and align with the current architecture.
 Most can be added incrementally without redesigning the tool.
+
+**Possible future: Logs from Splunk when cluster logs are gone.** When the tool runs on a 24h (or longer) interval, pod logs for older crashed containers may no longer be available from the cluster (`oc logs --previous` only reaches the most recent previous instance). Logs may be archived in Splunk (or, for TaskRuns, in kubearchive). A future option could be to fall back to fetching relevant logs from Splunk when cluster logs are missing. For Splunk API usage (including static tokens / service accounts for automation), see [Splunk API usage](https://source.redhat.com/departments/strategy_and_operations/it/splunk/splunk_wiki/splunk_api_usage). This is noted here as an idea for the future if the team decides to pursue it.
 
 ---
 
