@@ -1985,6 +1985,29 @@ def _pod_base_name(full_name: str) -> str:
     return result if result else full_name
 
 
+def _match_string_for_bundle_generator(pod_names: List[str]) -> str:
+    """
+    Return a substring that matches all given pod names in CSV column 3.
+    oom_logs_and_desc_bundle_generator uses index($3, pod) > 0, so we need a
+    literal string that appears in the actual pod names (not the display base name
+    with asterisks). Use longest common prefix so we match exactly this group.
+    """
+    if not pod_names:
+        return ""
+    if len(pod_names) == 1:
+        return pod_names[0]
+    prefix = pod_names[0]
+    for name in pod_names[1:]:
+        i = 0
+        for a, b in zip(prefix, name):
+            if a != b:
+                break
+            i += 1
+        prefix = prefix[:i]
+    # Strip trailing hyphen so we match "apiserver-69cc49fdf9" in "apiserver-69cc49fdf9-cbnj4"
+    return prefix.rstrip("-") if prefix else pod_names[0]
+
+
 def _date_from_timestamped_csv_basename(basename: str) -> Optional[str]:
     """Extract DD-Mon-YYYY from oom_results_DD-Mon-YYYY_*.csv. Returns None if not matched."""
     if not basename.startswith("oom_results_") or not basename.endswith(".csv"):
@@ -2453,9 +2476,14 @@ Output:
   - oom_results.html       Standalone HTML report (open in browser)
   At the end, a per-pod summary is printed (same format as
   oom_logs_and_desc_bundle_generator); use -c to include CODEOWNERS owners.
+  Then, for each pod in the summary, date-wise tarballs are generated (same as
+  running oom_logs_and_desc_bundle_generator -p <pod> -d <output> for each pod).
+  Use --no-tarballs to skip tarball generation.
 
   -c, --codeowners-dir DIR  Path to konflux-release-data (CODEOWNERS, staging/CODEOWNERS).
                             If set, per-pod summary shows namespace owner (name + email via glab).
+
+  --no-tarballs            Do not generate per-pod tarballs after the run (default: generate tarballs).
 
 Debug & Troubleshooting:
   -v, --verbose            Show which namespaces are scanned or skipped (ephemeral/include/exclude)
@@ -2551,6 +2579,7 @@ def parse_args(
     codeowners_dir: Optional[str] = None
     print_summary_from_dir: Optional[str] = None
     output_dir_str = "output"
+    no_tarballs = "--no-tarballs" in args
 
     if "--output" in args:
         i = args.index("--output")
@@ -2747,6 +2776,7 @@ def parse_args(
         codeowners_dir,
         print_summary_from_dir,
         output_dir_str,
+        no_tarballs,
     )
 
 
@@ -2778,6 +2808,7 @@ def main() -> None:
         codeowners_dir,
         print_summary_from_dir,
         output_dir_str,
+        no_tarballs,
     ) = parse_args(sys.argv[1:])
 
     # --print-summary-from-dir: print summary and generate HTML from existing CSVs (no cluster run)
@@ -2979,6 +3010,37 @@ def main() -> None:
         output_dir=output_dir,
         codeowners_dir=codeowners_path,
     )
+
+    # Generate per-pod tarballs (same as oom_logs_and_desc_bundle_generator -p <pod> -d <output> for each pod)
+    # The bundle generator matches CSV pod column by substring; we must pass a literal that appears in
+    # actual pod names (not the display base name like "apiserver-*" which has asterisks).
+    if not no_tarballs and current_run_rows:
+        script_dir = Path(__file__).resolve().parent
+        bundle_gen = script_dir / "oom_logs_and_desc_bundle_generator"
+        # Group full pod names by display base_name, then compute a match string (longest common prefix)
+        base_to_pods: Dict[str, List[str]] = defaultdict(list)
+        for row in current_run_rows:
+            base_to_pods[_pod_base_name(row["pod"])].append(row["pod"])
+        if bundle_gen.is_file():
+            print()
+            print(color(f"Generating tarballs for {len(base_to_pods)} pod(s) ...", BLUE))
+            for base_name in sorted(base_to_pods.keys()):
+                pod_names = base_to_pods[base_name]
+                match_str = _match_string_for_bundle_generator(pod_names)
+                if not match_str:
+                    continue
+                cmd = [
+                    str(bundle_gen),
+                    "-p", match_str,
+                    "-d", str(output_dir),
+                ]
+                if codeowners_path is not None and codeowners_path.is_dir():
+                    cmd.extend(["-c", str(codeowners_path)])
+                rc = subprocess.run(cmd, cwd=str(script_dir))
+                if rc.returncode != 0:
+                    print(color(f"  Warning: tarball generation for pod '{base_name}' exited with {rc.returncode}", YELLOW))
+        else:
+            print(color(f"  Skipping tarballs: {bundle_gen} not found", YELLOW))
 
 
 if __name__ == "__main__":

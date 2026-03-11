@@ -9,6 +9,12 @@ CODEOWNERS_DIR=""      # If set, look up namespace owners from CODEOWNERS and Gi
 CODEOWNERS_TEMP_DIR="" # If we clone konflux-release-data, we remove this on exit
 KONFLUX_RELEASE_DATA_REPO="git@gitlab.cee.redhat.com:releng/konflux-release-data.git"
 
+# Parallelism for remote download (edit this variable to change number of concurrent downloads)
+DOWNLOAD_PARALLEL_JOBS=20
+
+# Log file for download/upload details (in current directory when using URL mode)
+TARBALL_GENERATION_LOG="tarball_generation.log"
+
 # Ordinal suffix for day: 1st, 2nd, 3rd, 4th, ..., 11th, 21st, 22nd, 23rd, etc.
 day_ordinal() {
     local d="$1"
@@ -85,23 +91,36 @@ get_user_display() {
     fi
 }
 
-# Build curl auth options from env: REMOTE_USER/REMOTE_TOKEN or JENKINS_USER/JENKINS_TOKEN; else .netrc is used by curl
+# Build curl auth options from env: REMOTE_TOKEN only (Cookie), REMOTE_USER+REMOTE_TOKEN (Basic), or JENKINS_*; else .netrc
 build_curl_auth() {
     CURL_AUTH_ARRAY=()
     if [[ -n "${REMOTE_USER:-}" && -n "${REMOTE_TOKEN:-}" ]]; then
         CURL_AUTH_ARRAY=(-u "${REMOTE_USER}:${REMOTE_TOKEN}")
+    elif [[ -n "${REMOTE_TOKEN:-}" ]]; then
+        # Token-only: use as Cookie (e.g. Jenkins session) so REMOTE_USER is not required
+        CURL_AUTH_ARRAY=(-H "Cookie: ${REMOTE_TOKEN}")
     elif [[ -n "${JENKINS_USER:-}" && -n "${JENKINS_TOKEN:-}" ]]; then
         CURL_AUTH_ARRAY=(-u "${JENKINS_USER}:${JENKINS_TOKEN}")
     fi
 }
 
-# Recursively download directory listing from base_url/path_prefix into dest_dir.
-# base_url has no trailing slash; path_prefix may be "" or "subdir/" (trailing slash for dirs).
-download_directory_from_url() {
+# Extract path part from URL (e.g. https://host/workspace/ARTIFACTS/StoneSoupOOMDetector -> workspace/ARTIFACTS/StoneSoupOOMDetector)
+# so we can normalize hrefs that repeat this path and avoid wrong recursion.
+get_base_path_from_url() {
+    local url="$1"
+    local path
+    path="${url#*://}"       # strip scheme
+    path="${path#*/}"        # strip host
+    path="${path%%\?*}"      # strip query
+    echo "$path"
+}
+
+# List-only pass: recurse and print relative path of each file to stdout (one per line). Used to feed parallel download.
+list_remote_files() {
     local base_url="$1"
     local path_prefix="$2"
-    local dest_dir="$3"
-    local full_url index_html dir_path
+    local base_path_opt="${3:-}"
+    local full_url index_html norm
     if [[ -z "$path_prefix" ]]; then
         full_url="${base_url}/"
     else
@@ -110,7 +129,6 @@ download_directory_from_url() {
     index_html=$(mktemp 2>/dev/null || mktemp -t oom_index)
     trap 'rm -f "$index_html"' RETURN
     if ! curl -s -f "${CURL_AUTH_ARRAY[@]}" -o "$index_html" "$full_url"; then
-        echo "Warning: could not fetch directory listing: $full_url" >&2
         return 0
     fi
     grep -oE 'href="[^"]*"' "$index_html" 2>/dev/null | sed 's/^href="//;s/"$//' | while IFS= read -r href; do
@@ -120,47 +138,95 @@ download_directory_from_url() {
         [[ "$href" == "#" || "$href" == "?"* || "$href" == "javascript:"* ]] && continue
         [[ "$href" == "../"* || "$href" == ".." ]] && continue
         [[ "$href" == "http://"* || "$href" == "https://"* ]] && continue
-        if [[ "$href" == */ ]]; then
-            download_directory_from_url "$base_url" "${path_prefix}${href}" "$dest_dir"
-        else
-            dir_path="${dest_dir}/${path_prefix}"
-            mkdir -p "$(dirname "${dir_path}${href}")"
-            if curl -s -f "${CURL_AUTH_ARRAY[@]}" -o "${dir_path}${href}" "${base_url}/${path_prefix}${href}"; then
-                echo "Downloaded: ${path_prefix}${href}"
+        norm="$href"
+        if [[ -n "$base_path_opt" ]]; then
+            if [[ "$href" == "$base_path_opt"/* ]]; then
+                norm="${href#$base_path_opt/}"
+            elif [[ "$href" == "$base_path_opt" ]]; then
+                continue
             fi
+        fi
+        if [[ "$norm" == */ ]]; then
+            list_remote_files "$base_url" "${path_prefix}${norm}" "$base_path_opt"
+        else
+            echo "${path_prefix}${norm}"
         fi
     done
 }
 
-# Download full remote directory (HTML index) into dest_dir. base_url has no trailing slash.
+# Download full remote directory: list all files, then download in parallel. Log to TARBALL_GENERATION_LOG, progress on stdout.
 download_from_url() {
     local base_url="$1"
     local dest_dir="$2"
+    local list_file total count rel_path log_path
     mkdir -p "$dest_dir"
     build_curl_auth
-    download_directory_from_url "$base_url" "" "$dest_dir"
+    local base_path
+    base_path=$(get_base_path_from_url "$base_url")
+    log_path="$(pwd)/${TARBALL_GENERATION_LOG}"
+    echo "=== Download started at $(date) from $base_url ===" >> "$log_path"
+    list_file=$(mktemp 2>/dev/null || mktemp -t oom_list)
+    trap 'rm -f "$list_file"' RETURN
+    echo "Listing remote files..."
+    list_remote_files "$base_url" "" "$base_path" > "$list_file"
+    total=$(wc -l < "$list_file" | tr -d ' ')
+    if [[ "$total" -eq 0 ]]; then
+        echo "No files to download."
+        echo "=== Download completed at $(date) ===" >> "$log_path"
+        return 0
+    fi
+    echo "Downloading $total files (parallelism: $DOWNLOAD_PARALLEL_JOBS)..."
+    count=0
+    while IFS= read -r rel_path; do
+        [[ -z "$rel_path" ]] && continue
+        while [[ $(jobs -r 2>/dev/null | wc -l) -ge $DOWNLOAD_PARALLEL_JOBS ]]; do
+            sleep 0.2
+        done
+        (
+            mkdir -p "$(dirname "${dest_dir}/${rel_path}")"
+            if curl -s -f "${CURL_AUTH_ARRAY[@]}" -o "${dest_dir}/${rel_path}" "${base_url}/${rel_path}"; then
+                echo "Downloaded: $rel_path" >> "$log_path"
+            fi
+        ) &
+        ((count++)) || true
+        if [[ $((count % 50)) -eq 0 ]] && [[ "$count" -gt 0 ]]; then
+            printf "\r  Progress: %d/%d files" "$count" "$total"
+        fi
+    done < "$list_file"
+    wait
+    printf "\r  Progress: %d/%d files (done)\n" "$total" "$total"
+    echo "=== Download completed at $(date) ===" >> "$log_path"
 }
 
 # Upload all files under local_dir/tarballs/ to base_url/tarballs/ (PUT). base_url has no trailing slash.
+# Logs each upload to TARBALL_GENERATION_LOG in current directory; stdout stays minimal.
 upload_tarballs_to_url() {
     local base_url="$1"
     local local_dir="$2"
     local tarball_dir="${local_dir}/tarballs"
     local upload_base="${base_url}/tarballs"
+    local log_path
+    log_path="$(pwd)/${TARBALL_GENERATION_LOG}"
     build_curl_auth
     if [[ ! -d "$tarball_dir" ]]; then
-        echo "No tarballs to upload." >&2
+        echo "No tarballs to upload."
         return 0
     fi
+    local count=0
+    echo "=== Upload started at $(date) to ${upload_base}/ ===" >> "$log_path"
     for f in "$tarball_dir"/*.tgz "$tarball_dir"/*.tar.gz; do
         [[ -f "$f" ]] || continue
         name=$(basename "$f")
         if curl -s -f "${CURL_AUTH_ARRAY[@]}" -T "$f" "${upload_base}/${name}"; then
-            echo "Uploaded: ${upload_base}/${name}"
+            echo "Uploaded: ${upload_base}/${name}" >> "$log_path"
+            ((count++)) || true
         else
+            echo "Warning: upload failed: ${upload_base}/${name}" >> "$log_path"
             echo "Warning: upload failed: ${upload_base}/${name}" >&2
         fi
     done
+    echo "=== Upload completed at $(date) ===" >> "$log_path"
+    echo "Uploaded $count tarball(s)."
 }
 
 print_help() {
@@ -175,8 +241,9 @@ Options:
   -d, --output-dir DIR      Directory containing date-wise oom_results_*.csv files (default: output).
                             If DIR starts with http:// or https://, treats it as a URL: downloads the
                             directory (HTML index listing) into a temp dir, runs the generator, then
-                            uploads new tarballs to <URL>/tarballs/. Auth: REMOTE_USER + REMOTE_TOKEN
-                            (or JENKINS_USER + JENKINS_TOKEN), or .netrc.
+                            uploads new tarballs to <URL>/tarballs/. Auth: REMOTE_TOKEN only (Cookie),
+                            or REMOTE_USER + REMOTE_TOKEN, or JENKINS_USER + JENKINS_TOKEN, or .netrc.
+                            Download/upload details are written to tarball_generation.log in the current directory.
   -c, --codeowners-dir DIR  Path to konflux-release-data (contains CODEOWNERS, staging/CODEOWNERS).
                             If not set, script clones the repo to a temp dir, uses it, then deletes it.
                             Report always includes namespace owners (name + email via glab) when available.
@@ -199,7 +266,7 @@ Examples:
   $0 --pod-name audit-exporter-2fzlc -d output
   $0 -p oom-stress-retry -c /path/to/konflux-release-data   # include namespace owners (name + email via glab)
   $0 -p prefetch-dependencies -d output -c /path/to/konflux-release-data   # all options combined
-  REMOTE_USER=user REMOTE_TOKEN=token $0 -p my-pod -d https://jenkins.example.com/job/oom/ws/artifacts   # URL: download, generate, upload tarballs
+  REMOTE_TOKEN='...' $0 -p my-pod -d https://jenkins.example.com/...   # URL: download, generate, upload (Cookie auth; or use REMOTE_USER+REMOTE_TOKEN)
 
 EOF
 }
@@ -244,6 +311,7 @@ if [[ "$OUTPUT_DIR" == http://* || "$OUTPUT_DIR" == https://* ]]; then
     echo "Downloading from $REMOTE_URL into $TMP_DOWNLOAD ..."
     download_from_url "$REMOTE_URL" "$TMP_DOWNLOAD"
     OUTPUT_DIR="$TMP_DOWNLOAD"
+    echo "Generating Report ...."
 else
     if [[ ! -d "$OUTPUT_DIR" ]]; then
         echo "ERROR: Output directory not found: $OUTPUT_DIR" >&2
@@ -288,6 +356,15 @@ for csv in "${DATEWISE_CSVS[@]}"; do
         desc=$(echo "$line" | awk -F',' '{print $9}')
         log=$(echo "$line" | awk -F',' '{print $10}')
         [[ -z "$type" || -z "$desc" || -z "$log" ]] && continue
+        # In remote mode, CSV paths point to Jenkins server; rewrite to local downloaded paths
+        if [[ -n "$REMOTE_URL" ]]; then
+            if [[ "$desc" == *"logs_and_description_files/"* ]]; then
+                desc="${OUTPUT_DIR}/logs_and_description_files/${desc#*logs_and_description_files/}"
+            fi
+            if [[ "$log" == *"logs_and_description_files/"* ]]; then
+                log="${OUTPUT_DIR}/logs_and_description_files/${log#*logs_and_description_files/}"
+            fi
+        fi
         # Normalize type
         case "$(echo "$type" | tr '[:upper:]' '[:lower:]')" in
             oomkilled) type="OOMKilled" ;;
@@ -385,6 +462,11 @@ mkdir -p "$TARBALL_DIR"
 TMP_BASE=$(mktemp -d)
 trap 'rm -rf "$CODEOWNERS_TEMP_DIR" "$TMP_BASE" "${TMP_DOWNLOAD:-}"' EXIT
 
+# When in URL mode, append tarball creation details to log so stdout stays clean
+TARBALL_LOG_PATH=""
+[[ -n "$REMOTE_URL" ]] && TARBALL_LOG_PATH="$(pwd)/${TARBALL_GENERATION_LOG}"
+tarball_created_count=0
+
 for key in "${!FILES_BY_KEY[@]}"; do
     type="${key%%|*}"
     date_key="${key#*|}"
@@ -411,20 +493,21 @@ for key in "${!FILES_BY_KEY[@]}"; do
         if [[ -f "$desc" ]]; then
             cp "$desc" "$tmpdir/"
         else
-            echo "Warning: description file not found (skipped): $desc" >&2
+            if [[ -n "$TARBALL_LOG_PATH" ]]; then echo "Warning: description file not found (skipped): $desc" >> "$TARBALL_LOG_PATH"; else echo "Warning: description file not found (skipped): $desc" >&2; fi
         fi
         if [[ -f "$log" ]]; then
             cp "$log" "$tmpdir/"
         else
-            echo "Warning: log file not found (skipped): $log" >&2
+            if [[ -n "$TARBALL_LOG_PATH" ]]; then echo "Warning: log file not found (skipped): $log" >> "$TARBALL_LOG_PATH"; else echo "Warning: log file not found (skipped): $log" >&2; fi
         fi
     done
     # Only create tarball if at least one file was copied (avoid empty tarballs)
     if [[ -n "$(find "$tmpdir" -maxdepth 1 -type f 2>/dev/null)" ]]; then
         tar -czf "$tarball_path" -C "$tmpdir" .
-        echo "Created: $tarball_path"
+        if [[ -n "$TARBALL_LOG_PATH" ]]; then echo "Created: $tarball_path" >> "$TARBALL_LOG_PATH"; else echo "Created: $tarball_path"; fi
+        ((tarball_created_count++)) || true
     else
-        echo "Skipped (no files found): $tarball_path" >&2
+        if [[ -n "$TARBALL_LOG_PATH" ]]; then echo "Skipped (no files found): $tarball_path" >> "$TARBALL_LOG_PATH"; else echo "Skipped (no files found): $tarball_path" >&2; fi
     fi
 done
 
@@ -432,4 +515,5 @@ echo "Done. Tarballs written to $OUTPUT_DIR/tarballs/"
 if [[ -n "$REMOTE_URL" ]]; then
     echo "Uploading tarballs to $REMOTE_URL/tarballs/ ..."
     upload_tarballs_to_url "$REMOTE_URL" "$OUTPUT_DIR"
+    echo "Log written to $(pwd)/${TARBALL_GENERATION_LOG}"
 fi
