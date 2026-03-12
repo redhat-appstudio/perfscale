@@ -3030,6 +3030,7 @@ def main() -> None:
                 if not match_str:
                     continue
                 cmd = [
+                    "bash",
                     str(bundle_gen),
                     "-p", match_str,
                     "-d", str(output_dir),
