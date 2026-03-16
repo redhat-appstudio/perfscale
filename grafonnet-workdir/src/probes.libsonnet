@@ -225,6 +225,16 @@ local pieChart = grafonnet.panel.pieChart;
     + pieChart.queryOptions.withTargets([self.errorsPieQuery(testId, extraFilters)]),
 
 
+  // Horreum labels for task/step memory and CPU (stable_task_steps from e2e-tests load-test schema, KONFLUX-12060 / KONFLUX-12065)
+  taskStepMemoryLabels: [
+    '.measurements.stable_task_steps.build_container.build.memory.mean',
+    '.measurements.stable_task_steps.collect_data.create_trusted_artifact.memory.mean',
+  ],
+  taskStepCpuLabels: [
+    '.measurements.stable_task_steps.build_container.build.cpu.mean',
+    '.measurements.stable_task_steps.collect_data.create_trusted_artifact.cpu.mean',
+  ],
+
   completeDashboard(
     dashboardName='',
     dashboardUid='',
@@ -291,6 +301,11 @@ local pieChart = grafonnet.panel.pieChart;
       self.durationsPanel(testId, [i + 'passed_idle_mean' for i in platformTaskRunStubs], 's', 'Idle duration by platform task run', extraFilters=extraFilters),
       row.new('Count of platform task runs'),
       self.durationsPanel(testId, [i + 'passed_duration_samples' for i in platformTaskRunStubs], 'none', 'Count of platform task runs', extraFilters=extraFilters),
+      // Task/Step memory and CPU (KONFLUX-12060 / KONFLUX-12065)
+      row.new('Task/Step memory (mean)'),
+      self.durationsPanel(testId, self.taskStepMemoryLabels, 'bytes', 'Task/Step memory', extraFilters=extraFilters),
+      row.new('Task/Step CPU (mean)'),
+      self.durationsPanel(testId, self.taskStepCpuLabels, 'short', 'Task/Step CPU', extraFilters=extraFilters),
     ]),
 
 }
