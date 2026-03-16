@@ -1232,6 +1232,102 @@
       "title": "${member_cluster} Count of platform task runs",
       "transformations": [],
       "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0
+      },
+      "id": 33,
+      "title": "Task/Step memory (mean)",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "insertNulls": 5400000
+          },
+          "min": 0,
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24
+      },
+      "id": 34,
+      "maxPerRow": 4,
+      "pluginVersion": "v11.4.0",
+      "repeat": "member_cluster",
+      "repeatDirection": "h",
+      "targets": [
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'.measurements.stable_task_steps.build_container.build.memory.mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'.measurements.stable_task_steps.build_container.build.memory.mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'.measurements.stable_task_steps.build_container.build.memory.mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'.measurements.stable_task_steps.build_container.build.memory.mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'.measurements.stable_task_steps.build_container.build.memory.mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '.measurements.stable_task_steps.build_container.build.memory.mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}\n    AND $__timeFilter(start)\n    AND label_values->>'.repo_type' LIKE 'libecpg%' AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
+        },
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'.measurements.stable_task_steps.collect_data.create_trusted_artifact.memory.mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'.measurements.stable_task_steps.collect_data.create_trusted_artifact.memory.mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'.measurements.stable_task_steps.collect_data.create_trusted_artifact.memory.mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'.measurements.stable_task_steps.collect_data.create_trusted_artifact.memory.mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'.measurements.stable_task_steps.collect_data.create_trusted_artifact.memory.mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '.measurements.stable_task_steps.collect_data.create_trusted_artifact.memory.mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}\n    AND $__timeFilter(start)\n    AND label_values->>'.repo_type' LIKE 'libecpg%' AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
+        }
+      ],
+      "title": "${member_cluster} Task/Step memory",
+      "transformations": [],
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0
+      },
+      "id": 35,
+      "title": "Task/Step CPU (mean)",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "insertNulls": 5400000
+          },
+          "min": 0,
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24
+      },
+      "id": 36,
+      "maxPerRow": 4,
+      "pluginVersion": "v11.4.0",
+      "repeat": "member_cluster",
+      "repeatDirection": "h",
+      "targets": [
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'.measurements.stable_task_steps.build_container.build.cpu.mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'.measurements.stable_task_steps.build_container.build.cpu.mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'.measurements.stable_task_steps.build_container.build.cpu.mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'.measurements.stable_task_steps.build_container.build.cpu.mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'.measurements.stable_task_steps.build_container.build.cpu.mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '.measurements.stable_task_steps.build_container.build.cpu.mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}\n    AND $__timeFilter(start)\n    AND label_values->>'.repo_type' LIKE 'libecpg%' AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
+        },
+        {
+          "format": "time_series",
+          "rawSql": "SELECT\n    EXTRACT(EPOCH FROM start) AS \"time\",\n    CASE\n        WHEN '${smoothing}' = '3 hours' THEN AVG((label_values->>'.measurements.stable_task_steps.collect_data.create_trusted_artifact.cpu.mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 hours' PRECEDING)\n        WHEN '${smoothing}' = '12 hours' THEN AVG((label_values->>'.measurements.stable_task_steps.collect_data.create_trusted_artifact.cpu.mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '12 hours' PRECEDING)\n        WHEN '${smoothing}' = '1 day' THEN AVG((label_values->>'.measurements.stable_task_steps.collect_data.create_trusted_artifact.cpu.mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '1 day' PRECEDING)\n        WHEN '${smoothing}' = '3 days' THEN AVG((label_values->>'.measurements.stable_task_steps.collect_data.create_trusted_artifact.cpu.mean')::DOUBLE PRECISION) OVER (ORDER BY start RANGE '3 days' PRECEDING)\n        ELSE (label_values->>'.measurements.stable_task_steps.collect_data.create_trusted_artifact.cpu.mean')::DOUBLE PRECISION\n    END AS \"value\",\n    '.measurements.stable_task_steps.collect_data.create_trusted_artifact.cpu.mean' as \"metric\"\nFROM\n    data\nWHERE\n    horreum_testid = 372\n    AND label_values->>'.metadata.env.MEMBER_CLUSTER' = ${member_cluster}\n    AND $__timeFilter(start)\n    AND label_values->>'.repo_type' LIKE 'libecpg%' AND label_values->>'.results.measurements.KPI.mean' != '-1'\nORDER BY\n    start;\n"
+        }
+      ],
+      "title": "${member_cluster} Task/Step CPU",
+      "transformations": [],
+      "type": "timeseries"
     }
   ],
   "schemaVersion": 39,
