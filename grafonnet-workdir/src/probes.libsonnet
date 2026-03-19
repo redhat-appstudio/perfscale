@@ -1,4 +1,8 @@
 local grafonnet = import 'github.com/grafana/grafonnet/gen/grafonnet-latest/main.libsonnet';
+// Horreum label names for measurements.steps / measurements.tasks (memory/cpu mean).
+// Regenerate from e2e-tests ci-scripts/config/horreum-schema.json when that schema changes:
+//   jq -n --slurpfile s PATH/horreum-schema.json '{ "taskStepMemoryLabels": ([$s[0].labels[] | .name | select((test("^__measurements_steps__") or test("^__measurements_tasks__")) and test("__memory_mean$"))] | sort), "taskStepCpuLabels": ([$s[0].labels[] | .name | select((test("^__measurements_steps__") or test("^__measurements_tasks__")) and test("__cpu_mean$"))] | sort) }' > grafonnet-workdir/src/horreum_task_step_labels.json
+local horreumTaskStepLabels = import 'horreum_task_step_labels.json';
 
 // Just some shortcuts
 local dashboard = grafonnet.dashboard;
@@ -225,16 +229,9 @@ local pieChart = grafonnet.panel.pieChart;
     + pieChart.queryOptions.withTargets([self.errorsPieQuery(testId, extraFilters)]),
 
 
-  // Task/step memory and CPU (measurements.steps from e2e-tests schema; KONFLUX-12064)
-  // Label names = jsonpath with non-alphanumeric -> _ (see e2e-tests config/README.md).
-  taskStepMemoryLabels: [
-    '__measurements_steps_build_build_container_build_memory_mean',
-    '__measurements_steps_managed_collect_data_create_trusted_artifact_memory_mean',
-  ],
-  taskStepCpuLabels: [
-    '__measurements_steps_build_build_container_build_cpu_mean',
-    '__measurements_steps_managed_collect_data_create_trusted_artifact_cpu_mean',
-  ],
+  // Task/step memory and CPU — all Horreum labels for measurements.steps / measurements.tasks (KONFLUX-12064)
+  taskStepMemoryLabels: horreumTaskStepLabels.taskStepMemoryLabels,
+  taskStepCpuLabels: horreumTaskStepLabels.taskStepCpuLabels,
 
   completeDashboard(
     dashboardName='',
