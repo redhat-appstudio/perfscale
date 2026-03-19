@@ -225,14 +225,15 @@ local pieChart = grafonnet.panel.pieChart;
     + pieChart.queryOptions.withTargets([self.errorsPieQuery(testId, extraFilters)]),
 
 
-  // Horreum labels for task/step memory and CPU (stable_task_steps from e2e-tests load-test schema, KONFLUX-12060 / KONFLUX-12065)
+  // Task/step memory and CPU (measurements.steps from e2e-tests schema; KONFLUX-12064)
+  // Label names = jsonpath with non-alphanumeric -> _ (see e2e-tests config/README.md).
   taskStepMemoryLabels: [
-    '.measurements.stable_task_steps.build_container.build.memory.mean',
-    '.measurements.stable_task_steps.collect_data.create_trusted_artifact.memory.mean',
+    '__measurements_steps_build_build_container_build_memory_mean',
+    '__measurements_steps_managed_collect_data_create_trusted_artifact_memory_mean',
   ],
   taskStepCpuLabels: [
-    '.measurements.stable_task_steps.build_container.build.cpu.mean',
-    '.measurements.stable_task_steps.collect_data.create_trusted_artifact.cpu.mean',
+    '__measurements_steps_build_build_container_build_cpu_mean',
+    '__measurements_steps_managed_collect_data_create_trusted_artifact_cpu_mean',
   ],
 
   completeDashboard(
