@@ -225,12 +225,15 @@ local pieChart = grafonnet.panel.pieChart;
     + pieChart.queryOptions.withTargets([self.errorsPieQuery(testId, extraFilters)]),
 
 
-  // Task/step memory and CPU: build-container/build only (add more when present in pipeline; KONFLUX-12064)
+  // Task/step memory and CPU (measurements.steps from e2e-tests schema; KONFLUX-12064)
+  // Label names = jsonpath with non-alphanumeric -> _ (see e2e-tests config/README.md).
   taskStepMemoryLabels: [
-    '__measurements_stable_task_steps_build_container_build_memory_mean',
+    '__measurements_steps_build_build_container_build_memory_mean',
+    '__measurements_steps_managed_collect_data_create_trusted_artifact_memory_mean',
   ],
   taskStepCpuLabels: [
-    '__measurements_stable_task_steps_build_container_build_cpu_mean',
+    '__measurements_steps_build_build_container_build_cpu_mean',
+    '__measurements_steps_managed_collect_data_create_trusted_artifact_cpu_mean',
   ],
 
   completeDashboard(
