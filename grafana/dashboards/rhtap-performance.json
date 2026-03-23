@@ -2173,7 +2173,7 @@
             {
               "editorMode": "code",
               "exemplar": true,
-              "expr": "topk(10, count(kube_deployment_labels{}) by (namespace))",
+              "expr": "topk(10,sum(kube_resourcequota{  type=\"used\"} / ignoring(type) ( kube_resourcequota{ type=\"hard\"} > 0)) by (resource,namespace) > 0.8)",
               "interval": "",
               "legendFormat": "{{namespace}}",
               "range": true,
