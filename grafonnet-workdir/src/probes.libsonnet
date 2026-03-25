@@ -1,7 +1,8 @@
 local grafonnet = import 'github.com/grafana/grafonnet/gen/grafonnet-latest/main.libsonnet';
-// Horreum label names for measurements.steps / measurements.taskruns (memory/cpu mean).
+// Horreum label names for measurements.taskruns only (memory/cpu mean) — Grafana panels avoid
+// __measurements_steps__* noise (KONFLUX-12065); step data remains in Horreum/PostgreSQL.
 // Regenerate from e2e-tests ci-scripts/config/horreum-schema.json when that schema changes:
-//   jq -n --slurpfile s PATH/horreum-schema.json '{ "taskStepMemoryLabels": ([$s[0].labels[] | .name | select((test("^__measurements_steps__") or test("^__measurements_taskruns__")) and test("__memory_mean$"))] | sort), "taskStepCpuLabels": ([$s[0].labels[] | .name | select((test("^__measurements_steps__") or test("^__measurements_taskruns__")) and test("__cpu_mean$"))] | sort) }' > grafonnet-workdir/src/horreum_task_step_labels.json
+//   jq -n --slurpfile s PATH/horreum-schema.json '{ "taskStepMemoryLabels": ([$s[0].labels[] | .name | select(test("^__measurements_taskruns__") and test("__memory_mean$"))] | sort), "taskStepCpuLabels": ([$s[0].labels[] | .name | select(test("^__measurements_taskruns__") and test("__cpu_mean$"))] | sort) }' > grafonnet-workdir/src/horreum_task_step_labels.json
 local horreumTaskStepLabels = import 'horreum_task_step_labels.json';
 
 // Just some shortcuts
@@ -229,7 +230,7 @@ local pieChart = grafonnet.panel.pieChart;
     + pieChart.queryOptions.withTargets([self.errorsPieQuery(testId, extraFilters)]),
 
 
-  // Task/step memory and CPU — all Horreum labels for measurements.steps / measurements.taskruns (KONFLUX-12064)
+  // Task run memory and CPU — Horreum labels for measurements.taskruns only (KONFLUX-12065)
   taskStepMemoryLabels: horreumTaskStepLabels.taskStepMemoryLabels,
   taskStepCpuLabels: horreumTaskStepLabels.taskStepCpuLabels,
 
@@ -299,11 +300,11 @@ local pieChart = grafonnet.panel.pieChart;
       self.durationsPanel(testId, [i + 'passed_idle_mean' for i in platformTaskRunStubs], 's', 'Idle duration by platform task run', extraFilters=extraFilters),
       row.new('Count of platform task runs'),
       self.durationsPanel(testId, [i + 'passed_duration_samples' for i in platformTaskRunStubs], 'none', 'Count of platform task runs', extraFilters=extraFilters),
-      // Task/Step memory and CPU (KONFLUX-12060 / KONFLUX-12065)
-      row.new('Task/Step memory (mean)'),
-      self.durationsPanel(testId, self.taskStepMemoryLabels, 'bytes', 'Task/Step memory', extraFilters=extraFilters),
-      row.new('Task/Step CPU (mean)'),
-      self.durationsPanel(testId, self.taskStepCpuLabels, 'short', 'Task/Step CPU', extraFilters=extraFilters),
+      // Task run memory and CPU — taskruns only per KONFLUX-12065 (steps remain in Horreum, not graphed here)
+      row.new('Task run memory (mean)'),
+      self.durationsPanel(testId, self.taskStepMemoryLabels, 'bytes', 'Task run memory', extraFilters=extraFilters),
+      row.new('Task run CPU (mean)'),
+      self.durationsPanel(testId, self.taskStepCpuLabels, 'short', 'Task run CPU', extraFilters=extraFilters),
     ]),
 
 }
