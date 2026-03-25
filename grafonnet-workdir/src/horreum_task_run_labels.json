@@ -1,5 +1,5 @@
 {
-  "taskStepMemoryLabels": [
+  "taskRunMemoryLabels": [
     "__measurements_taskruns__build_apply_tags__memory_mean",
     "__measurements_taskruns__build_build_image_index__memory_mean",
     "__measurements_taskruns__build_buildah_oci_ta__memory_mean",
@@ -31,7 +31,7 @@
     "__measurements_taskruns__managed_verify_conforma_konflux_ta__memory_mean",
     "__measurements_taskruns__test_test_output__memory_mean"
   ],
-  "taskStepCpuLabels": [
+  "taskRunCpuLabels": [
     "__measurements_taskruns__build_apply_tags__cpu_mean",
     "__measurements_taskruns__build_build_image_index__cpu_mean",
     "__measurements_taskruns__build_buildah_oci_ta__cpu_mean",
