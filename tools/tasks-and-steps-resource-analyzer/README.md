@@ -218,6 +218,12 @@ Resource Limit Analysis Tool
 
 The `analyze_resource_limits.py` script analyzes resource consumption data and provides recommendations for Kubernetes resource limits with advanced features like caching, comparison tables, and patch file generation.
 
+**YAML steps vs. observability data**
+
+When you use `--file`, the confirmation prompt lists **every** step from the Task YAML. Tables and recommendations, however, include **only steps that had at least one usable Prometheus sample** for `container="step-<name>"` in the analysis window (`--days`). If a YAML step has no matching usage data, the tool prints a **WARNING** on stderr with those step names, and records them in the **`steps_without_observability_data`** field in the analyzed-data and comparison JSON (with a short notice in the generated HTML). Typical reasons: TaskRuns resolved to older bundles without that step, no pods in the window, or a remote StepAction whose runtime container name does not match `step-<metadata.name>`.
+
+Step names that **contain** the substring `step-` in the middle (for example `fips-operator-check-step-action`) are normalized by removing **only** the leading Tekton `step-` prefix, not every `step-` substring—so names are not corrupted when matching YAML to metrics.
+
 **Features:**
 
 **Major Features:**
@@ -228,6 +234,7 @@ The `analyze_resource_limits.py` script analyzes resource consumption data and p
 
 **Core Features:**
 - **Automatic Data Collection**: Can extract task/step info from YAML and automatically run data collection
+- **Missing-step visibility**: If YAML declares steps with no observability data in the run, stderr WARNING plus `steps_without_observability_data` in saved JSON/HTML
 - **Caching System**: Recommendations are cached, allowing review before applying changes
 - **Comparison Tables**: Shows current vs proposed resource limits side-by-side
 - **HTML Output for Trend Analysis**: Automatically generates HTML files with timestamped filenames:
