@@ -17,6 +17,7 @@ Usage:
 import argparse
 import csv
 import hashlib
+import html
 import json
 import os
 import re
@@ -117,6 +118,47 @@ def extract_task_info(yaml_content):
     return task_name, steps, default_resources, current_resources
 
 
+def normalize_step_name_for_compare(name):
+    """Strip Tekton step- prefix so YAML names match CSV step column."""
+    if not name:
+        return ''
+    s = str(name).strip()
+    if s.startswith('step-'):
+        return s[5:]
+    return s
+
+
+def compute_steps_missing_observability(declared_steps, by_step):
+    """Declared YAML steps that have no rows in aggregated observability data.
+
+    Args:
+        declared_steps: Iterable of step names as in YAML (with or without step- prefix)
+        by_step: defaultdict or dict keyed by step name as in CSV (no step- prefix)
+
+    Returns:
+        Sorted list of step names (no step- prefix) missing from data.
+    """
+    declared = {normalize_step_name_for_compare(s) for s in (declared_steps or []) if normalize_step_name_for_compare(s)}
+    seen = set(by_step.keys()) if by_step else set()
+    return sorted(declared - seen)
+
+
+def _html_steps_missing_observability_banner(steps_missing):
+    """HTML notice when YAML declares steps that did not appear in aggregated metrics."""
+    if not steps_missing:
+        return ''
+    items = '\n'.join(f'        <li>{html.escape(s)}</li>' for s in steps_missing)
+    return (
+        '    <div style="background:#fff3cd;border:1px solid #ffc107;padding:12px 16px;margin:16px 0;border-radius:4px;">\n'
+        '        <strong>Steps in YAML with no observability data in this run</strong>\n'
+        f'        <ul style="margin:8px 0 0 16px;">{items}\n        </ul>\n'
+        '        <p style="margin:8px 0 0 0;font-size:0.95em;color:#555;">'
+        'Recommendations only include steps with Prometheus samples for '
+        '<code>container=&quot;step-&lt;name&gt;&quot;</code> in the analysis window.</p>\n'
+        '    </div>\n'
+    )
+
+
 def read_wrapper_config(wrapper_path):
     """Read TASK_NAME and STEPS from wrapper script.
     
@@ -156,7 +198,7 @@ def read_wrapper_config(wrapper_path):
                     if steps_str:
                         # Split by space and remove 'step-' prefix
                         steps_list = [
-                            s.replace('step-', '') if s.startswith('step-') else s
+                            normalize_step_name_for_compare(s)
                             for s in steps_str.split()
                         ]
         
@@ -1032,7 +1074,7 @@ def print_comparison_table(recommendations, current_resources=None, task_name=No
         
         step_name = rec['step_name']
         # Convert step-build to build for matching
-        step_name_yaml = step_name.replace('step-', '') if step_name.startswith('step-') else step_name
+        step_name_yaml = normalize_step_name_for_compare(step_name)
         proposed_mem = rec['mem_recommended_k8s']
         proposed_cpu = rec['cpu_recommended_k8s']
         
@@ -1479,7 +1521,7 @@ def save_comparison_table_to_html(recommendations, current_resources, task_name,
             continue
         
         step_name = rec['step_name']
-        step_name_yaml = step_name.replace('step-', '') if step_name.startswith('step-') else step_name
+        step_name_yaml = normalize_step_name_for_compare(step_name)
         proposed_mem = rec['mem_recommended_k8s']
         proposed_cpu = rec['cpu_recommended_k8s']
         
@@ -1608,13 +1650,14 @@ def check_comparison_file_exists_for_margin(task_name, date_str, margin_pct):
     return len(matching_files) > 0
 
 
-def save_analyzed_data(task_name, csv_data, date_str):
+def save_analyzed_data(task_name, csv_data, date_str, steps_without_observability_data=None):
     """Save analyzed data (CSV) as HTML and JSON files.
     
     Args:
         task_name: Task name
         csv_data: CSV data string
         date_str: Date string in YYYYMMDD format
+        steps_without_observability_data: Optional list of YAML step names with no Prometheus rows
     
     Returns:
         tuple: (html_path, json_path) - paths to saved files
@@ -1637,6 +1680,7 @@ def save_analyzed_data(task_name, csv_data, date_str):
         if rows:
             headers = [h.strip().strip('"') for h in rows[0]]
             data_rows = rows[1:] if len(rows) > 1 else []
+            banner_html = _html_steps_missing_observability_banner(steps_without_observability_data)
             
             html_content = f"""<!DOCTYPE html>
 <html lang="en">
@@ -1733,7 +1777,7 @@ def save_analyzed_data(task_name, csv_data, date_str):
 <body>
     <h1>Resource Usage Data - {task_name}</h1>
     <div class="info">Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
-    <table id="dataTable">
+{banner_html}    <table id="dataTable">
         <thead>
             <tr>
 """
@@ -1769,7 +1813,8 @@ def save_analyzed_data(task_name, csv_data, date_str):
         'task_name': task_name,
         'date': date_str,
         'timestamp': datetime.now().isoformat(),
-        'csv_data': csv_data
+        'csv_data': csv_data,
+        'steps_without_observability_data': list(steps_without_observability_data or []),
     }
     
     with open(json_path, 'w', encoding='utf-8') as f:
@@ -2016,7 +2061,8 @@ def split_existing_detailed_per_step_json_to_per_step_files(json_path):
     return result_paths
 
 
-def save_comparison_data_all_bases(task_name, all_recommendations_by_base, current_resources, margin_pct, date_str, use_timestamp=False):
+def save_comparison_data_all_bases(task_name, all_recommendations_by_base, current_resources, margin_pct, date_str, use_timestamp=False,
+                                    steps_without_observability_data=None):
     """Save comparison data for all base metrics as HTML and JSON.
     
     Args:
@@ -2026,6 +2072,7 @@ def save_comparison_data_all_bases(task_name, all_recommendations_by_base, curre
         margin_pct: Margin percentage used
         date_str: Date string in YYYYMMDD format
         use_timestamp: If True, add timestamp to filename (used when re-analysis happens in Phase 1)
+        steps_without_observability_data: Optional list of YAML steps with no Prometheus rows (Phase 1 only)
     
     Returns:
         tuple: (html_path, json_path) - paths to saved files
@@ -2040,6 +2087,7 @@ def save_comparison_data_all_bases(task_name, all_recommendations_by_base, curre
         html_path = get_date_based_file_path(task_name, 'comparison_data', date_str, margin_pct=margin_pct).with_suffix('.html')
         json_path = get_date_based_file_path(task_name, 'comparison_data', date_str, margin_pct=margin_pct).with_suffix('.json')
     
+    banner_cmp = _html_steps_missing_observability_banner(steps_without_observability_data or [])
     # Generate HTML with separate tables for each base metric
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
@@ -2098,6 +2146,7 @@ def save_comparison_data_all_bases(task_name, all_recommendations_by_base, curre
     <div class="info">Task: {task_name}</div>
     <div class="info">Margin: {margin_pct}%</div>
     <div class="info">Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
+{banner_cmp}
 """
     
     # Generate table for each base metric
@@ -2127,7 +2176,7 @@ def save_comparison_data_all_bases(task_name, all_recommendations_by_base, curre
                 continue
             
             step_name = rec['step_name']
-            step_name_yaml = step_name.replace('step-', '') if step_name.startswith('step-') else step_name
+            step_name_yaml = normalize_step_name_for_compare(step_name)
             proposed_mem = rec['mem_recommended_k8s']
             proposed_cpu = rec['cpu_recommended_k8s']
             
@@ -2176,7 +2225,8 @@ def save_comparison_data_all_bases(task_name, all_recommendations_by_base, curre
         'date': date_str,
         'timestamp': datetime.now().isoformat(),
         'margin_pct': margin_pct,
-        'recommendations_by_base': all_recommendations_by_base
+        'recommendations_by_base': all_recommendations_by_base,
+        'steps_without_observability_data': list(steps_without_observability_data or []),
     }
     
     with open(json_path, 'w', encoding='utf-8') as f:
@@ -2771,7 +2821,7 @@ def update_yaml_file(yaml_path, recommendations, original_yaml, file_path_or_url
         cpu_k8s = rec['cpu_recommended_k8s']
         
         # Convert "step-build" to "build" for YAML matching
-        step_name_yaml = step_name_csv.replace('step-', '') if step_name_csv.startswith('step-') else step_name_csv
+        step_name_yaml = normalize_step_name_for_compare(step_name_csv)
         step_updates[step_name_yaml] = {'memory': mem_k8s, 'cpu': cpu_k8s}
     
     if not step_updates:
@@ -3406,9 +3456,13 @@ Examples:
                     for base in ['max', 'p95', 'p90', 'median']:
                         all_recommendations_by_base[base].append(step_all_bases[base])
             
+            steps_missing_obs = analyzed_data.get('steps_without_observability_data')
+            if steps_missing_obs is None:
+                steps_missing_obs = compute_steps_missing_observability(file_steps, by_step)
             # Save comparison data with new margin (no timestamp since no re-analysis)
             html_path, json_path = save_comparison_data_all_bases(
-                task_name, all_recommendations_by_base, current_resources, args.margin, analysis_date, use_timestamp=False
+                task_name, all_recommendations_by_base, current_resources, args.margin, analysis_date, use_timestamp=False,
+                steps_without_observability_data=steps_missing_obs,
             )
             print(f"Created comparison files for margin {args.margin}%:", file=sys.stderr)
             print(f"  - {html_path}", file=sys.stderr)
@@ -3553,11 +3607,10 @@ Examples:
             print("="*80, file=sys.stderr)
             sys.exit(0)
         
-        # Convert final_steps to list without 'step-' prefix for collection (step names in reports stay without prefix)
-        steps_for_collection = [
-            s.replace('step-', '') if s.startswith('step-') else s 
-            for s in final_steps
-        ]
+        # Convert final_steps to list without leading 'step-' prefix for collection (step names in reports stay
+        # without prefix). Use prefix-only strip — do not use str.replace('step-',''), names like
+        # step-fips-operator-check-step-action contain 'step-' inside the suffix and would be corrupted.
+        steps_for_collection = [normalize_step_name_for_compare(s) for s in final_steps]
         
         # Single source of truth: collect detailed per-pod data, then derive CSV for analysis
         parallel_workers = args.pll_clusters if args.pll_clusters and not args.update else None
@@ -3632,6 +3685,23 @@ Examples:
         if step:
             by_step[step].append(row)
     
+    steps_missing_obs = []
+    if steps:
+        steps_missing_obs = compute_steps_missing_observability(steps, by_step)
+        if steps_missing_obs:
+            print("", file=sys.stderr)
+            print("=" * 80, file=sys.stderr)
+            print("WARNING: YAML step(s) with no observability data in this run", file=sys.stderr)
+            print("=" * 80, file=sys.stderr)
+            for s in steps_missing_obs:
+                print(f"  - {s}", file=sys.stderr)
+            print("", file=sys.stderr)
+            print("Recommendations and aggregate tables only include steps with at least one", file=sys.stderr)
+            print("Prometheus sample for container=\"step-<name>\" in the analysis window.", file=sys.stderr)
+            print("Common causes: TaskRuns using older bundles without that step; git-resolved", file=sys.stderr)
+            print("StepAction with a different runtime container name; or no pods in --days.", file=sys.stderr)
+            print("=" * 80, file=sys.stderr)
+    
     # Phase 1: Analyze each step for ALL base metrics (ignore --base flag)
     # Note: --base is ignored in Phase 1, all metrics (max, p95, p90, median) are generated
     all_recommendations_by_base = {'max': [], 'p95': [], 'p90': [], 'median': []}
@@ -3652,7 +3722,9 @@ Examples:
     analyzed_html_path = None
     analyzed_json_path = None
     if file_path_or_url and task_name and csv_data:
-        analyzed_html_path, analyzed_json_path = save_analyzed_data(task_name, csv_data, date_str)
+        analyzed_html_path, analyzed_json_path = save_analyzed_data(
+            task_name, csv_data, date_str, steps_without_observability_data=steps_missing_obs
+        )
         print(f"\nSaved analyzed data:", file=sys.stderr)
         print(f"  - {analyzed_html_path}", file=sys.stderr)
         print(f"  - {analyzed_json_path}", file=sys.stderr)
@@ -3662,7 +3734,8 @@ Examples:
     comparison_json_path = None
     if file_path_or_url and task_name:
         comparison_html_path, comparison_json_path = save_comparison_data_all_bases(
-            task_name, all_recommendations_by_base, current_resources, args.margin, date_str, use_timestamp=analyzed_files_exist
+            task_name, all_recommendations_by_base, current_resources, args.margin, date_str,
+            use_timestamp=analyzed_files_exist, steps_without_observability_data=steps_missing_obs
         )
         print(f"\nSaved comparison data (all base metrics, margin={args.margin}%):", file=sys.stderr)
         print(f"  - {comparison_html_path}", file=sys.stderr)
@@ -3696,6 +3769,12 @@ Examples:
         print_analysis(all_recommendations_by_base['max'], args.margin, 'max', current_resources, task_name, save_comparison_html=False)
     
     print(f"\nPhase 1 (Analysis) completed. All base metrics (max, p95, p90, median) have been generated.", file=sys.stderr)
+    if steps_missing_obs:
+        print(
+            f"Note: {len(steps_missing_obs)} YAML step(s) had no observability data (see WARNING above; "
+            f"also steps_without_observability_data in saved JSON).",
+            file=sys.stderr,
+        )
     print(f"Run Phase 2 (--update) with --file to view recommendations for a specific base metric.", file=sys.stderr)
 
 
