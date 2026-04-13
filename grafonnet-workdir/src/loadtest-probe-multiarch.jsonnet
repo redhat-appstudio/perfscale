@@ -77,10 +77,10 @@ local platformTaskRunStubs = [
 
 probes.completeDashboard(
   dashboardName='Konflux clusters loadtest multi-arch probe results',
-  dashboardDescription='Dashboard visualizes Konflux clusters loadtest probe results. Related Horreum test is https://horreum.corp.redhat.com/test/372 with filter by label `.repo_type = nodejs-devfile-sample`.',
+  dashboardDescription='Dashboard visualizes Konflux clusters loadtest probe results. Related Horreum test is https://horreum.corp.redhat.com/test/372 with filter by label `.parameters.options.ComponentRepoUrl ~ nodejs-devfile-sample`.',
   dashboardUid='Konflux_clusters_loadtest_multi_arch_pr',
   testId=372,
-  repoType='nodejs-devfile-sample',
+  componentRepoUrl='%/nodejs-devfile-sample%',
   templatingDir='MultiArchLike',
   memberClusters=memberClusters,
   testPhaseStubs=testPhaseStubs,

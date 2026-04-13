@@ -239,21 +239,21 @@ local pieChart = grafonnet.panel.pieChart;
     dashboardUid='',
     dashboardDescription='',
     testId=0,
-    repoType='',
+    componentRepoUrl='',
     templatingDir='',
     memberClusters=[],
     testPhaseStubs=[],
     taskRunStubs=[],
     platformTaskRunStubs=[],
   )::
-    local repoTypeFilter = if std.findSubstr('%', repoType) == [] then "label_values->>'.repo_type' = '%s'" % [repoType] else "label_values->>'.repo_type' LIKE '%s'" % [repoType];
+    local componentRepoUrlFilter = if std.findSubstr('%', componentRepoUrl) == [] then "label_values->>'.parameters.options.ComponentRepoUrl' = '%s'" % [componentRepoUrl] else "label_values->>'.parameters.options.ComponentRepoUrl' LIKE '%s'" % [componentRepoUrl];
     local passingFilter = "label_values->>'.results.measurements.KPI.mean' != '-1'";
     local templatingDirFilter =
       if templatingDir == 'SingleArchLike' then
         "(label_values->>'__parameters_options_PipelineRepoTemplatingSourceDir' IS NULL OR label_values->>'__parameters_options_PipelineRepoTemplatingSourceDir' = '' OR label_values->>'__parameters_options_PipelineRepoTemplatingSourceDir' = 'nodejs-devfile-sample-test/' OR label_values->>'__parameters_options_PipelineRepoTemplatingSourceDir' = 'nodejs-devfile-sample-SingleArch/')"
       else if templatingDir == 'MultiArchLike' then
         "(label_values->>'__parameters_options_PipelineRepoTemplatingSourceDir' = 'nodejs-devfile-sample-MultiArch/' OR label_values->>'__parameters_options_PipelineRepoTemplatingSourceDir' = 'nodejs-devfile-sample-MultiArch-only-ARM-and-AMD/')" else '';
-    local extraFilters = [repoTypeFilter, passingFilter, templatingDirFilter];
+    local extraFilters = [componentRepoUrlFilter, passingFilter, templatingDirFilter];
     dashboard.new(dashboardName)
     + dashboard.withUid(dashboardUid)
     + dashboard.withDescription(dashboardDescription)

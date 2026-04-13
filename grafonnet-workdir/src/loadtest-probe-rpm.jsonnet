@@ -58,10 +58,10 @@ local platformTaskRunStubs = [
 
 probes.completeDashboard(
   dashboardName='Konflux clusters loadtest RPM probe results',
-  dashboardDescription='Dashboard visualizes Konflux clusters loadtest RPM probe results. Related Horreum test is https://horreum.corp.redhat.com/test/372 with filter by label `.repo_type = libecpg*`.',
+  dashboardDescription='Dashboard visualizes Konflux clusters loadtest RPM probe results. Related Horreum test is https://horreum.corp.redhat.com/test/372 with filter by label `.parameters.options.ComponentRepoUrl ~ libecpg*`.',
   dashboardUid='Konflux_clusters_loadtest_RPM_probe_res',
   testId=372,
-  repoType='libecpg%',
+  componentRepoUrl='%/libecpg%',
   memberClusters=memberClusters,
   testPhaseStubs=testPhaseStubs,
   taskRunStubs=taskRunStubs,
