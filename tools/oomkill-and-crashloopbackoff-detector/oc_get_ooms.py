@@ -29,6 +29,9 @@ import sys
 import time
 import logging
 import glob
+import atexit
+import shutil
+import tempfile
 from datetime import datetime, timezone, date
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -78,6 +81,11 @@ TIME_WINDOWS = {
 DEFAULT_RETRIES = 3
 DEFAULT_OC_TIMEOUT = 45  # seconds
 RETRY_DELAY_SECONDS = 3
+
+# konflux-release-data (CODEOWNERS for namespace owners); same default as oom_logs_and_desc_bundle_generator
+KONFLUX_RELEASE_DATA_REPO = "git@gitlab.cee.redhat.com:releng/konflux-release-data.git"
+_CODEOWNERS_TEMP_DIR: Optional[str] = None
+_CODEOWNERS_ATEXIT_REGISTERED = False
 DEFAULT_NS_BATCH_SIZE = 10
 DEFAULT_NS_WORKERS = 5
 DEFAULT_BATCH_SIZE = 2
@@ -2274,6 +2282,64 @@ def _load_historical_rows_from_output_dir(output_dir: Path) -> List[Dict[str, st
     return historical
 
 
+def _cleanup_codeowners_temp_dir() -> None:
+    global _CODEOWNERS_TEMP_DIR
+    if _CODEOWNERS_TEMP_DIR:
+        shutil.rmtree(_CODEOWNERS_TEMP_DIR, ignore_errors=True)
+        _CODEOWNERS_TEMP_DIR = None
+
+
+def resolve_codeowners_dir(cli_arg: Optional[str]) -> Optional[Path]:
+    """
+    If cli_arg points to an existing directory, use it as konflux-release-data.
+    Otherwise shallow-clone KONFLUX_RELEASE_DATA_REPO to a temp directory (cleaned on exit)
+    and return that path. Returns None if clone fails or cli_arg is a non-directory path.
+    """
+    global _CODEOWNERS_TEMP_DIR, _CODEOWNERS_ATEXIT_REGISTERED
+
+    if cli_arg and cli_arg.strip():
+        p = Path(cli_arg.strip()).expanduser().resolve()
+        if p.is_dir():
+            return p
+        print(color(f"WARNING: --codeowners-dir is not a directory: {p}", YELLOW))
+        return None
+
+    if _CODEOWNERS_TEMP_DIR:
+        cached = Path(_CODEOWNERS_TEMP_DIR)
+        if cached.is_dir():
+            return cached
+
+    tmp = tempfile.mkdtemp(prefix="konflux-release-data-")
+    try:
+        r = subprocess.run(
+            ["git", "clone", "--depth", "1", "-q", KONFLUX_RELEASE_DATA_REPO, tmp],
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+        if r.returncode != 0:
+            detail = (r.stderr or r.stdout or "").strip() or "git clone failed"
+            logging.warning("CODEOWNERS: could not clone konflux-release-data: %s", detail)
+            shutil.rmtree(tmp, ignore_errors=True)
+            return None
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
+        logging.warning("CODEOWNERS: clone konflux-release-data failed: %s", e)
+        shutil.rmtree(tmp, ignore_errors=True)
+        return None
+
+    _CODEOWNERS_TEMP_DIR = tmp
+    if not _CODEOWNERS_ATEXIT_REGISTERED:
+        atexit.register(_cleanup_codeowners_temp_dir)
+        _CODEOWNERS_ATEXIT_REGISTERED = True
+    print(
+        color(
+            f"Cloned konflux-release-data for CODEOWNERS lookups (temp: {tmp})",
+            BLUE,
+        )
+    )
+    return Path(tmp)
+
+
 def _get_owners_for_namespace(codeowners_dir: Path, cluster: str, namespace: str) -> List[str]:
     """Get owner @usernames for (cluster, namespace) from CODEOWNERS. Returns list of @user."""
     if not codeowners_dir or not codeowners_dir.is_dir():
@@ -2475,13 +2541,15 @@ Output:
   - oom_results.table      Human-readable table format
   - oom_results.html       Standalone HTML report (open in browser)
   At the end, a per-pod summary is printed (same format as
-  oom_logs_and_desc_bundle_generator); use -c to include CODEOWNERS owners.
+  oom_logs_and_desc_bundle_generator). CODEOWNERS owners are resolved by shallow-cloning
+  konflux-release-data to a temp directory when -c is omitted, or by using -c DIR.
   Then, for each pod in the summary, date-wise tarballs are generated (same as
   running oom_logs_and_desc_bundle_generator -p <pod> -d <output> for each pod).
   Use --no-tarballs to skip tarball generation.
 
-  -c, --codeowners-dir DIR  Path to konflux-release-data (CODEOWNERS, staging/CODEOWNERS).
-                            If set, per-pod summary shows namespace owner (name + email via glab).
+  -c, --codeowners-dir DIR  Path to an existing konflux-release-data checkout. If omitted, the
+                            script shallow-clones releng/konflux-release-data to a temp dir (requires
+                            git + network/SSH). Per-pod summary shows owner (name + email via glab).
 
   --no-tarballs            Do not generate per-pod tarballs after the run (default: generate tarballs).
 
@@ -2828,7 +2896,7 @@ def main() -> None:
         mtime = main_csv.stat().st_mtime
         run_date_str = datetime.fromtimestamp(mtime).strftime("%d-%b-%Y")
         current_run_rows = _read_csv_rows_with_date(main_csv, run_date_str)
-        codeowners_path = Path(codeowners_dir) if codeowners_dir else None
+        codeowners_path = resolve_codeowners_dir(codeowners_dir)
         print_per_pod_summary(
             current_run_rows, run_date_str,
             output_dir=out_dir,
@@ -3004,7 +3072,7 @@ def main() -> None:
     current_run_rows = collect_rows(results, "")
     for row in current_run_rows:
         row["date"] = run_date_str
-    codeowners_path = Path(codeowners_dir) if codeowners_dir else None
+    codeowners_path = resolve_codeowners_dir(codeowners_dir)
     print_per_pod_summary(
         current_run_rows, run_date_str,
         output_dir=output_dir,
