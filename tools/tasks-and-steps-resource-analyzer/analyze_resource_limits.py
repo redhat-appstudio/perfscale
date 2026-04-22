@@ -159,6 +159,346 @@ def _html_steps_missing_observability_banner(steps_missing):
     )
 
 
+# ---------------------------------------------------------------------------
+# Finding 2: Cluster data coverage window
+# ---------------------------------------------------------------------------
+
+def compute_cluster_coverage_report(detailed_executions, days_requested):
+    """Compute the actual data coverage window per cluster from collected executions.
+
+    Returns a dict keyed by cluster display name:
+        {cluster: {'oldest_date': str, 'days_covered': float, 'meets_requested': bool, 'pod_count': int}}
+    """
+    if not detailed_executions:
+        return {}
+
+    import math
+    now = datetime.now()
+    by_cluster = defaultdict(list)
+    for e in detailed_executions:
+        cluster = e.get('cluster', 'unknown')
+        ts = e.get('timestamp', '')
+        if ts:
+            by_cluster[cluster].append(ts)
+
+    report = {}
+    for cluster, timestamps in by_cluster.items():
+        valid_ts = []
+        for ts in timestamps:
+            try:
+                dt = datetime.strptime(ts, '%Y-%m-%d %H:%M:%S')
+                valid_ts.append(dt)
+            except (ValueError, TypeError):
+                pass
+        if not valid_ts:
+            continue
+        oldest = min(valid_ts)
+        days_covered = (now - oldest).total_seconds() / 86400.0
+        report[cluster] = {
+            'oldest_date': oldest.strftime('%Y-%m-%d %H:%M:%S'),
+            'days_covered': round(days_covered, 1),
+            'meets_requested': days_covered >= (days_requested * 0.9),  # 10% tolerance
+            'pod_count': len(timestamps),
+        }
+    return report
+
+
+def _html_cluster_coverage_banner(coverage_report, days_requested):
+    """HTML banner showing actual data coverage per cluster."""
+    if not coverage_report:
+        return ''
+
+    rows = ''
+    has_warning = False
+    for cluster in sorted(coverage_report.keys()):
+        info = coverage_report[cluster]
+        days = info['days_covered']
+        meets = info['meets_requested']
+        oldest = info['oldest_date']
+        pods = info['pod_count']
+        if not meets:
+            has_warning = True
+            icon = '&#9888;'  # warning triangle
+            row_style = 'color:#856404;background:#fff3cd;'
+        else:
+            icon = '&#10003;'  # check mark
+            row_style = 'color:#155724;'
+        rows += (
+            f'<tr style="{row_style}">'
+            f'<td style="padding:4px 10px;">{html.escape(cluster)}</td>'
+            f'<td style="padding:4px 10px;">{icon} {days:.1f} days</td>'
+            f'<td style="padding:4px 10px;">{oldest}</td>'
+            f'<td style="padding:4px 10px;">{pods}</td>'
+            f'</tr>\n'
+        )
+
+    border_color = '#ffc107' if has_warning else '#28a745'
+    bg_color = '#fff3cd' if has_warning else '#d4edda'
+    heading = (
+        f'&#9888; Some clusters returned less data than the requested {days_requested} days — '
+        'statistics may under-represent rare heavy workloads on those clusters.'
+        if has_warning else
+        f'&#10003; All clusters returned data covering the full {days_requested}-day window.'
+    )
+
+    return (
+        f'    <div style="background:{bg_color};border:1px solid {border_color};padding:12px 16px;'
+        f'margin:16px 0;border-radius:4px;">\n'
+        f'        <strong>Cluster Data Coverage Report</strong> (requested: {days_requested} days)<br>\n'
+        f'        <em style="font-size:0.9em;color:#555;">{heading}</em>\n'
+        f'        <table style="margin-top:8px;border-collapse:collapse;font-size:0.9em;">\n'
+        f'          <tr style="font-weight:bold;">'
+        f'<td style="padding:4px 10px;">Cluster</td>'
+        f'<td style="padding:4px 10px;">Coverage</td>'
+        f'<td style="padding:4px 10px;">Oldest Data Point</td>'
+        f'<td style="padding:4px 10px;">Pod Executions</td></tr>\n'
+        f'{rows}'
+        f'        </table>\n'
+        f'    </div>\n'
+    )
+
+
+# ---------------------------------------------------------------------------
+# Finding 3: Scrape-interval transparency and heavy-tail warnings
+# ---------------------------------------------------------------------------
+
+def _html_scrape_interval_note():
+    """HTML advisory about Prometheus scrape interval and sub-scrape memory spikes."""
+    return (
+        '    <div style="background:#e8f4fd;border:1px solid #90caf9;padding:12px 16px;'
+        'margin:16px 0;border-radius:4px;">\n'
+        '        <strong>&#8505; Prometheus Scrape Interval Notice</strong>\n'
+        '        <p style="margin:8px 0 0 0;font-size:0.95em;color:#333;">'
+        'Memory values are the <em>maximum of all scraped samples</em> within the analysis window. '
+        'The Prometheus scrape interval for <code>container_memory_working_set_bytes</code> is '
+        'typically <strong>15&ndash;30 seconds</strong> on Konflux clusters. A transient memory spike '
+        'that resolves faster than one scrape interval (e.g. a brief image-decompression burst) '
+        'will <strong>not</strong> appear in the data. Steps that perform large, short-lived memory '
+        'allocations (image pulls, decompression, GC) may have actual peak usage higher than reported. '
+        'For long-term improvement, Splunk-archived metrics at higher resolution can be used to '
+        'cross-check Prometheus data.</p>\n'
+        '    </div>\n'
+    )
+
+
+def compute_heavy_tail_warnings(all_recommendations_by_base):
+    """Return per-step heavy-tail warnings when max/p95 ratio exceeds threshold.
+
+    Returns a list of dicts:
+        [{'step': str, 'mem_max_mb': float, 'mem_p95_mb': float, 'ratio': float,
+          'p99_mb': float (if available), 'cpu_max': float, 'cpu_p95': float}]
+    """
+    RATIO_WARN = 3.0
+    warnings = []
+    max_recs = all_recommendations_by_base.get('max', [])
+    p95_recs = all_recommendations_by_base.get('p95', [])
+
+    p95_by_step = {r['step_name']: r for r in p95_recs if r}
+    for rec in max_recs:
+        if not rec:
+            continue
+        step = rec['step_name']
+        mem_max = rec.get('mem_max_max', 0)
+        p95_rec = p95_by_step.get(step)
+        mem_p95 = p95_rec.get('mem_p95_max', 0) if p95_rec else rec.get('mem_p95_max', 0)
+        cpu_max = rec.get('cpu_max_max', 0)
+        cpu_p95 = p95_rec.get('cpu_p95_max', 0) if p95_rec else rec.get('cpu_p95_max', 0)
+        if mem_p95 > 0 and mem_max / mem_p95 >= RATIO_WARN:
+            warnings.append({
+                'step': step,
+                'mem_max_mb': mem_max,
+                'mem_p95_mb': mem_p95,
+                'ratio': round(mem_max / mem_p95, 1),
+                'cpu_max_cores': cpu_max,
+                'cpu_p95_cores': cpu_p95,
+            })
+    return warnings
+
+
+def _html_heavy_tail_warnings_banner(warnings):
+    """HTML banner surfacing heavy-tail distribution warnings for reviewers."""
+    if not warnings:
+        return ''
+
+    rows = ''
+    for w in warnings:
+        mem_max_k8s = mb_to_kubernetes(w['mem_max_mb'])
+        mem_p95_k8s = mb_to_kubernetes(w['mem_p95_mb'])
+        rows += (
+            f'<tr>'
+            f'<td style="padding:5px 10px;font-weight:bold;">{html.escape(normalize_step_name_for_compare(w["step"]))}</td>'
+            f'<td style="padding:5px 10px;">{mem_max_k8s} ({w["mem_max_mb"]:.0f} MB)</td>'
+            f'<td style="padding:5px 10px;">{mem_p95_k8s} ({w["mem_p95_mb"]:.0f} MB)</td>'
+            f'<td style="padding:5px 10px;color:#c62828;font-weight:bold;">{w["ratio"]}&#215;</td>'
+            f'</tr>\n'
+        )
+
+    return (
+        '    <div style="background:#fff8e1;border:2px solid #f9a825;padding:12px 16px;'
+        'margin:16px 0;border-radius:4px;">\n'
+        '        <strong>&#9888; Heavy-Tail Distribution Warning</strong>\n'
+        '        <p style="margin:8px 0 4px 0;font-size:0.95em;color:#555;">'
+        'The following step(s) show a Max/P95 memory ratio &ge; 3&times;. '
+        'This means rare but heavy workloads (outlier tenants, large bundles) can require '
+        'significantly more memory than the p95 recommendation covers. '
+        'Consider using the <strong>MAX</strong> base or a per-tenant resource override '
+        'for these steps if OOM failures occur on outlier workloads.</p>\n'
+        '        <table style="border-collapse:collapse;font-size:0.9em;margin-top:8px;">\n'
+        '          <tr style="font-weight:bold;background:#fef9c3;">'
+        '<td style="padding:5px 10px;">Step</td>'
+        '<td style="padding:5px 10px;">Max Observed</td>'
+        '<td style="padding:5px 10px;">P95</td>'
+        '<td style="padding:5px 10px;">Max/P95 Ratio</td></tr>\n'
+        f'{rows}'
+        '        </table>\n'
+        '    </div>\n'
+    )
+
+
+def _compute_violators_for_step(detailed_executions, step_name, mem_base, cpu_base):
+    """Find pod executions that exceed a given memory or CPU base threshold for one step.
+
+    Groups results as: namespace → application → list-of-component-dicts.
+
+    Returns:
+        dict  { namespace: { application: [ {component, cluster, mem_max, cpu_max,
+                                              count, mem_viol, cpu_viol} ] } }
+        or empty dict if there are no violations.
+    """
+    from collections import defaultdict as _dd
+
+    # Only violations make sense when there is a non-zero base
+    has_mem_base = mem_base and mem_base > 0
+    has_cpu_base = cpu_base and cpu_base > 0
+    if not has_mem_base and not has_cpu_base:
+        return {}
+
+    # Normalise the step name we look for (executions may carry it without 'step-' prefix)
+    step_bare = step_name.removeprefix('step-') if step_name.startswith('step-') else step_name
+
+    groups = _dd(lambda: {'mem_vals': [], 'cpu_vals': []})
+    for r in detailed_executions:
+        r_step = r.get('step', '')
+        r_step_bare = r_step.removeprefix('step-') if r_step.startswith('step-') else r_step
+        if r_step_bare != step_bare:
+            continue
+        mem = float(r.get('memory_mb', 0) or 0)
+        cpu = float(r.get('cpu_cores', 0) or 0)
+        mem_viol = has_mem_base and mem > mem_base
+        cpu_viol = has_cpu_base and cpu > cpu_base
+        if not (mem_viol or cpu_viol):
+            continue
+        key = (
+            r.get('namespace', 'unknown'),
+            r.get('application', 'unknown'),
+            r.get('component', 'unknown'),
+            r.get('cluster', 'unknown'),
+        )
+        groups[key]['mem_vals'].append(mem)
+        groups[key]['cpu_vals'].append(cpu)
+
+    if not groups:
+        return {}
+
+    result = _dd(lambda: _dd(list))
+    for (ns, app, comp, cluster), vals in groups.items():
+        mem_max = max(vals['mem_vals']) if vals['mem_vals'] else 0
+        cpu_max = max(vals['cpu_vals']) if vals['cpu_vals'] else 0
+        result[ns][app].append({
+            'component': comp,
+            'cluster':   cluster,
+            'mem_max':   mem_max,
+            'cpu_max':   cpu_max,
+            'count':     len(vals['mem_vals']),
+            'mem_viol':  has_mem_base and mem_max > mem_base,
+            'cpu_viol':  has_cpu_base and cpu_max > cpu_base,
+        })
+
+    # Sort components within each app by descending peak memory
+    for ns in result:
+        for app in result[ns]:
+            result[ns][app].sort(key=lambda x: -x['mem_max'])
+
+    return result
+
+
+def _html_violators_block(viol_by_ns, mem_base, cpu_base, base_label, step_display_name):
+    """Render a collapsible HTML block listing executions that exceed a base threshold.
+
+    Uses <details>/<summary> for zero-JS expand/collapse.
+    """
+    if not viol_by_ns:
+        return (f'<p class="no-violators">&#10003;&nbsp; No executions exceed the '
+                f'<em>{base_label}</em> baseline for step '
+                f'<strong>{html.escape(step_display_name)}</strong>.</p>\n')
+
+    def _fmt_mb(mb):
+        return f'{mb / 1024:.2f} Gi' if mb >= 1024 else f'{mb:.0f} Mi'
+
+    def _fmt_cpu(c):
+        if c == 0:
+            return '0m'
+        return f'{int(c * 1000)}m' if c < 1 else f'{c:.3f}'
+
+    ns_app_count = sum(len(apps) for apps in viol_by_ns.values())
+    mem_thr = _fmt_mb(mem_base) if (mem_base and mem_base > 0) else '—'
+    cpu_thr = _fmt_cpu(cpu_base) if (cpu_base and cpu_base > 0) else '—'
+
+    rows_html = ''
+    for ns in sorted(viol_by_ns):
+        ns_apps = viol_by_ns[ns]
+        ns_row_count = sum(len(comps) for comps in ns_apps.values())
+        first_ns = True
+        for app in sorted(ns_apps):
+            comps = ns_apps[app]
+            first_app = True
+            for row in comps:
+                mem_over = row['mem_max'] - mem_base if row['mem_viol'] else 0
+                cpu_over = row['cpu_max'] - cpu_base if row['cpu_viol'] else 0
+                mem_vs  = f'+{_fmt_mb(mem_over)}&nbsp;&#9888;' if row['mem_viol'] else '&#10003;&nbsp;ok'
+                cpu_vs  = f'+{_fmt_cpu(cpu_over)}&nbsp;&#9888;' if row['cpu_viol'] else '&#10003;&nbsp;ok'
+                mc = ' class="viol-cell"' if row['mem_viol'] else ''
+                cc = ' class="viol-cell"' if row['cpu_viol'] else ''
+                ns_td  = (f'<td rowspan="{ns_row_count}" class="viol-ns-cell">'
+                          f'{html.escape(ns)}</td>') if first_ns else ''
+                app_td = (f'<td rowspan="{len(comps)}" class="viol-app-cell">'
+                          f'{html.escape(app)}</td>') if first_app else ''
+                rows_html += (
+                    f'<tr>{ns_td}{app_td}'
+                    f'<td>{html.escape(row["component"])}</td>'
+                    f'<td><span class="cluster-badge">{html.escape(row["cluster"])}</span></td>'
+                    f'<td{mc}>{_fmt_mb(row["mem_max"])}</td>'
+                    f'<td{mc}>{mem_vs}</td>'
+                    f'<td{cc}>{_fmt_cpu(row["cpu_max"])}</td>'
+                    f'<td{cc}>{cpu_vs}</td>'
+                    f'<td>{row["count"]}</td>'
+                    f'</tr>\n'
+                )
+                first_ns  = False
+                first_app = False
+
+    return f"""<details class="violators-block">
+  <summary class="violators-summary">
+    &#9888;&nbsp; <strong>{ns_app_count}&nbsp;namespace&#8209;app&nbsp;group(s)</strong>
+    exceed the <em>{base_label}</em> baseline
+    ({mem_thr}&nbsp;mem&nbsp;/&nbsp;{cpu_thr}&nbsp;cpu) for step
+    <strong>{html.escape(step_display_name)}</strong>&nbsp;&#9660;
+  </summary>
+  <div class="violators-body">
+    <table class="violators-table">
+      <thead><tr>
+        <th>Namespace</th><th>Application</th><th>Component</th><th>Cluster</th>
+        <th>Peak Mem</th><th>vs&nbsp;Base&nbsp;(Mem)</th>
+        <th>Peak CPU</th><th>vs&nbsp;Base&nbsp;(CPU)</th>
+        <th>#&nbsp;Pods</th>
+      </tr></thead>
+      <tbody>{rows_html}</tbody>
+    </table>
+  </div>
+</details>
+"""
+
+
 def read_wrapper_config(wrapper_path):
     """Read TASK_NAME and STEPS from wrapper script.
     
@@ -1650,7 +1990,8 @@ def check_comparison_file_exists_for_margin(task_name, date_str, margin_pct):
     return len(matching_files) > 0
 
 
-def save_analyzed_data(task_name, csv_data, date_str, steps_without_observability_data=None):
+def save_analyzed_data(task_name, csv_data, date_str, steps_without_observability_data=None,
+                       cluster_coverage_report=None, days_requested=None):
     """Save analyzed data (CSV) as HTML and JSON files.
     
     Args:
@@ -1658,6 +1999,8 @@ def save_analyzed_data(task_name, csv_data, date_str, steps_without_observabilit
         csv_data: CSV data string
         date_str: Date string in YYYYMMDD format
         steps_without_observability_data: Optional list of YAML step names with no Prometheus rows
+        cluster_coverage_report: Optional dict from compute_cluster_coverage_report()
+        days_requested: Number of days requested (for coverage banner)
     
     Returns:
         tuple: (html_path, json_path) - paths to saved files
@@ -1681,7 +2024,9 @@ def save_analyzed_data(task_name, csv_data, date_str, steps_without_observabilit
             headers = [h.strip().strip('"') for h in rows[0]]
             data_rows = rows[1:] if len(rows) > 1 else []
             banner_html = _html_steps_missing_observability_banner(steps_without_observability_data)
-            
+            coverage_banner = _html_cluster_coverage_banner(cluster_coverage_report or {}, days_requested or 0)
+            scrape_note = _html_scrape_interval_note()
+
             html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1777,7 +2122,7 @@ def save_analyzed_data(task_name, csv_data, date_str, steps_without_observabilit
 <body>
     <h1>Resource Usage Data - {task_name}</h1>
     <div class="info">Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
-{banner_html}    <table id="dataTable">
+{coverage_banner}{scrape_note}{banner_html}    <table id="dataTable">
         <thead>
             <tr>
 """
@@ -1815,6 +2160,8 @@ def save_analyzed_data(task_name, csv_data, date_str, steps_without_observabilit
         'timestamp': datetime.now().isoformat(),
         'csv_data': csv_data,
         'steps_without_observability_data': list(steps_without_observability_data or []),
+        'cluster_coverage_report': cluster_coverage_report or {},
+        'days_requested': days_requested or 0,
     }
     
     with open(json_path, 'w', encoding='utf-8') as f:
@@ -1844,7 +2191,7 @@ def _write_one_step_detailed_files(cache_dir, task_name, step_name, step_executi
     csv_path = cache_dir / f"{base}.csv"
 
     table_id = f"table_{safe_step_name}"
-    # Numeric columns for sort: 7 = Final Memory, 10 = Final CPU
+    # Numeric columns for sort: 7 = Final Memory, 10 = Final CPU, 11 = I/O Read, 12 = I/O Write
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1865,6 +2212,7 @@ def _write_one_step_detailed_files(cache_dir, task_name, step_name, step_executi
         td {{ padding: 10px; border-bottom: 1px solid #ddd; }}
         tr:hover {{ background-color: #f5f5f5; }}
         tr:nth-child(even) {{ background-color: #f9f9f9; }}
+        .io-high {{ background-color: #fff3cd !important; font-weight: bold; }}
     </style>
     <script>
         function sortTable(tableId, columnIndex) {{
@@ -1873,7 +2221,7 @@ def _write_one_step_detailed_files(cache_dir, task_name, step_name, step_executi
             const rows = Array.from(tbody.querySelectorAll('tr'));
             const header = table.querySelectorAll('th')[columnIndex];
             const isAscending = header.classList.contains('sorted-asc');
-            const isNumeric = (columnIndex === 7 || columnIndex === 10);
+            const isNumeric = (columnIndex === 7 || columnIndex === 10 || columnIndex === 11 || columnIndex === 12);
             table.querySelectorAll('th').forEach(th => th.classList.remove('sorted-asc', 'sorted-desc'));
             rows.sort((a, b) => {{
                 const aText = a.cells[columnIndex].textContent.trim();
@@ -1910,20 +2258,26 @@ def _write_one_step_detailed_files(cache_dir, task_name, step_name, step_executi
                 <th onclick="sortTable('{table_id}', 8)">Current Mem requests</th>
                 <th onclick="sortTable('{table_id}', 9)">Current Mem Limits</th>
                 <th onclick="sortTable('{table_id}', 10)">Final CPU Usage (Cores)</th>
-                <th onclick="sortTable('{table_id}', 11)">Current CPU requests</th>
-                <th onclick="sortTable('{table_id}', 12)">Current CPU Limits</th>
-                <th onclick="sortTable('{table_id}', 13)">Timestamp</th>
+                <th onclick="sortTable('{table_id}', 11)">Peak Disk Read (MB/s)</th>
+                <th onclick="sortTable('{table_id}', 12)">Peak Disk Write (MB/s)</th>
+                <th onclick="sortTable('{table_id}', 13)">Current CPU requests</th>
+                <th onclick="sortTable('{table_id}', 14)">Current CPU Limits</th>
+                <th onclick="sortTable('{table_id}', 15)">Timestamp</th>
             </tr>
         </thead>
         <tbody>
 """
+    IO_HIGH_THRESHOLD_MBPS = 50.0  # highlight rows where I/O exceeds this value
     for exec_data in sorted(step_executions, key=lambda x: (x.get('cluster', ''), x.get('namespace', ''), x.get('timestamp', ''))):
         app = exec_data.get('application', 'N/A')
         mem_req = exec_data.get('mem_requests_k8s', 'N/A')
         mem_lim = exec_data.get('mem_limits_k8s', 'N/A')
         cpu_req = exec_data.get('cpu_requests_k8s', 'N/A')
         cpu_lim = exec_data.get('cpu_limits_k8s', 'N/A')
-        html_content += f"""        <tr>
+        io_read = exec_data.get('io_read_mbps', 0)
+        io_write = exec_data.get('io_write_mbps', 0)
+        io_class = ' class="io-high"' if (io_read >= IO_HIGH_THRESHOLD_MBPS or io_write >= IO_HIGH_THRESHOLD_MBPS) else ''
+        html_content += f"""        <tr{io_class}>
             <td>{exec_data.get('cluster', 'N/A')}</td>
             <td>{exec_data.get('namespace', 'N/A')}</td>
             <td>{exec_data.get('task', 'N/A')}</td>
@@ -1935,6 +2289,8 @@ def _write_one_step_detailed_files(cache_dir, task_name, step_name, step_executi
             <td>{mem_req}</td>
             <td>{mem_lim}</td>
             <td>{exec_data.get('cpu_cores', 0)}</td>
+            <td>{io_read}</td>
+            <td>{io_write}</td>
             <td>{cpu_req}</td>
             <td>{cpu_lim}</td>
             <td>{exec_data.get('timestamp', 'N/A')}</td>
@@ -1962,7 +2318,8 @@ def _write_one_step_detailed_files(cache_dir, task_name, step_name, step_executi
 
     csv_header = ('"cluster","namespace","task","step","component","application","pod",'
                   '"final_memory_mb","current_mem_requests","current_mem_limits",'
-                  '"final_cpu_cores","current_cpu_requests","current_cpu_limits","timestamp"')
+                  '"final_cpu_cores","io_read_mbps","io_write_mbps",'
+                  '"current_cpu_requests","current_cpu_limits","timestamp"')
     csv_lines = [csv_header]
     for exec_data in step_executions:
         csv_lines.append(
@@ -1977,6 +2334,8 @@ def _write_one_step_detailed_files(cache_dir, task_name, step_name, step_executi
             f'"{exec_data.get("mem_requests_k8s", "N/A")}",'
             f'"{exec_data.get("mem_limits_k8s", "N/A")}",'
             f'{exec_data.get("cpu_cores", 0)},'
+            f'{exec_data.get("io_read_mbps", 0)},'
+            f'{exec_data.get("io_write_mbps", 0)},'
             f'"{exec_data.get("cpu_requests_k8s", "N/A")}",'
             f'"{exec_data.get("cpu_limits_k8s", "N/A")}",'
             f'"{exec_data.get("timestamp", "")}"'
@@ -2062,7 +2421,9 @@ def split_existing_detailed_per_step_json_to_per_step_files(json_path):
 
 
 def save_comparison_data_all_bases(task_name, all_recommendations_by_base, current_resources, margin_pct, date_str, use_timestamp=False,
-                                    steps_without_observability_data=None):
+                                    steps_without_observability_data=None,
+                                    cluster_coverage_report=None, days_requested=None,
+                                    detailed_executions=None):
     """Save comparison data for all base metrics as HTML and JSON.
     
     Args:
@@ -2073,6 +2434,9 @@ def save_comparison_data_all_bases(task_name, all_recommendations_by_base, curre
         date_str: Date string in YYYYMMDD format
         use_timestamp: If True, add timestamp to filename (used when re-analysis happens in Phase 1)
         steps_without_observability_data: Optional list of YAML steps with no Prometheus rows (Phase 1 only)
+        cluster_coverage_report: Optional dict from compute_cluster_coverage_report()
+        days_requested: Number of days requested (for coverage banner)
+        detailed_executions: Optional list of per-pod execution dicts (enables violators sub-tables)
     
     Returns:
         tuple: (html_path, json_path) - paths to saved files
@@ -2088,6 +2452,10 @@ def save_comparison_data_all_bases(task_name, all_recommendations_by_base, curre
         json_path = get_date_based_file_path(task_name, 'comparison_data', date_str, margin_pct=margin_pct).with_suffix('.json')
     
     banner_cmp = _html_steps_missing_observability_banner(steps_without_observability_data or [])
+    coverage_banner = _html_cluster_coverage_banner(cluster_coverage_report or {}, days_requested or 0)
+    tail_warnings = compute_heavy_tail_warnings(all_recommendations_by_base)
+    tail_banner = _html_heavy_tail_warnings_banner(tail_warnings)
+    scrape_note = _html_scrape_interval_note()
     # Generate HTML with separate tables for each base metric
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
@@ -2116,28 +2484,94 @@ def save_comparison_data_all_bases(task_name, all_recommendations_by_base, curre
             margin-bottom: 20px;
             color: #666;
         }}
-        table {{
+        /* main comparison table */
+        table.main-cmp {{
             border-collapse: collapse;
             width: 100%;
             background-color: white;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-bottom: 30px;
+            margin-bottom: 4px;
         }}
-        th {{
+        table.main-cmp th {{
             background-color: #2196F3;
             color: white;
-            padding: 12px;
+            padding: 11px 12px;
             text-align: left;
         }}
-        td {{
-            padding: 10px;
+        table.main-cmp td {{
+            padding: 10px 12px;
             border-bottom: 1px solid #ddd;
         }}
-        tr:hover {{
-            background-color: #f5f5f5;
+        table.main-cmp tr:hover {{ background-color: #f0f7ff; }}
+        table.main-cmp tr:nth-child(even) {{ background-color: #f9f9f9; }}
+
+        /* violators collapsible block */
+        details.violators-block {{
+            background: #fffbf0;
+            border: 1px solid #ffe082;
+            border-radius: 4px;
+            margin-bottom: 20px;
         }}
-        tr:nth-child(even) {{
-            background-color: #f9f9f9;
+        summary.violators-summary {{
+            cursor: pointer;
+            padding: 8px 14px;
+            font-size: 0.92em;
+            color: #7b4f00;
+            list-style: none;
+            user-select: none;
+        }}
+        summary.violators-summary::-webkit-details-marker {{ display: none; }}
+        summary.violators-summary:hover {{ background: #fff3cd; border-radius: 4px; }}
+        .violators-body {{ padding: 0 14px 14px; }}
+        .no-violators {{
+            color: #388e3c;
+            font-size: 0.88em;
+            padding: 4px 0 16px 2px;
+            font-style: italic;
+            margin: 0 0 16px 0;
+        }}
+
+        /* violators inner table */
+        table.violators-table {{
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 0.88em;
+            background: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }}
+        table.violators-table th {{
+            background: #fff3cd;
+            color: #5d4037;
+            padding: 8px 10px;
+            text-align: left;
+            border-bottom: 2px solid #ffe082;
+        }}
+        table.violators-table td {{
+            padding: 7px 10px;
+            border-bottom: 1px solid #f0f0f0;
+            vertical-align: middle;
+        }}
+        td.viol-ns-cell {{
+            font-weight: bold;
+            color: #1565c0;
+            vertical-align: top;
+            border-right: 2px solid #bbdefb;
+            background: #e3f2fd;
+        }}
+        td.viol-app-cell {{
+            color: #2e7d32;
+            vertical-align: top;
+            border-right: 1px solid #c8e6c9;
+            background: #f1f8f1;
+        }}
+        td.viol-cell {{ color: #c62828; font-weight: bold; }}
+        .cluster-badge {{
+            background: #e8eaf6;
+            color: #303f9f;
+            font-size: 0.82em;
+            padding: 2px 6px;
+            border-radius: 3px;
+            white-space: nowrap;
         }}
     </style>
 </head>
@@ -2146,41 +2580,40 @@ def save_comparison_data_all_bases(task_name, all_recommendations_by_base, curre
     <div class="info">Task: {task_name}</div>
     <div class="info">Margin: {margin_pct}%</div>
     <div class="info">Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
-{banner_cmp}
+{coverage_banner}{tail_banner}{scrape_note}{banner_cmp}
 """
-    
-    # Generate table for each base metric
+
+    # Generate table + violators for each base metric
     for base in ['max', 'p95', 'p90', 'median']:
         recommendations = all_recommendations_by_base.get(base, [])
         if not recommendations:
             continue
-        
+
         base_label = base.upper() if base != 'max' else 'MAX'
         html_content += f"""
     <h2>Base Metric: {base_label} (Margin: {margin_pct}%)</h2>
-    <table>
+    <table class="main-cmp">
         <thead>
             <tr>
                 <th>Step</th>
-                <th>Current Requests</th>
-                <th>Proposed Requests</th>
-                <th>Current Limits</th>
-                <th>Proposed Limits</th>
+                <th>Current Requests<br><small>(mem / cpu)</small></th>
+                <th>Proposed Requests<br><small>(mem / cpu)</small></th>
+                <th>Current Limits<br><small>(mem / cpu)</small></th>
+                <th>Proposed Limits<br><small>(mem / cpu)</small></th>
             </tr>
         </thead>
         <tbody>
 """
-        
+
         for rec in recommendations:
             if rec is None:
                 continue
-            
+
             step_name = rec['step_name']
             step_name_yaml = normalize_step_name_for_compare(step_name)
             proposed_mem = rec['mem_recommended_k8s']
             proposed_cpu = rec['cpu_recommended_k8s']
-            
-            # Get current values
+
             if current_resources and step_name_yaml in current_resources:
                 curr = current_resources[step_name_yaml]
                 curr_mem_req = curr['requests'].get('memory') or 'null'
@@ -2192,25 +2625,35 @@ def save_comparison_data_all_bases(task_name, all_recommendations_by_base, curre
                 curr_cpu_req = 'N/A'
                 curr_mem_lim = 'N/A'
                 curr_cpu_lim = 'N/A'
-            
+
             curr_req = f"{curr_mem_req} / {curr_cpu_req}"
             curr_lim = f"{curr_mem_lim} / {curr_cpu_lim}"
             prop_req = f"{proposed_mem} / {proposed_cpu}"
             prop_lim = f"{proposed_mem} / {proposed_cpu}"
-            
+
             html_content += f"""            <tr>
-                <td>{step_name_yaml}</td>
+                <td><strong>{step_name_yaml}</strong></td>
                 <td>{curr_req}</td>
                 <td>{prop_req}</td>
                 <td>{curr_lim}</td>
                 <td>{prop_lim}</td>
             </tr>
 """
-        
-        html_content += """        </tbody>
-    </table>
-"""
-    
+
+        html_content += "        </tbody>\n    </table>\n"
+
+        # Violators block (one per step, only when detailed_executions are available)
+        if detailed_executions:
+            for rec in recommendations:
+                if rec is None:
+                    continue
+                step_name      = rec['step_name']
+                step_disp      = normalize_step_name_for_compare(step_name)
+                mem_base       = rec.get('mem_base', 0)
+                cpu_base       = rec.get('cpu_base', 0)
+                viol           = _compute_violators_for_step(detailed_executions, step_name, mem_base, cpu_base)
+                html_content  += _html_violators_block(viol, mem_base, cpu_base, base_label, step_disp)
+
     html_content += """</body>
 </html>
 """
@@ -2227,6 +2670,9 @@ def save_comparison_data_all_bases(task_name, all_recommendations_by_base, curre
         'margin_pct': margin_pct,
         'recommendations_by_base': all_recommendations_by_base,
         'steps_without_observability_data': list(steps_without_observability_data or []),
+        'cluster_coverage_report': cluster_coverage_report or {},
+        'days_requested': days_requested or 0,
+        'heavy_tail_warnings': tail_warnings,
     }
     
     with open(json_path, 'w', encoding='utf-8') as f:
@@ -2563,13 +3009,16 @@ def collect_individual_pod_executions(task_name, steps, days=7, parallel_cluster
                     if debug:
                         print(f"DEBUG: Found {len(pods)} pods for step {step} in cluster {cluster_name}", file=sys.stderr)
                     
-                    # For each pod, get max memory and CPU usage during its lifetime
+                    # For each pod, get max memory, CPU, and disk I/O during its lifetime
                     for pod_name, namespace in pods:
                         # Query max memory for this pod over the time range
                         mem_query = f'max_over_time(container_memory_working_set_bytes{{container="{step_name}",pod="{pod_name}",namespace=~".*-tenant"}}[{range_str}])'
                         # Query max CPU for this pod over the time range
                         cpu_query = f'max_over_time(rate(container_cpu_usage_seconds_total{{container="{step_name}",pod="{pod_name}",namespace=~".*-tenant"}}[5m])[{range_str}:5m])'
-                        
+                        # Finding 4: disk I/O — peak read and write throughput (MB/s)
+                        io_read_query = f'max_over_time(rate(container_fs_reads_bytes_total{{container="{step_name}",pod="{pod_name}",namespace=~".*-tenant"}}[5m])[{range_str}:5m])'
+                        io_write_query = f'max_over_time(rate(container_fs_writes_bytes_total{{container="{step_name}",pod="{pod_name}",namespace=~".*-tenant"}}[5m])[{range_str}:5m])'
+
                         query_script = script_dir / 'query_prometheus_range.py'
                         if not query_script.exists():
                             continue
@@ -2591,22 +3040,46 @@ def collect_individual_pod_executions(task_name, steps, days=7, parallel_cluster
                             env=env,
                             timeout=60
                         )
-                        
+
+                        # Query disk I/O read max
+                        io_read_result = subprocess.run(
+                            [sys.executable, str(query_script), token, prom_host, io_read_query, str(start_time), str(end_time)],
+                            capture_output=True,
+                            text=True,
+                            env=env,
+                            timeout=60
+                        )
+
+                        # Query disk I/O write max
+                        io_write_result = subprocess.run(
+                            [sys.executable, str(query_script), token, prom_host, io_write_query, str(start_time), str(end_time)],
+                            capture_output=True,
+                            text=True,
+                            env=env,
+                            timeout=60
+                        )
+
                         if mem_result.returncode != 0 or cpu_result.returncode != 0:
                             continue
                         
                         try:
                             mem_data = json.loads(mem_result.stdout)
                             cpu_data = json.loads(cpu_result.stdout)
-                            
+                            io_read_data = json.loads(io_read_result.stdout) if io_read_result.returncode == 0 and io_read_result.stdout.strip() else {}
+                            io_write_data = json.loads(io_write_result.stdout) if io_write_result.returncode == 0 and io_write_result.stdout.strip() else {}
+
                             # Get max values and first timestamp
                             mem_max = 0
                             cpu_max = 0
+                            io_read_max_bytes_s = 0   # bytes/s
+                            io_write_max_bytes_s = 0  # bytes/s
                             first_timestamp = None
                             
                             mem_series = mem_data.get('data', {}).get('result', [])
                             cpu_series = cpu_data.get('data', {}).get('result', [])
-                            
+                            io_read_series = io_read_data.get('data', {}).get('result', [])
+                            io_write_series = io_write_data.get('data', {}).get('result', [])
+
                             # Extract max memory and first timestamp
                             if mem_series:
                                 for series in mem_series:
@@ -2633,7 +3106,23 @@ def collect_individual_pod_executions(task_name, steps, days=7, parallel_cluster
                                             cpu_val = float(val) if val else 0
                                             if cpu_val > cpu_max:
                                                 cpu_max = cpu_val
-                            
+
+                            # Extract max disk I/O read (bytes/s -> MB/s)
+                            for series in io_read_series:
+                                if series.get('metric', {}).get('pod') == pod_name:
+                                    for ts, val in series.get('values', []):
+                                        v = float(val) if val else 0
+                                        if v > io_read_max_bytes_s:
+                                            io_read_max_bytes_s = v
+
+                            # Extract max disk I/O write (bytes/s -> MB/s)
+                            for series in io_write_series:
+                                if series.get('metric', {}).get('pod') == pod_name:
+                                    for ts, val in series.get('values', []):
+                                        v = float(val) if val else 0
+                                        if v > io_write_max_bytes_s:
+                                            io_write_max_bytes_s = v
+
                             # If no data found, skip this pod
                             if mem_max == 0 and first_timestamp is None:
                                 continue
@@ -2643,7 +3132,11 @@ def collect_individual_pod_executions(task_name, steps, days=7, parallel_cluster
                             
                             # Convert memory from bytes to MB
                             mem_mb = mem_max / (1024 * 1024)
-                            
+
+                            # Convert I/O from bytes/s to MB/s
+                            io_read_mbps = round(io_read_max_bytes_s / (1024 * 1024), 3)
+                            io_write_mbps = round(io_write_max_bytes_s / (1024 * 1024), 3)
+
                             # Use first timestamp or current time as fallback
                             if first_timestamp:
                                 exec_timestamp = datetime.fromtimestamp(first_timestamp).strftime('%Y-%m-%d %H:%M:%S')
@@ -2670,6 +3163,8 @@ def collect_individual_pod_executions(task_name, steps, days=7, parallel_cluster
                                 'timestamp': exec_timestamp,
                                 'memory_mb': round(mem_mb, 2),
                                 'cpu_cores': round(cpu_max, 4),
+                                'io_read_mbps': io_read_mbps,
+                                'io_write_mbps': io_write_mbps,
                                 'mem_requests_k8s': mem_req_k8s,
                                 'cpu_requests_k8s': cpu_req_k8s,
                                 'mem_limits_k8s': mem_lim_k8s,
@@ -3619,6 +4114,36 @@ Examples:
             parallel_clusters=parallel_workers, debug=args.debug,
             current_resources=current_resources
         )
+
+        # Finding 2: compute and print cluster data coverage report
+        cluster_coverage_report = compute_cluster_coverage_report(detailed_executions, args.days)
+        if cluster_coverage_report:
+            print("\n" + "=" * 80, file=sys.stderr)
+            print("Cluster Data Coverage Report (oldest data point per cluster):", file=sys.stderr)
+            print("=" * 80, file=sys.stderr)
+            any_short = False
+            for cl in sorted(cluster_coverage_report):
+                info = cluster_coverage_report[cl]
+                ok = info['meets_requested']
+                mark = "✓" if ok else "⚠"
+                print(
+                    f"  {mark} {cl}: {info['days_covered']:.1f} days covered "
+                    f"(oldest: {info['oldest_date']}, pods: {info['pod_count']})",
+                    file=sys.stderr,
+                )
+                if not ok:
+                    any_short = True
+            if any_short:
+                print(
+                    f"\n  WARNING: Some clusters returned fewer than {args.days} days of data.",
+                    file=sys.stderr,
+                )
+                print(
+                    "  Statistics may under-represent rare heavy workloads on those clusters.",
+                    file=sys.stderr,
+                )
+            print("=" * 80, file=sys.stderr)
+
         csv_data = detailed_executions_to_csv(detailed_executions)
         if not csv_data or not csv_data.strip() or csv_data.count('\n') < 1:
             print("Error: No data from detailed collection (no pods or no metrics).", file=sys.stderr)
@@ -3647,6 +4172,7 @@ Examples:
     else:
         # Read from stdin (e.g. user ran wrapper and piped CSV)
         detailed_executions = None
+        cluster_coverage_report = {}
         if sys.stdin.isatty():
             print("Error: No input provided. Use --file or pipe CSV data.", file=sys.stderr)
             sys.exit(1)
@@ -3723,7 +4249,10 @@ Examples:
     analyzed_json_path = None
     if file_path_or_url and task_name and csv_data:
         analyzed_html_path, analyzed_json_path = save_analyzed_data(
-            task_name, csv_data, date_str, steps_without_observability_data=steps_missing_obs
+            task_name, csv_data, date_str,
+            steps_without_observability_data=steps_missing_obs,
+            cluster_coverage_report=cluster_coverage_report if args.file else None,
+            days_requested=args.days if args.file else None,
         )
         print(f"\nSaved analyzed data:", file=sys.stderr)
         print(f"  - {analyzed_html_path}", file=sys.stderr)
@@ -3735,7 +4264,10 @@ Examples:
     if file_path_or_url and task_name:
         comparison_html_path, comparison_json_path = save_comparison_data_all_bases(
             task_name, all_recommendations_by_base, current_resources, args.margin, date_str,
-            use_timestamp=analyzed_files_exist, steps_without_observability_data=steps_missing_obs
+            use_timestamp=analyzed_files_exist, steps_without_observability_data=steps_missing_obs,
+            cluster_coverage_report=cluster_coverage_report if args.file else None,
+            days_requested=args.days if args.file else None,
+            detailed_executions=detailed_executions if detailed_executions else None,
         )
         print(f"\nSaved comparison data (all base metrics, margin={args.margin}%):", file=sys.stderr)
         print(f"  - {comparison_html_path}", file=sys.stderr)
@@ -3764,10 +4296,6 @@ Examples:
         else:
             print("\n✗ Aggregate verification found mismatches (see above). Please report if this persists.", file=sys.stderr)
 
-    # Print analysis for default base (max) for display (skip HTML saving since we already saved it)
-    if all_recommendations_by_base.get('max'):
-        print_analysis(all_recommendations_by_base['max'], args.margin, 'max', current_resources, task_name, save_comparison_html=False)
-    
     print(f"\nPhase 1 (Analysis) completed. All base metrics (max, p95, p90, median) have been generated.", file=sys.stderr)
     if steps_missing_obs:
         print(
@@ -3775,7 +4303,10 @@ Examples:
             f"also steps_without_observability_data in saved JSON).",
             file=sys.stderr,
         )
-    print(f"Run Phase 2 (--update) with --file to view recommendations for a specific base metric.", file=sys.stderr)
+    if comparison_html_path:
+        print(f"\nReview the comparison report to choose your base metric (max / p95 / p90 / median):", file=sys.stderr)
+        print(f"  → {comparison_html_path}", file=sys.stderr)
+    print(f"\nRun Phase 2 (--update) with --file to apply recommendations for a specific base metric.", file=sys.stderr)
 
 
 if __name__ == '__main__':
