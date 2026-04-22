@@ -422,10 +422,13 @@ def _compute_violators_for_step(detailed_executions, step_name, mem_base, cpu_ba
     return result
 
 
-def _html_violators_block(viol_by_ns, mem_base, cpu_base, base_label, step_display_name):
-    """Render a collapsible HTML block listing executions that exceed a base threshold.
+def _html_violators_block(viol_by_ns, mem_base, cpu_base, base_label, step_display_name,
+                          _table_counter=[0]):
+    """Render a sortable, collapsible HTML block listing executions that exceed a base threshold.
 
-    Uses <details>/<summary> for zero-JS expand/collapse.
+    Produces a flat table (no rowspan) with data-val attributes on the numeric columns so
+    that the sortVT() JavaScript function can sort by Peak Mem, vs Base, Peak CPU, # Pods.
+    Namespace and Application cells keep their coloured backgrounds for visual grouping.
     """
     if not viol_by_ns:
         return (f'<p class="no-violators">&#10003;&nbsp; No executions exceed the '
@@ -440,57 +443,65 @@ def _html_violators_block(viol_by_ns, mem_base, cpu_base, base_label, step_displ
             return '0m'
         return f'{int(c * 1000)}m' if c < 1 else f'{c:.3f}'
 
-    ns_app_count = sum(len(apps) for apps in viol_by_ns.values())
     mem_thr = _fmt_mb(mem_base) if (mem_base and mem_base > 0) else '—'
     cpu_thr = _fmt_cpu(cpu_base) if (cpu_base and cpu_base > 0) else '—'
 
-    rows_html = ''
+    # Flatten nested dict → list of row dicts, sorted by peak mem desc
+    flat_rows = []
     for ns in sorted(viol_by_ns):
-        ns_apps = viol_by_ns[ns]
-        ns_row_count = sum(len(comps) for comps in ns_apps.values())
-        first_ns = True
-        for app in sorted(ns_apps):
-            comps = ns_apps[app]
-            first_app = True
-            for row in comps:
-                mem_over = row['mem_max'] - mem_base if row['mem_viol'] else 0
-                cpu_over = row['cpu_max'] - cpu_base if row['cpu_viol'] else 0
-                mem_vs  = f'+{_fmt_mb(mem_over)}&nbsp;&#9888;' if row['mem_viol'] else '&#10003;&nbsp;ok'
-                cpu_vs  = f'+{_fmt_cpu(cpu_over)}&nbsp;&#9888;' if row['cpu_viol'] else '&#10003;&nbsp;ok'
-                mc = ' class="viol-cell"' if row['mem_viol'] else ''
-                cc = ' class="viol-cell"' if row['cpu_viol'] else ''
-                ns_td  = (f'<td rowspan="{ns_row_count}" class="viol-ns-cell">'
-                          f'{html.escape(ns)}</td>') if first_ns else ''
-                app_td = (f'<td rowspan="{len(comps)}" class="viol-app-cell">'
-                          f'{html.escape(app)}</td>') if first_app else ''
-                rows_html += (
-                    f'<tr>{ns_td}{app_td}'
-                    f'<td>{html.escape(row["component"])}</td>'
-                    f'<td><span class="cluster-badge">{html.escape(row["cluster"])}</span></td>'
-                    f'<td{mc}>{_fmt_mb(row["mem_max"])}</td>'
-                    f'<td{mc}>{mem_vs}</td>'
-                    f'<td{cc}>{_fmt_cpu(row["cpu_max"])}</td>'
-                    f'<td{cc}>{cpu_vs}</td>'
-                    f'<td>{row["count"]}</td>'
-                    f'</tr>\n'
-                )
-                first_ns  = False
-                first_app = False
+        for app in sorted(viol_by_ns[ns]):
+            for row in viol_by_ns[ns][app]:
+                flat_rows.append(dict(row, namespace=ns, application=app))
+    flat_rows.sort(key=lambda r: -r['mem_max'])
+
+    _table_counter[0] += 1
+    tid = f'viol_tbl_{_table_counter[0]}'
+
+    rows_html = ''
+    for row in flat_rows:
+        mem_over = row['mem_max'] - mem_base if row['mem_viol'] else 0
+        cpu_over = row['cpu_max'] - cpu_base if row['cpu_viol'] else 0
+        mem_vs   = f'+{_fmt_mb(mem_over)}&nbsp;&#9888;' if row['mem_viol'] else '&#10003;&nbsp;ok'
+        cpu_vs   = f'+{_fmt_cpu(cpu_over)}&nbsp;&#9888;' if row['cpu_viol'] else '&#10003;&nbsp;ok'
+        mc = ' class="viol-cell"' if row['mem_viol'] else ''
+        cc = ' class="viol-cell"' if row['cpu_viol'] else ''
+        # data-val carries raw numeric value for JS sort:
+        #   mem / cpu → MB or millicores; "ok" rows get -1 so they sort to bottom
+        mem_dv  = f'{row["mem_max"]:.1f}'
+        memov_dv = f'{mem_over:.1f}' if row['mem_viol'] else '-1'
+        cpu_dv  = f'{row["cpu_max"] * 1000:.1f}'
+        cpuov_dv = f'{cpu_over * 1000:.1f}' if row['cpu_viol'] else '-1'
+        rows_html += (
+            f'<tr>'
+            f'<td class="viol-ns-cell">{html.escape(row["namespace"])}</td>'
+            f'<td class="viol-app-cell">{html.escape(row["application"])}</td>'
+            f'<td>{html.escape(row["component"])}</td>'
+            f'<td><span class="cluster-badge">{html.escape(row["cluster"])}</span></td>'
+            f'<td{mc} data-val="{mem_dv}">{_fmt_mb(row["mem_max"])}</td>'
+            f'<td{mc} data-val="{memov_dv}">{mem_vs}</td>'
+            f'<td{cc} data-val="{cpu_dv}">{_fmt_cpu(row["cpu_max"])}</td>'
+            f'<td{cc} data-val="{cpuov_dv}">{cpu_vs}</td>'
+            f'<td data-val="{row["count"]}">{row["count"]}</td>'
+            f'</tr>\n'
+        )
 
     return f"""<details class="violators-block">
   <summary class="violators-summary">
-    &#9888;&nbsp; <strong>{ns_app_count}&nbsp;namespace&#8209;app&nbsp;group(s)</strong>
+    &#9888;&nbsp; <strong>{len(flat_rows)}&nbsp;group(s)</strong>
     exceed the <em>{base_label}</em> baseline
     ({mem_thr}&nbsp;mem&nbsp;/&nbsp;{cpu_thr}&nbsp;cpu) for step
     <strong>{html.escape(step_display_name)}</strong>&nbsp;&#9660;
   </summary>
   <div class="violators-body">
-    <table class="violators-table">
+    <p class="sort-hint">Click amber column header to sort &nbsp;&#8597;</p>
+    <table id="{tid}" class="violators-table">
       <thead><tr>
         <th>Namespace</th><th>Application</th><th>Component</th><th>Cluster</th>
-        <th>Peak Mem</th><th>vs&nbsp;Base&nbsp;(Mem)</th>
-        <th>Peak CPU</th><th>vs&nbsp;Base&nbsp;(CPU)</th>
-        <th>#&nbsp;Pods</th>
+        <th class="sortable" onclick="sortVT('{tid}',4)">Peak&nbsp;Mem</th>
+        <th class="sortable" onclick="sortVT('{tid}',5)">vs&nbsp;Base&nbsp;(Mem)</th>
+        <th class="sortable" onclick="sortVT('{tid}',6)">Peak&nbsp;CPU</th>
+        <th class="sortable" onclick="sortVT('{tid}',7)">vs&nbsp;Base&nbsp;(CPU)</th>
+        <th class="sortable" onclick="sortVT('{tid}',8)">#&nbsp;Pods</th>
       </tr></thead>
       <tbody>{rows_html}</tbody>
     </table>
@@ -2554,13 +2565,11 @@ def save_comparison_data_all_bases(task_name, all_recommendations_by_base, curre
         td.viol-ns-cell {{
             font-weight: bold;
             color: #1565c0;
-            vertical-align: top;
             border-right: 2px solid #bbdefb;
             background: #e3f2fd;
         }}
         td.viol-app-cell {{
             color: #2e7d32;
-            vertical-align: top;
             border-right: 1px solid #c8e6c9;
             background: #f1f8f1;
         }}
@@ -2573,7 +2582,39 @@ def save_comparison_data_all_bases(task_name, all_recommendations_by_base, curre
             border-radius: 3px;
             white-space: nowrap;
         }}
+        /* sortable violators column headers */
+        table.violators-table th.sortable {{
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+            background: #ffe082;
+        }}
+        table.violators-table th.sortable:hover {{ background: #ffd54f; }}
+        table.violators-table th.sort-asc::after  {{ content: " ↑"; font-weight: bold; }}
+        table.violators-table th.sort-desc::after {{ content: " ↓"; font-weight: bold; }}
+        .sort-hint {{ font-size: 0.78em; color: #888; margin: 4px 0 6px 0; }}
     </style>
+    <script>
+    function sortVT(tableId, colIdx) {{
+        var tbl   = document.getElementById(tableId);
+        var ths   = tbl.querySelectorAll('thead th');
+        var tbody = tbl.querySelector('tbody');
+        var rows  = Array.from(tbody.querySelectorAll('tr'));
+        var th    = ths[colIdx];
+        var asc   = th.classList.contains('sort-desc');
+        ths.forEach(function(h) {{ h.classList.remove('sort-asc', 'sort-desc'); }});
+        rows.sort(function(a, b) {{
+            var av = parseFloat(a.cells[colIdx].getAttribute('data-val'));
+            var bv = parseFloat(b.cells[colIdx].getAttribute('data-val'));
+            if (!isNaN(av) && !isNaN(bv)) return asc ? av - bv : bv - av;
+            var at = a.cells[colIdx].textContent.trim();
+            var bt = b.cells[colIdx].textContent.trim();
+            return asc ? at.localeCompare(bt) : bt.localeCompare(at);
+        }});
+        rows.forEach(function(r) {{ tbody.appendChild(r); }});
+        th.classList.add(asc ? 'sort-asc' : 'sort-desc');
+    }}
+    </script>
 </head>
 <body>
     <h1>Resource Limits Comparison: Current vs Proposed</h1>
