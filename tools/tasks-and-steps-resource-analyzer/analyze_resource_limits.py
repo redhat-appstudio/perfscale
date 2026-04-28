@@ -80,8 +80,9 @@ def extract_task_info(yaml_content):
     current_resources = {}
     
     # Get default resources from stepTemplate
+    # Support both Tekton v1 (computeResources) and v1beta1 (resources) field names
     step_template = yaml_content.get('spec', {}).get('stepTemplate', {})
-    default_resources = step_template.get('computeResources', {})
+    default_resources = step_template.get('computeResources') or step_template.get('resources', {})
     default_mem_req = default_resources.get('requests', {}).get('memory', '')
     default_cpu_req = default_resources.get('requests', {}).get('cpu', '')
     default_mem_lim = default_resources.get('limits', {}).get('memory', '')
@@ -94,7 +95,8 @@ def extract_task_info(yaml_content):
             steps.append(step_name)
             
             # Get current resources for this step (use defaults if not specified)
-            step_resources = step.get('computeResources', {})
+            # Support both Tekton v1 (computeResources) and v1beta1 (resources) field names
+            step_resources = step.get('computeResources') or step.get('resources', {})
             step_req = step_resources.get('requests', {})
             step_lim = step_resources.get('limits', {})
             
@@ -2714,6 +2716,7 @@ def save_comparison_data_all_bases(task_name, all_recommendations_by_base, curre
         'cluster_coverage_report': cluster_coverage_report or {},
         'days_requested': days_requested or 0,
         'heavy_tail_warnings': tail_warnings,
+        'current_resources': current_resources or {},
     }
     
     with open(json_path, 'w', encoding='utf-8') as f:
