@@ -13,7 +13,7 @@ Supports MAX, P95, P90, and Median as recommendation bases, with a configurable 
 ## Quick Start
 
 > ⏱ **Runtime**: 30 seconds to several hours depending on cluster data volume.
-> Use `--pll-clusters 4` (see [Speed Tips](#speed-tips)) for the fastest run.
+> Use `--pll-clusters 4 --pll-queries 4` (see [Speed Tips](#speed-tips)) for the fastest run.
 
 **Step 1 — Clone and set up a Python virtual environment**
 
@@ -46,7 +46,7 @@ cd tools/tasks-and-steps-resource-analyzer
 
 ./analyze_resource_limits.py \
   --file https://github.com/konflux-ci/build-definitions/blob/main/task/fbc-fips-check-oci-ta/0.1/fbc-fips-check-oci-ta.yaml \
-  --analyze-again --margin 5 --days 15 --pll-clusters 4
+  --analyze-again --margin 5 --days 15 --pll-clusters 4 --pll-queries 4
 ```
 
 Replace the `--file` URL with the task YAML you want to analyze. You will be shown a confirmation
@@ -83,7 +83,7 @@ base metric to use, then update your task YAML accordingly.
 
 | Goal | Recommended flags |
 |---|---|
-| Fastest run | `--pll-clusters 4` (4 clusters in parallel) |
+| Fastest run | `--pll-clusters 4 --pll-queries 4` (clusters + queries in parallel) |
 | Wider history | `--days 15` (15 days instead of default 7) |
 | Force fresh data | `--analyze-again` (ignores existing cache) |
 | Skip data collection | `--update` (reuse existing Phase 1 cache) |
@@ -94,13 +94,16 @@ base metric to use, then update your task YAML accordingly.
 ```bash
 ./analyze_resource_limits.py \
   --file <github-or-local-yaml-url> \
-  --analyze-again --margin 5 --days 15 --pll-clusters 4
+  --analyze-again --margin 5 --days 15 --pll-clusters 4 --pll-queries 4
 ```
 
 **Serial vs parallel:**
 - Default (no `--pll-clusters`): clusters processed one at a time — safe but slow
 - `--pll-clusters 4`: 4 clusters processed concurrently — ~4× faster, recommended
 - More than 6 workers may hit Prometheus rate limits; 4 is a good default
+- `--pll-queries N` (default 2, max 4): within each cluster worker, all 4 per-pod
+  Prometheus queries (mem / cpu / io_read / io_write) are dispatched to a small thread
+  pool of size N. `--pll-queries 4` issues all 4 queries simultaneously per pod.
 
 ---
 
@@ -141,6 +144,7 @@ At the end, the tool prints the path to the comparison HTML and exits. **No YAML
 | `--days N` | 7 | History window for data collection |
 | `--margin N` | 5 | Safety margin % added to the base metric |
 | `--pll-clusters N` | serial | Number of clusters to query in parallel |
+| `--pll-queries N` | 2 | Per-pod query parallelism (mem/cpu/io_read/io_write), max 4 |
 | `--analyze-again` / `--aa` | off | Force re-collection even if today's cache exists |
 | `--update` | off | Phase 2: regenerate comparison from cache, no re-collection |
 | `--dry-run` | off | Connectivity check only, no data collection |
@@ -223,6 +227,7 @@ analyze_resource_limits.py  (orchestrator)
   ├── per-cluster worker (threaded, --pll-clusters N)
   │     ├── list_pods_for_a_particular_task.py   → Prometheus kube_pod_labels query
   │     └── query_prometheus_range.py            → per-pod memory / CPU / I/O range queries
+  │           dispatched via inner ThreadPoolExecutor (--pll-queries N, default 2, max 4)
   │           adaptive step: 30s (≤1d) · 5m (≤7d) · 15m (≤30d) · 1h (>30d)
   │
   └── wrapper_for_promql_for_all_clusters.sh  (legacy aggregation path, batched per-cluster)

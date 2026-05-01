@@ -2921,7 +2921,7 @@ def extract_component_from_pod(pod_name, namespace, token, prom_host, end_time, 
         return ("N/A", "N/A")
 
 
-def collect_individual_pod_executions(task_name, steps, days=7, parallel_clusters=None, debug=False, current_resources=None):
+def collect_individual_pod_executions(task_name, steps, days=7, parallel_clusters=None, debug=False, current_resources=None, pll_queries=2):
     """Collect individual pod execution data from all clusters.
     
     Each pod execution represents one pod run. For each pod, we get:
@@ -2938,6 +2938,10 @@ def collect_individual_pod_executions(task_name, steps, days=7, parallel_cluster
         debug: Enable debug output
         current_resources: Optional dict step_name -> {requests: {memory, cpu}, limits: {memory, cpu}}
                           from extract_task_info(); used to add mem_requests_k8s, etc. to each execution.
+        pll_queries: Number of Prometheus queries to run in parallel per pod (1-4).
+                     Default 2. The 4 per-pod queries (mem, cpu, io_read, io_write) are dispatched
+                     to a small ThreadPoolExecutor of this size. Max useful value is 4 (one per metric).
+                     Max concurrent subprocesses on the machine = parallel_clusters × pll_queries.
     
     Returns:
         List of dictionaries, each representing one pod execution with:
@@ -3067,50 +3071,46 @@ def collect_individual_pod_executions(task_name, steps, days=7, parallel_cluster
                         if not query_script.exists():
                             continue
                         
-                        # Query memory max
-                        mem_result = subprocess.run(
-                            [sys.executable, str(query_script), token, prom_host, mem_query, str(start_time), str(end_time)],
-                            capture_output=True,
-                            text=True,
-                            env=env,
-                            timeout=60
-                        )
-                        
-                        # Query CPU max
-                        cpu_result = subprocess.run(
-                            [sys.executable, str(query_script), token, prom_host, cpu_query, str(start_time), str(end_time)],
-                            capture_output=True,
-                            text=True,
-                            env=env,
-                            timeout=60
-                        )
+                        # Run all 4 per-pod queries concurrently using a small inner thread pool.
+                        # Each thread calls subprocess.run() for one metric — no shared mutable
+                        # state, so results are collected safely into a dict keyed by metric name.
+                        def _run_query(metric_cmd_pair):
+                            metric_name, cmd = metric_cmd_pair
+                            try:
+                                proc = subprocess.run(
+                                    cmd, capture_output=True, text=True, env=env, timeout=60
+                                )
+                                return metric_name, proc
+                            except Exception as exc:
+                                return metric_name, exc
 
-                        # Query disk I/O read max
-                        io_read_result = subprocess.run(
-                            [sys.executable, str(query_script), token, prom_host, io_read_query, str(start_time), str(end_time)],
-                            capture_output=True,
-                            text=True,
-                            env=env,
-                            timeout=60
-                        )
+                        query_cmds = [
+                            ('mem',      [sys.executable, str(query_script), token, prom_host, mem_query,      str(start_time), str(end_time)]),
+                            ('cpu',      [sys.executable, str(query_script), token, prom_host, cpu_query,      str(start_time), str(end_time)]),
+                            ('io_read',  [sys.executable, str(query_script), token, prom_host, io_read_query,  str(start_time), str(end_time)]),
+                            ('io_write', [sys.executable, str(query_script), token, prom_host, io_write_query, str(start_time), str(end_time)]),
+                        ]
 
-                        # Query disk I/O write max
-                        io_write_result = subprocess.run(
-                            [sys.executable, str(query_script), token, prom_host, io_write_query, str(start_time), str(end_time)],
-                            capture_output=True,
-                            text=True,
-                            env=env,
-                            timeout=60
-                        )
+                        query_results = {}
+                        _pll = max(1, min(4, pll_queries))
+                        with ThreadPoolExecutor(max_workers=_pll) as pod_executor:
+                            for metric_name, proc_or_exc in pod_executor.map(_run_query, query_cmds):
+                                query_results[metric_name] = proc_or_exc
 
-                        if mem_result.returncode != 0 or cpu_result.returncode != 0:
+                        mem_result     = query_results.get('mem')
+                        cpu_result     = query_results.get('cpu')
+                        io_read_result = query_results.get('io_read')
+                        io_write_result= query_results.get('io_write')
+
+                        if (isinstance(mem_result, Exception) or isinstance(cpu_result, Exception)
+                                or mem_result.returncode != 0 or cpu_result.returncode != 0):
                             continue
                         
                         try:
                             mem_data = json.loads(mem_result.stdout)
                             cpu_data = json.loads(cpu_result.stdout)
-                            io_read_data = json.loads(io_read_result.stdout) if io_read_result.returncode == 0 and io_read_result.stdout.strip() else {}
-                            io_write_data = json.loads(io_write_result.stdout) if io_write_result.returncode == 0 and io_write_result.stdout.strip() else {}
+                            io_read_data = json.loads(io_read_result.stdout) if (not isinstance(io_read_result, Exception) and io_read_result.returncode == 0 and io_read_result.stdout.strip()) else {}
+                            io_write_data = json.loads(io_write_result.stdout) if (not isinstance(io_write_result, Exception) and io_write_result.returncode == 0 and io_write_result.stdout.strip()) else {}
 
                             # Get max values and first timestamp
                             mem_max = 0
@@ -3932,7 +3932,16 @@ Examples:
         metavar='N',
         help='Enable parallel processing across clusters with N workers (only during analysis, ignored during --update)'
     )
-    
+    parser.add_argument(
+        '--pll-queries',
+        type=int,
+        metavar='N',
+        default=2,
+        help='Number of Prometheus queries to run in parallel per pod (mem/cpu/io_read/io_write). '
+             'Default: 2. Max effective value: 4 (one per metric). '
+             'Higher values reduce wall-clock time at the cost of more concurrent subprocesses.'
+    )
+
     args = parser.parse_args()
     
     # Phase 2: --update (requires --file)
@@ -4153,10 +4162,12 @@ Examples:
         
         # Single source of truth: collect detailed per-pod data, then derive CSV for analysis
         parallel_workers = args.pll_clusters if args.pll_clusters and not args.update else None
+        pll_queries = max(1, min(4, args.pll_queries)) if args.pll_queries else 2
         detailed_executions = collect_individual_pod_executions(
             final_task_name, steps_for_collection, days=args.days,
             parallel_clusters=parallel_workers, debug=args.debug,
-            current_resources=current_resources
+            current_resources=current_resources,
+            pll_queries=pll_queries
         )
 
         # Finding 2: compute and print cluster data coverage report
