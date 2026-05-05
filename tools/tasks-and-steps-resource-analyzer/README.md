@@ -267,6 +267,32 @@ present in your `~/.kube/config`.
 
 ---
 
+## Future Enhancement: Long-term Metrics via RHOBS
+
+The tool is currently bounded by each cluster's local Prometheus retention (typically 4-11 days).
+A longer-term data source exists but is not yet connected:
+
+**RHOBS (Red Hat Observability Service)** retains metrics for up to a year and is queryable via
+AppSRE Grafana (datasource: `rhtap-observatorium-stage` / `rhtap-observatorium-production`).
+
+As noted by Faisal Al-Rayes in
+[KONFLUX-13351](https://redhat.atlassian.net/browse/KONFLUX-13351?focusedCommentId=16869177):
+
+- Raw per-pod metrics (`container_memory_working_set_bytes`, `container_cpu_usage_seconds_total`)
+  are **not** forwarded to RHOBS — the per-pod label combination is too high in cardinality for
+  the shared Prometheus instance.
+- An **aggregated form** (per `container/tektonstepname` per namespace, not per unique pod) **is**
+  forwarded and retained long-term.
+- Extending the aggregation to cover `*-tenant` namespaces is potentially feasible, but requires a
+  cardinality and ephemeral-namespace review before enabling.
+
+**Potential future work:** if `*-tenant` namespaces are added to the RHOBS aggregation rules, the
+tool could query RHOBS as a long-term supplement — providing step-level trend data well beyond
+Prometheus retention. Per-pod execution detail (needed for distribution analysis) would still
+require local Prometheus.
+
+---
+
 ## Contributing / Feedback
 
 The tool has been used across Konflux to right-size resources for tasks including `buildah`,
