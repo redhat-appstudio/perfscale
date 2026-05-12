@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Utility to simplify updating 'infra-deployments' refference to our repo
+# Utility to simplify updating 'infra-deployments' reference to our repo
 
 set -euo pipefail
 
@@ -9,15 +9,26 @@ if ! type -p yq >/dev/null; then
     exit 1
 fi
 
-file="../infra-deployments/components/monitoring/grafana/base/dashboards/performance/kustomization.yaml"
-if ! [ -w "$file" ]; then
-    echo "ERROR: No 'infra-deployments' checkout on expected location" >&2
-    exit 1
-fi
+base="../infra-deployments/components/monitoring/grafana"
+files=(
+    "$base/development/dashboards/perfscale/kustomization.yaml"
+    "$base/staging/dashboards/perfscale/kustomization.yaml"
+)
+
+for f in "${files[@]}"; do
+    if ! [ -w "$f" ]; then
+        echo "ERROR: File not writable or missing: $f" >&2
+        exit 1
+    fi
+done
 
 commit=$1
-update="https://github.com/redhat-appstudio/perfscale/grafana/?ref=$commit"
+update="https://github.com/konflux-ci/perfscale/grafana/?ref=$commit"
 
-yq -i '.resources.0 = "'"$update"'"' "$file"
+for f in "${files[@]}"; do
+    yq -i '.resources.0 = "'"$update"'"' "$f"
+    echo "Updated $f"
+done
 
-echo "Done updating $file"
+echo "NOTE: Production ref not updated. Update it manually after soak time in staging:"
+echo "  $base/production/dashboards/perfscale/kustomization.yaml"
