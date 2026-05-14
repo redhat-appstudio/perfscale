@@ -1153,7 +1153,12 @@ def namespace_worker_oc(
             oom_events.append(event_data)
         elif "crashloop" in reason_lower:
             crash_events.append(event_data)
-        elif "backoff" in reason_lower:
+        elif reason_lower == "backoff":
+            # Match only the exact Kubernetes "BackOff" restart reason (container
+            # crash exponential back-off). The previous substring match
+            # "backoff" in reason_lower also caught ImagePullBackOff and
+            # ErrImageBackOff, which are image-pull failures — not crash loops —
+            # causing false-positive CrashLoopBackOff reports (KONFLUX-13422).
             backoff_events.append(event_data)
 
     # Fetch pods once for both OOM/Crash detection and for application/component labels (incl. event-only pods)
