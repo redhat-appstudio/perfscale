@@ -26,6 +26,7 @@ local cpuQueryCurrent(namespace, pod_rex) =
     '$' + datasourceVar.name,
     'sum by (pod) (rate(container_cpu_usage_seconds_total{namespace="%s",pod=~"%s"}[$__rate_interval]))' % [namespace, pod_rex],
   )
+  + grafonnet.query.prometheus.withInterval('15s')
   + grafonnet.query.prometheus.withLegendFormat('{{pod}}');
 local cpuQueryRequests(namespace, pod_rex) =
   grafonnet.query.prometheus.new(
@@ -44,6 +45,7 @@ local cpuQueryFloatingAvg(namespace, pod_rex) =
     '$' + datasourceVar.name,
     'avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace="%s",pod=~"%s"}[$__rate_interval])))[24h:])' % [namespace, pod_rex],
   )
+  + grafonnet.query.prometheus.withInterval('15s')
   + grafonnet.query.prometheus.withLegendFormat('24h AVG');
 
 // Define memory usage related queries we will use

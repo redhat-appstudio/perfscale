@@ -40,6 +40,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"application-service\",pod=~\"application-service-controller-manager-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -64,6 +65,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"application-service\",pod=~\"application-service-controller-manager-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -196,6 +198,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"appstudio-grafana\",pod=~\"grafana-operator-controller-manager-v5-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -220,6 +223,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"appstudio-grafana\",pod=~\"grafana-operator-controller-manager-v5-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -352,6 +356,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"appstudio-monitoring\",pod=~\"obo-prometheus-operator-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -376,6 +381,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"appstudio-monitoring\",pod=~\"obo-prometheus-operator-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -508,6 +514,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"appstudio-monitoring\",pod=~\"observability-operator-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -532,6 +539,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"appstudio-monitoring\",pod=~\"observability-operator-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -664,6 +672,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"appstudio-monitoring\",pod=~\"perses-operator-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -688,6 +697,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"appstudio-monitoring\",pod=~\"perses-operator-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -820,6 +830,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"build-service\",pod=~\"build-service-controller-manager-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -844,6 +855,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"build-service\",pod=~\"build-service-controller-manager-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -976,6 +988,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"etcd-shield\",pod=~\"etcd-shield-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -1000,6 +1013,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"etcd-shield\",pod=~\"etcd-shield-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -1132,6 +1146,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"external-secrets-operator\",pod=~\"external-secrets-operator-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -1156,6 +1171,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"external-secrets-operator\",pod=~\"external-secrets-operator-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -1288,6 +1304,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"external-secrets-operator\",pod=~\"external-secrets-operator-cert-controller-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -1312,6 +1329,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"external-secrets-operator\",pod=~\"external-secrets-operator-cert-controller-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -1444,6 +1462,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"external-secrets-operator\",pod=~\"external-secrets-operator-webhook-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -1468,6 +1487,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"external-secrets-operator\",pod=~\"external-secrets-operator-webhook-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -1600,6 +1620,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"image-controller\",pod=~\"image-controller-controller-manager-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -1624,6 +1645,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"image-controller\",pod=~\"image-controller-controller-manager-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -1756,6 +1778,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"image-rbac-proxy\",pod=~\"dex-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -1780,6 +1803,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"image-rbac-proxy\",pod=~\"dex-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -1912,6 +1936,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"image-rbac-proxy\",pod=~\"image-rbac-proxy-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -1936,6 +1961,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"image-rbac-proxy\",pod=~\"image-rbac-proxy-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -2068,6 +2094,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"integration-service\",pod=~\"integration-service-controller-manager-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -2092,6 +2119,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"integration-service\",pod=~\"integration-service-controller-manager-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -2224,6 +2252,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"knative-eventing\",pod=~\"eventing-controller-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -2248,6 +2277,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"knative-eventing\",pod=~\"eventing-controller-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -2380,6 +2410,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"knative-eventing\",pod=~\"eventing-webhook-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -2404,6 +2435,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"knative-eventing\",pod=~\"eventing-webhook-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -2536,6 +2568,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"knative-eventing\",pod=~\"imc-controller-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -2560,6 +2593,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"knative-eventing\",pod=~\"imc-controller-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -2692,6 +2726,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"knative-eventing\",pod=~\"imc-dispatcher-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -2716,6 +2751,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"knative-eventing\",pod=~\"imc-dispatcher-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -2848,6 +2884,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"knative-eventing\",pod=~\"job-sink-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -2872,6 +2909,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"knative-eventing\",pod=~\"job-sink-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -3004,6 +3042,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"knative-eventing\",pod=~\"mt-broker-controller-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -3028,6 +3067,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"knative-eventing\",pod=~\"mt-broker-controller-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -3160,6 +3200,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"knative-eventing\",pod=~\"mt-broker-filter-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -3184,6 +3225,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"knative-eventing\",pod=~\"mt-broker-filter-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -3316,6 +3358,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"knative-eventing\",pod=~\"mt-broker-ingress-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -3340,6 +3383,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"knative-eventing\",pod=~\"mt-broker-ingress-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -3472,6 +3516,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"konflux-kite\",pod=~\"konflux-kite-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -3496,6 +3541,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"konflux-kite\",pod=~\"konflux-kite-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -3628,6 +3674,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"konflux-kyverno\",pod=~\"kyverno-admission-controller-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -3652,6 +3699,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"konflux-kyverno\",pod=~\"kyverno-admission-controller-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -3784,6 +3832,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"konflux-kyverno\",pod=~\"kyverno-background-controller-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -3808,6 +3857,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"konflux-kyverno\",pod=~\"kyverno-background-controller-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -3940,6 +3990,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"konflux-kyverno\",pod=~\"kyverno-cleanup-controller-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -3964,6 +4015,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"konflux-kyverno\",pod=~\"kyverno-cleanup-controller-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -4096,6 +4148,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"konflux-otel\",pod=~\"open-telemetry-opentelemetry-collector-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -4120,6 +4173,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"konflux-otel\",pod=~\"open-telemetry-opentelemetry-collector-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -4252,6 +4306,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"konflux-ui\",pod=~\"dex-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -4276,6 +4331,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"konflux-ui\",pod=~\"dex-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -4408,6 +4464,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"konflux-ui\",pod=~\"proxy-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -4432,6 +4489,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"konflux-ui\",pod=~\"proxy-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -4564,6 +4622,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"mintmaker\",pod=~\"mintmaker-controller-manager-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -4588,6 +4647,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"mintmaker\",pod=~\"mintmaker-controller-manager-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -4720,6 +4780,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"multi-platform-controller\",pod=~\"multi-platform-controller-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -4744,6 +4805,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"multi-platform-controller\",pod=~\"multi-platform-controller-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -4876,6 +4938,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"multi-platform-controller\",pod=~\"multi-platform-otp-server-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -4900,6 +4963,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"multi-platform-controller\",pod=~\"multi-platform-otp-server-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -5032,6 +5096,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"namespace-lister\",pod=~\"namespace-lister-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -5056,6 +5121,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"namespace-lister\",pod=~\"namespace-lister-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
@@ -5188,6 +5254,7 @@
             "uid": "$datasource"
           },
           "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"notification-controller\",pod=~\"notification-controller-controller-manager-[0-9a-z-]+\"}[$__rate_interval]))",
+          "interval": "15s",
           "legendFormat": "{{pod}}"
         },
         {
@@ -5212,6 +5279,7 @@
             "uid": "$datasource"
           },
           "expr": "avg_over_time(sum by (pod) (avg(rate(container_cpu_usage_seconds_total{namespace=\"notification-controller\",pod=~\"notification-controller-controller-manager-[0-9a-z-]+\"}[$__rate_interval])))[24h:])",
+          "interval": "15s",
           "legendFormat": "24h AVG"
         }
       ],
